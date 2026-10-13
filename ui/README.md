@@ -29,7 +29,45 @@ Open `http://localhost:4200/`. The development server reloads when source files 
 - Open the clearly labelled Markdown demo session to preview assistant bubbles and formatting.
 
 This is a frontend-only preview: sending adds a user message but does not request or simulate an AI
-reply. Sessions, drafts, and prompt changes are held in memory and reset when the page reloads.
+reply. Sessions, drafts, the active selection, and prompt changes are saved in this browser and
+restored when the page reloads. Sidebar visibility and unsaved Settings editor changes are transient.
+
+## Local storage
+
+`ChatState` hydrates its Angular signals synchronously at startup. The UI reads these signals and
+updates them through state methods; one Angular effect persists changes to the localStorage key
+`ls-assistants.chat-state`.
+
+The saved record contains:
+
+```json
+{
+  "version": 1,
+  "sessions": [],
+  "systemPrompts": [],
+  "drafts": {}
+}
+```
+
+Each entry in `sessions`:
+
+- `id`, `title`, and `type` identify the session; `selected` restores the active session.
+- `items` contain `id`, `time`, `role`, `msg`, `type: "Message"`, and optional `status`.
+  Assistant messages use `role: "ai"` in storage and `assistant` in the UI. Raw Markdown is stored,
+  not rendered HTML. Existing timestamps/statuses are preserved, and new user messages get ISO timestamps.
+- `selectedSystemPromptId`, `systemPromptSnapshot`, and `systemPromptLocked` preserve prompt selection.
+  A locked snapshot remains unchanged even if its catalogue entry is edited or deleted.
+- Unsent drafts are stored separately by session ID, so they do not change the example's session format.
+
+The reader also accepts a single example-shaped session or an array of sessions under the same key.
+Saved data is validated before hydration. Missing data creates the initial empty/demo sessions;
+restored histories are not reseeded. Invalid or unsupported records are left untouched instead of
+being overwritten. Blocked storage or quota errors leave the UI usable in memory; a console warning
+reports the problem, with no additional UI banners.
+
+Storage is local to this browser profile and origin, unencrypted, and not synchronized across tabs
+or devices. Avoid storing secrets; multiple open tabs can overwrite each other's changes. Removing
+only `ls-assistants.chat-state` from browser storage resets this application's data on the next reload.
 
 ## Build, test, and scaffold
 

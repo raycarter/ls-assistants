@@ -1,14 +1,21 @@
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { ChatState } from './chat-state';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { CHAT_STORAGE, ChatState, type ChatStorage } from './chat-state';
 import type { ChatSession, PromptDraft } from './chat.models';
 
 describe('ChatState', () => {
   let state: ChatState;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [ChatState] });
+    const storage: ChatStorage = { getItem: () => null, setItem: () => {} };
+    TestBed.configureTestingModule({
+      providers: [ChatState, { provide: CHAT_STORAGE, useValue: storage }],
+    });
     state = TestBed.inject(ChatState);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
   });
 
   function session(id: string): ChatSession {
@@ -184,12 +191,22 @@ describe('ChatState', () => {
         .sessions()
         .filter((entry) => entry.id !== state.activeSessionId());
       state.updateDraft(' \n Hello   world!\nSecond line \t ');
+      const beforeSend = Date.now();
 
       expect(state.sendMessage()).toBe(true);
 
       expect(state.activeSession().messages).toEqual([
-        { id: expect.any(String), role: 'user', content: 'Hello   world!\nSecond line' },
+        {
+          id: expect.any(String),
+          role: 'user',
+          content: 'Hello   world!\nSecond line',
+          time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        },
       ]);
+      const time = state.activeSession().messages[0].time!;
+      expect(new Date(time).toISOString()).toBe(time);
+      expect(Date.parse(time)).toBeGreaterThanOrEqual(beforeSend);
+      expect(Date.parse(time)).toBeLessThanOrEqual(Date.now());
       expect(state.activeSession().draft).toBe('');
       expect(state.activeSession().title).toBe('Hello world! Second line');
       for (const other of otherSessions) expect(session(other.id)).toBe(other);

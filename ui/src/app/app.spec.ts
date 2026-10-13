@@ -6,7 +6,8 @@ import {
 } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
-import { ChatState } from './chat-state';
+import { CHAT_STORAGE, CHAT_STORAGE_KEY, ChatState, type ChatStorage } from './chat-state';
+import type { StoredSession, SystemPrompt } from './chat.models';
 
 describe('App', () => {
   let fixture: ComponentFixture<App>;
@@ -68,14 +69,34 @@ describe('App', () => {
     });
   }
 
-  async function renderApp(deferBlockBehavior = DeferBlockBehavior.Playthrough): Promise<void> {
+  function memoryStorage(raw?: string): ChatStorage {
+    const records = new Map<string, string>();
+    if (raw !== undefined) records.set(CHAT_STORAGE_KEY, raw);
+    return {
+      getItem: (key) => records.get(key) ?? null,
+      setItem: (key, value) => {
+        records.set(key, value);
+      },
+    };
+  }
+
+  async function renderApp(
+    deferBlockBehavior = DeferBlockBehavior.Playthrough,
+    storage: ChatStorage | null = memoryStorage(),
+  ): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [App],
+      providers: [{ provide: CHAT_STORAGE, useValue: storage }],
       deferBlockBehavior,
     }).compileComponents();
     fixture = TestBed.createComponent(App);
     state = TestBed.inject(ChatState);
     await settle();
+  }
+
+  async function setStorage(storage: ChatStorage | null): Promise<void> {
+    TestBed.resetTestingModule();
+    await renderApp(DeferBlockBehavior.Playthrough, storage);
   }
 
   function root(): HTMLElement {
@@ -204,6 +225,188 @@ describe('App', () => {
     expect(sessionButton(state.activeSessionId()).getAttribute('aria-current')).toBe('true');
     expect(promptButtons().every((candidate) => !candidate.disabled)).toBe(true);
     expectSelectedPrompt(null);
+  });
+
+  describe('storage hydration and memory-only UI', () => {
+    const importedPrompt: SystemPrompt = {
+      id: 'synthetic-imported-prompt',
+      title: 'Synthetic Markdown helper 🧪',
+      content: 'Keep synthetic examples clear.\n保留 Markdown。',
+    };
+
+    function exampleSession(): StoredSession {
+      return {
+        id: 'synthetic-imported-session',
+        title: 'Synthetic saved conversation 世界',
+        type: 'Agent',
+        selected: true,
+        selectedSystemPromptId: importedPrompt.id,
+        systemPromptSnapshot: { ...importedPrompt },
+        systemPromptLocked: true,
+        items: [
+          {
+            id: 'synthetic-question',
+            time: '2026-01-02T03:04:05.000Z',
+            role: 'user',
+            msg: 'Show a **synthetic** example.',
+            type: 'Message',
+          },
+          {
+            id: 'synthetic-answer',
+            time: '2026-01-02T03:04:06.000Z',
+            role: 'ai',
+            msg: '## Saved answer 世界\n\nA **clear example** with `savedCode()`.\n\n- 合成 🌱',
+            type: 'Message',
+            status: 'complete',
+          },
+        ],
+      };
+    }
+
+    it.each(['bare session', 'bare array', 'v1 envelope'] as const)(
+      'hydrates %s into AI Markdown and a single checkmarked locked prompt',
+      async (format) => {
+        const saved = exampleSession();
+        const other: StoredSession = {
+          ...saved,
+          id: 'synthetic-other-session',
+          title: 'Another synthetic session',
+          items: [],
+          selected: false,
+          selectedSystemPromptId: null,
+          systemPromptSnapshot: null,
+          systemPromptLocked: false,
+        };
+        const data =
+          format === 'bare session'
+            ? saved
+            : format === 'bare array'
+              ? [other, saved]
+              : {
+                  version: 1,
+                  sessions: [other, saved],
+                  systemPrompts: [importedPrompt],
+                  drafts: { [saved.id]: ' Saved draft\n未发送 🌱 ' },
+                };
+        const storage = memoryStorage(JSON.stringify(data));
+
+        await setStorage(storage);
+
+        expect(state.activeSessionId()).toBe(saved.id);
+        expect(state.sessions().some((session) => session.id === 'markdown-demo')).toBe(false);
+        expect(elements('button[aria-current="true"]')).toEqual([sessionButton(saved.id)]);
+        expect(element('[aria-label="Current interactive mode"]').textContent).toBe('Agent');
+        expectSelectedPrompt(importedPrompt.id);
+        expect(promptButtons().every((candidate) => candidate.disabled)).toBe(true);
+        expect(element('p[title]', promptSection()).textContent).toContain(importedPrompt.title);
+        const articles = elements('[role="log"] article');
+        expect(articles).toHaveLength(2);
+        expect(element('p:first-child', articles[0]).textContent?.trim()).toBe('User');
+        expect(element('p:first-child', articles[1]).textContent?.trim()).toBe(
+          importedPrompt.title,
+        );
+        expect(articles[0].classList.contains('items-end')).toBe(true);
+        expect(articles[1].classList.contains('items-start')).toBe(true);
+        expect(element('h2', articles[1]).textContent).toBe('Saved answer 世界');
+        expect(element('strong', articles[1]).textContent).toBe('clear example');
+        expect(element('code', articles[1]).textContent).toBe('savedCode()');
+        expect(element('li', articles[1]).textContent).toBe('合成 🌱');
+        expect(state.activeSession().messages[1]).toEqual({
+          id: 'synthetic-answer',
+          role: 'assistant',
+          content: saved.items[1].msg,
+          time: saved.items[1].time,
+          status: 'complete',
+        });
+        expect(element<HTMLTextAreaElement>('#message-input').value).toBe(
+          format === 'v1 envelope' ? ' Saved draft\n未发送 🌱 ' : '',
+        );
+
+        TestBed.tick();
+        const persisted = JSON.parse(storage.getItem(CHAT_STORAGE_KEY)!);
+        expect(persisted.version).toBe(1);
+        expect(persisted.sessions.filter((session: StoredSession) => session.selected)).toEqual([
+          saved,
+        ]);
+      },
+    );
+
+    function expectNoStorageBanner(): void {
+      expect(root().querySelector('[role="alert"], [role="status"]')).toBeNull();
+      expect(root().textContent).not.toMatch(
+        /storage|quota|could not be saved|changes remain in memory/i,
+      );
+      const error = state.persistenceError();
+      if (error) expect(root().textContent).not.toContain(error);
+    }
+
+    it.each<{ name: string; storage: () => ChatStorage | null }>([
+      { name: 'malformed JSON', storage: () => memoryStorage('{"synthetic":') },
+      {
+        name: 'invalid schema',
+        storage: () => memoryStorage('{"version":1,"sessions":{},"systemPrompts":[],"drafts":{}}'),
+      },
+      {
+        name: 'future version',
+        storage: () => memoryStorage('{"version":99,"sessions":[],"systemPrompts":[],"drafts":{}}'),
+      },
+      {
+        name: 'read security failure',
+        storage: () => ({
+          getItem: () => {
+            throw new DOMException('Synthetic protected storage', 'SecurityError');
+          },
+          setItem: vi.fn(),
+        }),
+      },
+      {
+        name: 'write quota failure',
+        storage: () => ({
+          getItem: () => null,
+          setItem: () => {
+            throw new DOMException('Synthetic full storage', 'QuotaExceededError');
+          },
+        }),
+      },
+      { name: 'unavailable storage', storage: () => null },
+    ])('keeps the UI functional without banners on $name', async ({ storage }) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await setStorage(storage());
+      expect(state.persistenceError()).not.toBeNull();
+      expectNoStorageBanner();
+      const firstId = state.activeSessionId();
+      const prompt = state.prompts()[0];
+
+      await click(promptButton(prompt.id));
+      await fill('#message-input', '# Synthetic in-memory message 世界');
+      await clickButton('Send');
+      await fill('#message-input', ' Retained synthetic draft\n🌱 ');
+
+      expect(element('[role="log"] article h1').textContent).toBe(
+        'Synthetic in-memory message 世界',
+      );
+      expect(state.activeSession().prompt).toEqual(prompt);
+      expect(state.activeSession().promptLocked).toBe(true);
+      expectSelectedPrompt(prompt.id);
+      expectNoStorageBanner();
+
+      await clickButton('New session', element('aside'));
+      const newId = state.activeSessionId();
+      await fill('#message-input', 'Independent synthetic draft');
+      await click(sessionButton(firstId));
+
+      expect(state.activeSession().messages).toHaveLength(1);
+      expect(element<HTMLTextAreaElement>('#message-input').value).toBe(
+        ' Retained synthetic draft\n🌱 ',
+      );
+      await click(deleteSessionButton(newId));
+      expect(state.activeSessionId()).toBe(firstId);
+      expect(state.sessions().some((session) => session.id === newId)).toBe(false);
+      expectNoStorageBanner();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('Synthetic in-memory message');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('Retained synthetic draft');
+    });
   });
 
   describe('sidebar sessions', () => {
@@ -462,7 +665,12 @@ describe('App', () => {
         }
 
         expect(state.activeSession().messages).toEqual([
-          { id: expect.any(String), role: 'user', content: 'First  message.\nSecond line' },
+          {
+            id: expect.any(String),
+            role: 'user',
+            content: 'First  message.\nSecond line',
+            time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          },
         ]);
         expect(state.activeSession().draft).toBe('');
         expect(state.activeSession().title).toBe('First message. Second line');
