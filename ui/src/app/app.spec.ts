@@ -7,7 +7,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
 import { CHAT_STORAGE, CHAT_STORAGE_KEY, ChatState, type ChatStorage } from './chat-state';
-import type { StoredSession, SystemPrompt } from './chat.models';
+import type { ChatSession, StoredSession, SystemPrompt } from './chat.models';
 
 describe('App', () => {
   let fixture: ComponentFixture<App>;
@@ -77,6 +77,40 @@ describe('App', () => {
       setItem: (key, value) => {
         records.set(key, value);
       },
+    };
+  }
+
+  function syntheticConversation(): ChatSession {
+    return {
+      id: 'synthetic-conversation',
+      title: 'Synthetic conversation',
+      mode: 'chat',
+      messages: [
+        {
+          id: 'synthetic-question',
+          role: 'user',
+          content: 'Show a **synthetic** Markdown example.',
+        },
+        {
+          id: 'synthetic-answer',
+          role: 'assistant',
+          content: [
+            '## Synthetic Markdown example',
+            '',
+            'A **synthetic answer** with formatted content.',
+            '',
+            '- A list item with `inline code`',
+            '',
+            '```typescript',
+            'const message = "Synthetic answer";',
+            'console.log(message);',
+            '```',
+          ].join('\n'),
+        },
+      ],
+      draft: '',
+      prompt: null,
+      promptLocked: true,
     };
   }
 
@@ -221,7 +255,7 @@ describe('App', () => {
     expect(elements('[role="log"] article')).toHaveLength(0);
     expect(element('[aria-label="Current interactive mode"]').textContent).toBe('Chat');
     expect(button('Send').disabled).toBe(true);
-    expect(historyRows()).toHaveLength(state.sessions().length);
+    expect(historyRows()).toHaveLength(1);
     expect(sessionButton(state.activeSessionId()).getAttribute('aria-current')).toBe('true');
     expect(promptButtons().every((candidate) => !candidate.disabled)).toBe(true);
     expectSelectedPrompt(null);
@@ -293,7 +327,9 @@ describe('App', () => {
         await setStorage(storage);
 
         expect(state.activeSessionId()).toBe(saved.id);
-        expect(state.sessions().some((session) => session.id === 'markdown-demo')).toBe(false);
+        expect(state.sessions().map((session) => session.id)).toEqual(
+          format === 'bare session' ? [saved.id] : [other.id, saved.id],
+        );
         expect(elements('button[aria-current="true"]')).toEqual([sessionButton(saved.id)]);
         expect(element('[aria-label="Current interactive mode"]').textContent).toBe('Agent');
         expectSelectedPrompt(importedPrompt.id);
@@ -470,8 +506,6 @@ describe('App', () => {
 
     it('retains one fresh session after the final history entry is deleted', async () => {
       const originalId = state.activeSessionId();
-      const otherId = state.sessions().find((session) => session.id !== originalId)!.id;
-      await click(deleteSessionButton(otherId));
       await click(promptButton(state.prompts()[0].id));
       await fill('#message-input', 'Delete this conversation');
       await clickButton('Send');
@@ -612,6 +646,7 @@ describe('App', () => {
     );
 
     it('keeps focus in the drawer when a focused session delete button is removed', async () => {
+      await clickButton('New session', element('aside'));
       await clickButton('Open sidebar');
 
       for (const session of [...state.sessions()]) {
@@ -1164,8 +1199,10 @@ describe('App', () => {
   });
 
   it('aligns user messages only to the end and assistant messages only to the start', async () => {
-    const demo = state.sessions().find((session) => session.title === 'Markdown preview (demo)')!;
-    await click(sessionButton(demo.id));
+    const conversation = syntheticConversation();
+    state.sessions.update((sessions) => [...sessions, conversation]);
+    await settle();
+    await click(sessionButton(conversation.id));
     await fill('#message-input', 'Another user message');
     await clickButton('Send');
     const articles = elements('[role="log"] article');
@@ -1180,15 +1217,17 @@ describe('App', () => {
   });
 
   describe('Markdown through Angular bindings', () => {
-    it('renders the separate demo conversation with real heading, emphasis and code elements', async () => {
-      const demo = state.sessions().find((session) => session.title === 'Markdown preview (demo)')!;
+    it('renders a synthetic conversation with real heading, emphasis and code elements', async () => {
+      const conversation = syntheticConversation();
+      state.sessions.update((sessions) => [...sessions, conversation]);
+      await settle();
 
-      await click(sessionButton(demo.id));
+      await click(sessionButton(conversation.id));
 
       expect(elements('[role="log"] article')).toHaveLength(2);
-      expect(element('[role="log"] h2').textContent).toBe('Markdown preview');
+      expect(element('[role="log"] h2').textContent).toBe('Synthetic Markdown example');
       expect(
-        elements('[role="log"] strong').some((strong) => strong.textContent === 'local demo'),
+        elements('[role="log"] strong').some((strong) => strong.textContent === 'synthetic answer'),
       ).toBe(true);
       expect(element('[role="log"] li code').textContent).toBe('inline code');
       expect(element('[role="log"] pre > code').textContent).toContain('console.log(message);');

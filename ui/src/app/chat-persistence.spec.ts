@@ -173,6 +173,33 @@ describe('ChatState storage integration', () => {
     }
   }
 
+  it('initializes and persists only one empty session when storage has no saved history', () => {
+    const state = createState();
+    expect(state.sessions()).toEqual([
+      {
+        id: 'initial-session',
+        title: 'New session',
+        mode: 'chat',
+        messages: [],
+        draft: '',
+        prompt: null,
+        promptLocked: false,
+      },
+    ]);
+    expect(state.activeSessionId()).toBe('initial-session');
+    const expected = snapshotOf(state);
+    TestBed.tick();
+
+    expect(storedState().sessions).toHaveLength(1);
+    expect(storedState().sessions[0]).toMatchObject({
+      id: 'initial-session',
+      selected: true,
+      items: [],
+    });
+    expect(snapshotOf(recreateState())).toEqual(expected);
+    expectOnlyChatKeyWritten();
+  });
+
   it('writes the exact example-shaped fields after signal changes and an effect flush', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-04-05T06:07:08.009Z'));
@@ -449,11 +476,13 @@ describe('ChatState storage integration', () => {
     });
   });
 
-  it('does not reseed a deleted demo or replace the saved final-session fallback on recreation', () => {
+  it('does not restore a deleted session or replace the saved final-session fallback on recreation', () => {
     let state = createState();
     const originalId = state.activeSessionId();
-    expect(state.sessions().some((session) => session.id === 'markdown-demo')).toBe(true);
-    state.deleteSession('markdown-demo');
+    state.newSession();
+    const deletedId = state.activeSessionId();
+    state.selectSession(originalId);
+    state.deleteSession(deletedId);
     TestBed.tick();
 
     state = recreateState();
@@ -461,6 +490,7 @@ describe('ChatState storage integration', () => {
     expect(state.activeSession().messages).toEqual([]);
     state.deleteSession(originalId);
     const replacementId = state.activeSessionId();
+    expect(replacementId).not.toBe(originalId);
     TestBed.tick();
 
     state = recreateState();
@@ -473,11 +503,10 @@ describe('ChatState storage integration', () => {
       prompt: null,
       promptLocked: false,
     });
-    expect(state.sessions().some((session) => session.id === 'markdown-demo')).toBe(false);
   });
 
   it.each(['v1 envelope', 'bare array'] as const)(
-    'creates one blank session from valid empty %s without adding a demo',
+    'creates one blank session from valid empty %s',
     (format) => {
       storage.records.set(
         CHAT_STORAGE_KEY,

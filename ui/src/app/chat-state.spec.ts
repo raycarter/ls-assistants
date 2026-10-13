@@ -49,18 +49,20 @@ describe('ChatState', () => {
   }
 
   describe('session history and drafts', () => {
-    it('starts in an empty unlocked chat, with the Markdown demo kept in a separate session', () => {
-      expect(state.activeSession()).toMatchObject({
-        title: 'New session',
-        mode: 'chat',
-        messages: [],
-        draft: '',
-        prompt: null,
-        promptLocked: false,
-      });
-      const demo = state.sessions().find((entry) => entry.id !== state.activeSessionId());
-      expect(demo).toMatchObject({ title: 'Markdown preview (demo)', promptLocked: true });
-      expect(demo?.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+    it('starts with exactly one empty unlocked chat session', () => {
+      expect(state.activeSessionId()).toBe('initial-session');
+      expect(state.sessions()).toEqual([
+        {
+          id: 'initial-session',
+          title: 'New session',
+          mode: 'chat',
+          messages: [],
+          draft: '',
+          prompt: null,
+          promptLocked: false,
+        },
+      ]);
+      expect(state.activeSession()).toBe(state.sessions()[0]);
     });
 
     it('prepends and activates a fresh session without changing the previous session', () => {
@@ -138,9 +140,6 @@ describe('ChatState', () => {
     });
 
     it('replaces the last deleted session with one empty, unlocked session', () => {
-      for (const entry of [...state.sessions()]) {
-        if (entry.id !== state.activeSessionId()) state.deleteSession(entry.id);
-      }
       state.selectPrompt(state.prompts()[0].id);
       state.updateDraft('A message in the session being deleted');
       state.sendMessage();
@@ -187,9 +186,11 @@ describe('ChatState', () => {
     });
 
     it('appends exactly one trimmed user message, clears the draft and derives the first-message title', () => {
-      const otherSessions = state
-        .sessions()
-        .filter((entry) => entry.id !== state.activeSessionId());
+      state.selectPrompt(state.prompts()[0].id);
+      state.updateDraft('Keep this separate conversation');
+      state.sendMessage();
+      const otherSession = state.activeSession();
+      state.newSession();
       state.updateDraft(' \n Hello   world!\nSecond line \t ');
       const beforeSend = Date.now();
 
@@ -209,7 +210,7 @@ describe('ChatState', () => {
       expect(Date.parse(time)).toBeLessThanOrEqual(Date.now());
       expect(state.activeSession().draft).toBe('');
       expect(state.activeSession().title).toBe('Hello world! Second line');
-      for (const other of otherSessions) expect(session(other.id)).toBe(other);
+      expect(session(otherSession.id)).toBe(otherSession);
 
       expect(state.sendMessage()).toBe(false);
       expect(state.activeSession().messages).toHaveLength(1);
@@ -248,15 +249,27 @@ describe('ChatState', () => {
       expect(state.activeSession().draft).toBe('');
     });
 
-    it('can append to the demo without replacing its title or adding another assistant response', () => {
-      const demo = state.sessions().find((entry) => entry.title === 'Markdown preview (demo)')!;
-      state.selectSession(demo.id);
-      state.updateDraft('Follow-up to the local demo');
+    it('can append to an existing conversation without replacing its title or adding another assistant response', () => {
+      const conversation: ChatSession = {
+        id: 'synthetic-conversation',
+        title: 'Synthetic conversation',
+        mode: 'chat',
+        messages: [
+          { id: 'synthetic-question', role: 'user', content: 'A synthetic question.' },
+          { id: 'synthetic-answer', role: 'assistant', content: 'A synthetic answer.' },
+        ],
+        draft: '',
+        prompt: null,
+        promptLocked: true,
+      };
+      state.sessions.update((sessions) => [...sessions, conversation]);
+      state.selectSession(conversation.id);
+      state.updateDraft('Follow-up to the synthetic conversation');
 
       state.sendMessage();
 
-      expect(state.activeSession().title).toBe(demo.title);
-      expect(state.activeSession().messages.slice(0, 2)).toEqual(demo.messages);
+      expect(state.activeSession().title).toBe(conversation.title);
+      expect(state.activeSession().messages.slice(0, 2)).toEqual(conversation.messages);
       expect(state.activeSession().messages.map((message) => message.role)).toEqual([
         'user',
         'assistant',

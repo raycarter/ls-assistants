@@ -87,7 +87,11 @@ describe('encodeChatState', () => {
 
   it.each<{ message: ChatMessage; time: string; status?: string }>([
     {
-      message: { id: 'demo-answer', role: 'assistant', content: 'Demo' },
+      message: {
+        id: 'synthetic-assistant-message',
+        role: 'assistant',
+        content: 'Synthetic answer',
+      },
       time: '',
       status: 'complete',
     },

@@ -26,7 +26,6 @@ Open `http://localhost:4200/`. The development server reloads when source files 
 - Open Settings to select, add, edit, or delete system prompts.
 - Send messages with the Send button or Enter; Shift + Enter inserts a new line.
 - Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
-- Open the clearly labelled Markdown demo session to preview assistant bubbles and formatting.
 
 This is a frontend-only preview: sending adds a user message but does not request or simulate an AI
 reply. Sessions, drafts, the active selection, and prompt changes are saved in this browser and
@@ -60,7 +59,7 @@ Each entry in `sessions`:
 - Unsent drafts are stored separately by session ID, so they do not change the example's session format.
 
 The reader also accepts a single example-shaped session or an array of sessions under the same key.
-Saved data is validated before hydration. Missing data creates the initial empty/demo sessions;
+Saved data is validated before hydration. Missing data creates one empty session;
 restored histories are not reseeded. Invalid or unsupported records are left untouched instead of
 being overwritten. Blocked storage or quota errors leave the UI usable in memory; a console warning
 reports the problem, with no additional UI banners.

@@ -48,52 +48,10 @@ function emptySession(id: string): ChatSession {
   };
 }
 
-function demoSession(): ChatSession {
-  return {
-    ...emptySession('markdown-demo'),
-    title: 'Markdown preview (demo)',
-    prompt: { ...INITIAL_PROMPTS[0] },
-    promptLocked: true,
-    messages: [
-      {
-        id: 'demo-question',
-        role: 'user',
-        content: 'Show me a **Markdown** example with a list, a table, and some code.',
-      },
-      {
-        id: 'demo-answer',
-        role: 'assistant',
-        content: [
-          '## Markdown preview',
-          '',
-          'This is a **local demo**, not a live AI response.',
-          '',
-          '- **Bold**, *italic*, and `inline code`',
-          '- Lists, links, and fenced code blocks',
-          '',
-          '> Choose a system prompt before sending the first message in a new session.',
-          '',
-          '| Action | Keyboard shortcut |',
-          '| --- | --- |',
-          '| Send a message | Enter |',
-          '| Add a new line | Shift + Enter |',
-          '',
-          '```typescript',
-          'const message = "Hello, assistant!";',
-          'console.log(message);',
-          '```',
-          '',
-          'Learn more about [Markdown](https://www.markdownguide.org/).',
-        ].join('\n'),
-      },
-    ],
-  };
-}
-
 function initialSnapshot(): ChatSnapshot {
   return {
     prompts: INITIAL_PROMPTS.map((prompt) => ({ ...prompt })),
-    sessions: [emptySession('initial-session'), demoSession()],
+    sessions: [emptySession('initial-session')],
     activeSessionId: 'initial-session',
   };
 }
