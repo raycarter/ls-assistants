@@ -18,6 +18,19 @@ npm start
 
 Open `http://localhost:4200/`. The development server reloads when source files change.
 
+## First-pass interface
+
+- Create, switch, and delete sessions in the sidebar; unfinished drafts stay with their session.
+- Select a system prompt before the first message. That message locks a snapshot of the prompt for
+  the session, so later catalogue edits or deletions do not change started sessions.
+- Open Settings to select, add, edit, or delete system prompts.
+- Send messages with the Send button or Enter; Shift + Enter inserts a new line.
+- Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
+- Open the clearly labelled Markdown demo session to preview assistant bubbles and formatting.
+
+This is a frontend-only preview: sending adds a user message but does not request or simulate an AI
+reply. Sessions, drafts, and prompt changes are held in memory and reset when the page reloads.
+
 ## Build, test, and scaffold
 
 ```bash
@@ -39,5 +52,5 @@ Tailwind's PostCSS integration is configured in `.postcssrc.json`. Global styles
 Initialize Flowbite's JavaScript after the affected Angular views render when adding interactive
 components; its CSS plugin alone does not initialize dropdowns or modals.
 
-When implementing Markdown rendering, sanitize the generated HTML with DOMPurify before displaying it.
-Do not treat `marked` output as trusted HTML.
+Markdown rendering parses with `marked`, highlights code with `highlight.js`, then sanitizes the
+final HTML with DOMPurify before Angular displays it. It does not bypass Angular's HTML sanitization.

@@ -1,0 +1,290 @@
+<dialog
+  #dialog
+  aria-labelledby="settings-dialog-title"
+  class="m-auto h-[min(90dvh,60rem)] max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-6xl overflow-hidden rounded-xl border border-gray-700 bg-[#111827] p-0 text-gray-100 shadow-2xl"
+  (cancel)="onCancel($event)"
+  (close)="onNativeClose()"
+  (click)="onBackdropClick($event)"
+>
+  <div class="flex h-full min-h-0 flex-col">
+    <header
+      class="flex shrink-0 items-center justify-between gap-4 border-b border-gray-700 px-5 py-5 md:px-8 md:py-6"
+    >
+      <h1 id="settings-dialog-title" class="text-3xl font-semibold">Settings</h1>
+      <button
+        type="button"
+        autofocus
+        aria-label="Close settings"
+        class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        (click)="closeDialog()"
+      >
+        <svg
+          aria-hidden="true"
+          class="h-7 w-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </header>
+
+    <div
+      class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain md:flex-row md:overflow-hidden"
+    >
+      <nav
+        aria-label="Settings sections"
+        class="shrink-0 border-b border-gray-700 bg-[#030712] p-4 md:w-60 md:border-r md:border-b-0 md:py-6 lg:w-64"
+      >
+        <h2 class="mb-3 px-3 text-sm font-semibold tracking-wide text-gray-400 uppercase">
+          Sections
+        </h2>
+        <button
+          type="button"
+          aria-current="page"
+          class="flex w-full items-center gap-3 rounded-xl bg-blue-950 px-4 py-4 text-left font-semibold text-blue-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+          (click)="focusSection()"
+        >
+          <svg
+            aria-hidden="true"
+            class="h-6 w-6 shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 6h9m5 0h4M3 12h3m5 0h10M3 18h9m5 0h4M14 3v6M8 9v6m6 0v6" />
+          </svg>
+          System prompts
+        </button>
+      </nav>
+
+      <section
+        aria-labelledby="settings-system-prompts"
+        class="flex min-w-0 shrink-0 flex-col gap-6 px-5 py-6 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:px-8 md:py-8"
+      >
+        <div>
+          <h2
+            #sectionHeading
+            id="settings-system-prompts"
+            tabindex="-1"
+            class="text-2xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400 md:text-3xl"
+          >
+            System prompts
+          </h2>
+          <p class="mt-2 text-sm leading-relaxed text-gray-400 md:text-base">
+            Select a prompt before sending the first message in a chat.
+          </p>
+        </div>
+
+        <div
+          role="status"
+          aria-live="polite"
+          class="rounded-lg border px-5 py-4"
+          [class.border-amber-600]="promptLocked()"
+          [class.bg-amber-950]="promptLocked()"
+          [class.text-amber-200]="promptLocked()"
+          [class.border-blue-800]="!promptLocked()"
+          [class.bg-blue-950]="!promptLocked()"
+          [class.text-blue-200]="!promptLocked()"
+        >
+          <p class="font-semibold">
+            {{ promptLocked() ? 'Locked for this chat' : 'Selected for this chat' }}
+          </p>
+          <p class="mt-1 break-words">{{ selectedPrompt()?.title ?? 'No system prompt' }}</p>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <h3 class="text-xl font-semibold">
+            Available prompts
+            <span class="ml-1 font-normal text-gray-400">({{ prompts().length }})</span>
+          </h3>
+          <button
+            #addPromptButton
+            type="button"
+            class="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+            (click)="addPrompt(addPromptButton)"
+          >
+            Add system prompt
+          </button>
+        </div>
+
+        @if (editor(); as draft) {
+          <form
+            aria-labelledby="settings-editor-title"
+            novalidate
+            class="shrink-0 rounded-lg border border-gray-600 bg-gray-900 p-5"
+            (ngSubmit)="savePrompt()"
+          >
+            <h3 id="settings-editor-title" class="mb-4 text-xl font-semibold">
+              {{ draft.id === undefined ? 'Add system prompt' : 'Edit system prompt' }}
+            </h3>
+            <div class="mb-4">
+              <label for="settings-prompt-title" class="mb-2 block text-sm font-medium"
+                >Title</label
+              >
+              <input
+                #titleField
+                id="settings-prompt-title"
+                name="title"
+                type="text"
+                required
+                class="block w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2.5 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                [ngModel]="draft.title"
+                (ngModelChange)="updateDraft('title', $event)"
+                [attr.aria-invalid]="submitted() && !draft.title.trim() ? 'true' : null"
+                [attr.aria-describedby]="
+                  submitted() && !draft.title.trim() ? 'settings-title-error' : null
+                "
+              />
+              @if (submitted() && !draft.title.trim()) {
+                <p id="settings-title-error" role="alert" class="mt-2 text-sm text-red-300">
+                  Enter a title.
+                </p>
+              }
+            </div>
+            <div>
+              <label for="settings-prompt-content" class="mb-2 block text-sm font-medium"
+                >Content</label
+              >
+              <textarea
+                #contentField
+                id="settings-prompt-content"
+                name="content"
+                rows="6"
+                required
+                class="block min-h-36 w-full resize-y rounded-lg border border-gray-600 bg-gray-800 px-3 py-2.5 text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                [ngModel]="draft.content"
+                (ngModelChange)="updateDraft('content', $event)"
+                [attr.aria-invalid]="submitted() && !draft.content.trim() ? 'true' : null"
+                [attr.aria-describedby]="
+                  submitted() && !draft.content.trim() ? 'settings-content-error' : null
+                "
+              ></textarea>
+              @if (submitted() && !draft.content.trim()) {
+                <p id="settings-content-error" role="alert" class="mt-2 text-sm text-red-300">
+                  Enter prompt content.
+                </p>
+              }
+            </div>
+            <div class="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                class="rounded-lg border border-gray-600 px-4 py-2.5 font-medium text-gray-200 hover:bg-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                (click)="cancelEditor()"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+              >
+                Save prompt
+              </button>
+            </div>
+          </form>
+        }
+
+        <fieldset
+          aria-describedby="settings-prompt-help"
+          class="min-h-64 min-w-0 flex-1 rounded-lg border border-gray-700"
+        >
+          <legend class="sr-only">Choose a system prompt for this chat</legend>
+          <ul class="divide-y divide-gray-700">
+            <li [class.bg-blue-950]="isSelected(null)">
+              <label
+                class="flex min-h-20 cursor-pointer items-center gap-4 px-4 py-5 has-disabled:cursor-not-allowed md:px-5"
+              >
+                <input
+                  type="radio"
+                  name="settings-system-prompt"
+                  value=""
+                  class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                  [checked]="isSelected(null)"
+                  [disabled]="promptLocked()"
+                  (change)="selectPrompt(null)"
+                />
+                <span class="min-w-0 flex-1 break-words font-semibold">No system prompt</span>
+                @if (isSelected(null)) {
+                  <span
+                    class="shrink-0 rounded-full bg-blue-900 px-3 py-1 text-xs font-semibold text-blue-200"
+                    >Selected</span
+                  >
+                }
+              </label>
+            </li>
+            @for (prompt of prompts(); track prompt.id) {
+              <li
+                class="flex flex-wrap items-center gap-x-2 px-4 md:px-5"
+                [class.bg-blue-950]="isSelected(prompt.id)"
+                (dblclick)="editPrompt(prompt, editButton)"
+              >
+                <label
+                  class="flex min-h-20 w-full min-w-0 cursor-pointer items-center gap-4 py-5 has-disabled:cursor-not-allowed sm:w-auto sm:flex-1"
+                >
+                  <input
+                    type="radio"
+                    name="settings-system-prompt"
+                    [value]="prompt.id"
+                    class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                    [checked]="isSelected(prompt.id)"
+                    [disabled]="promptLocked()"
+                    (change)="selectPrompt(prompt.id)"
+                  />
+                  <span class="min-w-0 flex-1 break-words text-base md:text-lg">{{
+                    prompt.title
+                  }}</span>
+                  @if (isSelected(prompt.id)) {
+                    <span
+                      class="shrink-0 rounded-full bg-blue-900 px-3 py-1 text-xs font-semibold text-blue-200"
+                      >Selected</span
+                    >
+                  }
+                </label>
+                <div
+                  class="ml-auto flex shrink-0 items-center gap-1 py-2"
+                  (dblclick)="$event.stopPropagation()"
+                >
+                  <button
+                    #editButton
+                    type="button"
+                    [attr.aria-label]="'Edit ' + prompt.title"
+                    [title]="'Edit ' + prompt.title"
+                    class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                    (click)="editPrompt(prompt, editButton)"
+                  >
+                    <svg aria-hidden="true" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        d="m16.9 3.3 3.8 3.8-12 12L4 20l.9-4.7 12-12Zm1.4-1.4a2 2 0 0 1 2.8 0l1 1a2 2 0 0 1 0 2.8l-1 1-3.8-3.8 1-1Z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    [attr.aria-label]="'Delete ' + prompt.title"
+                    [title]="'Delete ' + prompt.title"
+                    class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-400 hover:bg-red-950 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+                    (click)="deletePrompt(prompt.id)"
+                  >
+                    <svg aria-hidden="true" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        </fieldset>
+
+        <p id="settings-prompt-help" class="text-sm leading-relaxed text-gray-400">
+          Double-click a prompt to edit it. Editing or deleting a catalogue entry does not change
+          prompts already locked to chats.
+        </p>
+      </section>
+    </div>
+  </div>
+</dialog>

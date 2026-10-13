@@ -1,0 +1,12 @@
+:host {
+  display: contents;
+}
+
+dialog {
+  color-scheme: dark;
+}
+
+dialog::backdrop {
+  background: rgb(3 7 18 / 75%);
+  backdrop-filter: blur(4px);
+}
