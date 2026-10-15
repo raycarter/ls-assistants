@@ -12,6 +12,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChatState } from './chat-state';
+import { ChatTurns } from './chat-turns';
+import { REASONING_EFFORTS } from './chat.models';
 import { MarkdownPipe } from './markdown.pipe';
 import { SettingsDialog } from './settings-dialog';
 
@@ -27,6 +29,16 @@ import { SettingsDialog } from './settings-dialog';
 })
 export class App {
   readonly state = inject(ChatState);
+  readonly turns = inject(ChatTurns);
+  readonly efforts = REASONING_EFFORTS;
+  readonly replyError = computed(() => {
+    const last = this.messages().at(-1);
+    return (
+      this.turns.errors().get(this.state.activeSessionId()) ??
+      last?.error?.message ??
+      (last?.status === 'interrupted' ? 'The reply was interrupted. You can retry.' : null)
+    );
+  });
   readonly settingsOpen = signal(false);
   readonly sidebarOpen = signal(false);
   readonly messages = computed(() => this.state.activeSession().messages);
@@ -44,11 +56,22 @@ export class App {
   private readonly injector = inject(Injector);
 
   constructor() {
-    afterRenderEffect(() => {
+    afterRenderEffect((onCleanup) => {
       this.messages();
       this.messageElements();
       const list = this.messageList()?.nativeElement;
       if (list) list.scrollTop = list.scrollHeight;
+      if (!list || typeof ResizeObserver === 'undefined') return;
+      let alive = true;
+      const observer = new ResizeObserver(() => {
+        if (alive) list.scrollTop = list.scrollHeight;
+      });
+      observer.observe(list);
+      for (const bubble of this.messageElements()) observer.observe(bubble.nativeElement);
+      onCleanup(() => {
+        alive = false;
+        observer.disconnect();
+      });
     });
     afterRenderEffect(() => {
       if (this.sidebarOpen()) this.newSessionButton()?.nativeElement.focus();
@@ -68,7 +91,7 @@ export class App {
   }
 
   deleteSession(id: string): void {
-    this.state.deleteSession(id);
+    this.turns.deleteSession(id);
     this.focusAfterRender(() =>
       this.sidebarOpen() ? this.newSessionButton()?.nativeElement : this.composer()?.nativeElement,
     );
@@ -124,7 +147,7 @@ export class App {
   }
 
   sendMessage(): void {
-    if (this.state.sendMessage()) this.composer()?.nativeElement.focus();
+    if (this.turns.send()) this.composer()?.nativeElement.focus();
   }
 
   onComposerKeydown(event: KeyboardEvent): void {

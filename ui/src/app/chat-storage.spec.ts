@@ -622,3 +622,59 @@ describe('decodeChatState validation', () => {
     expect(() => decode({ ...envelope(), sessions: [storedSession(), bad] })).toThrow(Error);
   });
 });
+
+describe('additive streaming storage metadata', () => {
+  it.each(['low', 'medium', 'high', 'xhigh'] as const)(
+    'roundtrips preference %s, server identity, raw partials and error linkage',
+    (reasoningEffort) => {
+      const source = snapshot();
+      source.sessions[0].model = 'retired-deployment';
+      source.sessions[0].reasoningEffort = reasoningEffort;
+      const reply = source.sessions[0].messages[1];
+      reply.status = 'error';
+      reply.content = '**unfinished 世界';
+      reply.requestId = 'request-id';
+      reply.replyTo = 'm1';
+      reply.error = { code: 'unsupported_reasoning', message: 'Unsupported effort' };
+      const encoded = encodeChatState(source);
+      expect(encoded.sessions[0]).toMatchObject({ model: 'retired-deployment', reasoningEffort });
+      expect(encoded.sessions[0].items[1]).toMatchObject({
+        requestId: 'request-id',
+        replyTo: 'm1',
+        error: reply.error,
+        msg: '**unfinished 世界',
+      });
+      expect(decode(encoded)).toEqual(source);
+      encoded.sessions[0].items[1].error!.message = 'Changed';
+      expect(reply.error.message).toBe('Unsupported effort');
+    },
+  );
+
+  it.each(['bare', 'array', 'v1'])(
+    'accepts additive preferences in %s records without an API catalogue',
+    (format) => {
+      const session = storedSession({ model: 'unavailable', reasoningEffort: 'xhigh' });
+      const value =
+        format === 'bare'
+          ? session
+          : format === 'array'
+            ? [session]
+            : envelope({ sessions: [session] });
+      const decoded = decode(value, [prompt]);
+      expect(decoded.sessions[0]).toMatchObject({ model: 'unavailable', reasoningEffort: 'xhigh' });
+      expect(decoded.sessions[0].messages).toHaveLength(2);
+    },
+  );
+
+  it.each([
+    { model: null },
+    { model: 42 },
+    { model: '' },
+    { reasoningEffort: 'future' },
+    { reasoningEffort: null },
+  ])('does not invalidate history for unusable preference %#', (preference) => {
+    expect(
+      decode({ ...storedSession(), ...preference }, [prompt]).sessions[0].messages,
+    ).toHaveLength(2);
+  });
+});

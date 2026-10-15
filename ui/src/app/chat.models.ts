@@ -16,7 +16,13 @@ export interface ChatMessage {
   content: string;
   time?: string;
   status?: string;
+  requestId?: string;
+  replyTo?: string;
+  error?: { code: string; message: string };
 }
+
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export interface ChatSession {
   id: string;
@@ -26,6 +32,8 @@ export interface ChatSession {
   draft: string;
   prompt: SystemPrompt | null;
   promptLocked: boolean;
+  model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface ChatSnapshot {
@@ -42,6 +50,9 @@ export interface StoredMessage {
   msg: string;
   type: 'Message';
   status?: string;
+  requestId?: string;
+  replyTo?: string;
+  error?: { code: string; message: string };
 }
 
 export interface StoredSession {
@@ -53,6 +64,8 @@ export interface StoredSession {
   selectedSystemPromptId: string | null;
   systemPromptSnapshot: SystemPrompt | null;
   systemPromptLocked: boolean;
+  model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface StoredChatState {

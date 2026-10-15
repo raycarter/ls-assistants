@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
 import { CHAT_STORAGE, CHAT_STORAGE_KEY, ChatState, type ChatStorage } from './chat-state';
 import type { ChatSession, StoredSession, SystemPrompt } from './chat.models';
+import { ChatApi } from './chat-api';
+import { completedChatApi } from './chat-api.testing';
 
 describe('App', () => {
   let fixture: ComponentFixture<App>;
@@ -120,7 +122,10 @@ describe('App', () => {
   ): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [{ provide: CHAT_STORAGE, useValue: storage }],
+      providers: [
+        { provide: CHAT_STORAGE, useValue: storage },
+        { provide: ChatApi, useValue: completedChatApi },
+      ],
       deferBlockBehavior,
     }).compileComponents();
     fixture = TestBed.createComponent(App);
@@ -431,7 +436,7 @@ describe('App', () => {
       await fill('#message-input', 'Independent synthetic draft');
       await click(sessionButton(firstId));
 
-      expect(state.activeSession().messages).toHaveLength(1);
+      expect(state.activeSession().messages).toHaveLength(2);
       expect(element<HTMLTextAreaElement>('#message-input').value).toBe(
         ' Retained synthetic draft\n🌱 ',
       );
@@ -706,6 +711,15 @@ describe('App', () => {
             content: 'First  message.\nSecond line',
             time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
           },
+          {
+            id: expect.any(String),
+            role: 'assistant',
+            content: '',
+            time: expect.any(String),
+            status: 'complete',
+            requestId: expect.any(String),
+            replyTo: expect.any(String),
+          },
         ]);
         expect(state.activeSession().draft).toBe('');
         expect(state.activeSession().title).toBe('First message. Second line');
@@ -713,7 +727,7 @@ describe('App', () => {
         expect(element<HTMLTextAreaElement>('#message-input').value).toBe('');
         expect(button('Send').disabled).toBe(true);
         expect(document.activeElement).toBe(element('#message-input'));
-        expect(elements('[role="log"] article')).toHaveLength(1);
+        expect(elements('[role="log"] article')).toHaveLength(2);
         expect(element('[role="log"] article > p').textContent?.trim()).toBe('User');
       },
     );
@@ -728,19 +742,21 @@ describe('App', () => {
 
       expect(state.activeSession().title).toBe('First title');
       expect(sessionButton(state.activeSessionId()).title).toBe('First title');
-      expect(state.activeSession().messages).toHaveLength(2);
+      expect(state.activeSession().messages).toHaveLength(4);
       expect(state.activeSession().messages[0]).toBe(firstMessage);
-      expect(state.activeSession().messages[1]).toMatchObject({
+      expect(state.activeSession().messages[2]).toMatchObject({
         role: 'user',
         content: 'Second message',
       });
       expect(state.activeSession().messages.map((message) => message.role)).toEqual([
         'user',
+        'assistant',
         'user',
+        'assistant',
       ]);
       expect(
         elements('[role="log"] article > p').map((label) => label.textContent?.trim()),
-      ).toEqual(['User', 'User']);
+      ).toEqual(['User', 'Assistant', 'User', 'Assistant']);
     });
 
     it.each(['', ' \n\t '])('blocks empty or whitespace-only submissions: %j', async (draft) => {
@@ -1141,7 +1157,7 @@ describe('App', () => {
         await settle();
 
         const log = element('[role="log"]');
-        expect(element('[role="alert"]', log).textContent).toContain('Showing plain text');
+        expect(log.querySelector('[role="alert"]')).toBeNull();
         expect(log.querySelector('[role="status"]')).toBeNull();
         const articles = elements('article', log);
         expect(articles).toHaveLength(1);
@@ -1184,10 +1200,10 @@ describe('App', () => {
       await settle();
 
       expect(state.activeSession().messages).toBe(messages);
-      expect(elements('article', log)).toHaveLength(1);
+      expect(elements('article', log)).toHaveLength(2);
       expect(element('article h1', log).textContent).toBe('Deferred heading');
       expect(log.querySelector('[role="status"]')).toBeNull();
-      expect(log.scrollTop).toBe(240);
+      expect(log.scrollTop).toBe(480);
 
       await clickButton('New session', element('aside'));
 
@@ -1207,13 +1223,15 @@ describe('App', () => {
     await clickButton('Send');
     const articles = elements('[role="log"] article');
 
-    expect(articles).toHaveLength(3);
+    expect(articles).toHaveLength(4);
     for (const userMessage of [articles[0], articles[2]]) {
       expect(userMessage.classList.contains('items-end')).toBe(true);
       expect(userMessage.classList.contains('items-start')).toBe(false);
     }
     expect(articles[1].classList.contains('items-start')).toBe(true);
     expect(articles[1].classList.contains('items-end')).toBe(false);
+    expect(articles[3].classList.contains('items-start')).toBe(true);
+    expect(articles[3].classList.contains('items-end')).toBe(false);
   });
 
   describe('Markdown through Angular bindings', () => {

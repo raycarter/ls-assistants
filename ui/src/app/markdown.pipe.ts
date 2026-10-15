@@ -135,9 +135,12 @@ export class MarkdownPipe implements PipeTransform {
       return '';
     }
 
-    const html = parser.parse(value, { async: false });
-
-    // Sanitize after rendering and highlighting, with no subsequent HTML changes.
-    return purifier.sanitize(html, sanitizeOptions);
+    try {
+      const html = parser.parse(value, { async: false });
+      // Sanitize after rendering and highlighting, with no subsequent HTML changes.
+      return purifier.sanitize(html, sanitizeOptions);
+    } catch {
+      return `<pre>${escapeHtml(value)}</pre>`;
+    }
   }
 }

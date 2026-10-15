@@ -192,9 +192,6 @@
         aria-label="Current interactive mode"
         >{{ modeLabel() }}</span
       >
-      <span class="ml-auto hidden truncate text-xs text-gray-400 sm:block"
-        >Local preview · no backend connected</span
-      >
     </header>
 
     <div
@@ -235,9 +232,6 @@
         } @placeholder {
           <p role="status" class="text-gray-400">Loading conversation…</p>
         } @error {
-          <p role="alert" class="mb-4 text-amber-300">
-            Markdown could not load. Showing plain text.
-          </p>
           @for (message of messages(); track message.id) {
             <article #messageBubble class="mb-6">
               <p class="mb-1 text-sm text-gray-400">
@@ -265,12 +259,39 @@
           </div>
           <h1 class="mb-3 text-2xl font-semibold">Start a conversation</h1>
           <p class="text-gray-400">Choose a system prompt, then write your first message.</p>
-          <p class="mt-5 text-xs text-gray-500">
-            Messages are saved in this browser. No AI backend is connected yet.
-          </p>
         </div>
       }
     </div>
+
+    @if (turns.activePending()) {
+      <div class="flex items-center gap-3 px-4 pb-2 text-sm" role="status">
+        Receiving reply…
+        <button type="button" class="rounded px-2 py-1 underline" (click)="turns.stop()">
+          Stop reply
+        </button>
+      </div>
+    }
+    @if (replyError()) {
+      <div class="px-4 pb-2 text-sm text-amber-300" role="alert">{{ replyError() }}</div>
+    }
+    @if (turns.retryMessage() && !turns.activePending()) {
+      <button
+        type="button"
+        class="mx-4 mb-2 self-start rounded px-2 py-1 text-sm underline disabled:text-gray-500"
+        [disabled]="!turns.models().includes(turns.selectedModel())"
+        (click)="turns.retry()"
+      >
+        Retry reply
+      </button>
+    }
+    @if (turns.modelsError()) {
+      <div class="px-4 pb-2 text-sm text-amber-300" role="alert">
+        {{ turns.modelsError() }}
+        <button type="button" class="ml-2 underline" (click)="turns.loadModels()">
+          Reload models
+        </button>
+      </div>
+    }
 
     <form
       class="shrink-0 border-t border-gray-600 bg-gray-600 pt-1 pr-3 pb-3 pl-1 sm:pt-[5px] sm:pr-4 sm:pb-4 sm:pl-[5px]"
@@ -290,26 +311,62 @@
           (ngModelChange)="state.updateDraft($event)"
           (keydown)="onComposerKeydown($event)"
         ></textarea>
-        <button
-          type="submit"
-          class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
-          [disabled]="!state.activeSession().draft.trim()"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            class="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            aria-hidden="true"
+        <div class="flex w-36 shrink-0 flex-col gap-2 sm:w-44">
+          <label for="model-input" class="text-xs font-medium">Model</label>
+          <select
+            id="model-input"
+            name="model"
+            class="w-full rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
+            [ngModel]="turns.selectedModel()"
+            (ngModelChange)="state.selectModel($event)"
           >
-            <path d="m3 3 18 9-18 9 3-9-3-9ZM6 12h15" />
-          </svg>
-          Send
-        </button>
+            @if (!turns.selectedModel()) {
+              <option value="" disabled>
+                {{ turns.modelsLoading() ? 'Loading models…' : 'Select model' }}
+              </option>
+            }
+            @if (turns.selectedModel() && !turns.models().includes(turns.selectedModel())) {
+              <option [value]="turns.selectedModel()" disabled>
+                {{ turns.selectedModel() }} (unavailable)
+              </option>
+            }
+            @for (model of turns.models(); track model) {
+              <option [value]="model">{{ model }}</option>
+            }
+          </select>
+          <label for="thinking-input" class="text-xs font-medium">Thinking</label>
+          <select
+            id="thinking-input"
+            name="thinking"
+            class="w-full rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
+            [ngModel]="turns.selectedEffort()"
+            (ngModelChange)="state.selectReasoningEffort($event)"
+          >
+            @for (effort of efforts; track effort) {
+              <option [value]="effort">{{ effort }}</option>
+            }
+          </select>
+          <button
+            type="submit"
+            class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
+            [disabled]="!turns.canSend()"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path d="m3 3 18 9-18 9 3-9-3-9ZM6 12h15" />
+            </svg>
+            Send
+          </button>
+        </div>
       </div>
       <p id="composer-help" class="mt-2 text-xs text-gray-200">
-        Enter to send · Shift + Enter for a new line · Local preview only
+        Enter to send · Shift + Enter for a new line
       </p>
     </form>
   </main>

@@ -6,6 +6,15 @@ import type {
   StoredSession,
   SystemPrompt,
 } from './chat.models';
+import { REASONING_EFFORTS, type ReasoningEffort } from './chat.models';
+
+function messageMetadata(message: ChatMessage | StoredMessage) {
+  return {
+    ...(message.requestId === undefined ? {} : { requestId: message.requestId }),
+    ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+    ...(message.error === undefined ? {} : { error: { ...message.error } }),
+  };
+}
 
 export function encodeChatState(snapshot: ChatSnapshot): StoredChatState {
   const activeId = snapshot.sessions.some((session) => session.id === snapshot.activeSessionId)
@@ -25,6 +34,7 @@ export function encodeChatState(snapshot: ChatSnapshot): StoredChatState {
           msg: message.content,
           type: 'Message',
           ...(status === undefined ? {} : { status }),
+          ...messageMetadata(message),
         };
       }),
       title: session.title,
@@ -34,6 +44,10 @@ export function encodeChatState(snapshot: ChatSnapshot): StoredChatState {
       systemPromptSnapshot:
         session.promptLocked && session.prompt ? clonePrompt(session.prompt) : null,
       systemPromptLocked: session.promptLocked,
+      ...(session.model === undefined ? {} : { model: session.model }),
+      ...(session.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: session.reasoningEffort }),
     })),
     systemPrompts: snapshot.prompts.map(clonePrompt),
     drafts: Object.fromEntries(snapshot.sessions.map((session) => [session.id, session.draft])),
@@ -105,10 +119,15 @@ export function decodeChatState(
           content: message.msg,
           time: message.time,
           ...(message.status === undefined ? {} : { status: message.status }),
+          ...messageMetadata(message),
         })),
         draft: Object.hasOwn(drafts, session.id) ? drafts[session.id] : '',
         prompt: prompt ? clonePrompt(prompt) : null,
         promptLocked: session.systemPromptLocked,
+        ...(session.model === undefined ? {} : { model: session.model }),
+        ...(session.reasoningEffort === undefined
+          ? {}
+          : { reasoningEffort: session.reasoningEffort }),
       };
     }),
     prompts,
@@ -162,6 +181,13 @@ function parseSession(value: unknown, path: string): StoredSession {
     selectedSystemPromptId,
     systemPromptSnapshot,
     systemPromptLocked,
+    // Preferences are additive; unusable preferences must not discard a saved history.
+    ...(typeof record['model'] === 'string' && record['model'].length
+      ? { model: record['model'] }
+      : {}),
+    ...(REASONING_EFFORTS.includes(record['reasoningEffort'] as ReasoningEffort)
+      ? { reasoningEffort: record['reasoningEffort'] as ReasoningEffort }
+      : {}),
   };
 }
 
@@ -180,6 +206,23 @@ function parseMessage(value: unknown, path: string): StoredMessage {
     ...(Object.hasOwn(record, 'status')
       ? { status: requireString(record['status'], `${path}.status`) }
       : {}),
+    ...(Object.hasOwn(record, 'requestId')
+      ? { requestId: requireId(record['requestId'], `${path}.requestId`) }
+      : {}),
+    ...(Object.hasOwn(record, 'replyTo')
+      ? { replyTo: requireId(record['replyTo'], `${path}.replyTo`) }
+      : {}),
+    ...(Object.hasOwn(record, 'error')
+      ? { error: parseError(record['error'], `${path}.error`) }
+      : {}),
+  };
+}
+
+function parseError(value: unknown, path: string): { code: string; message: string } {
+  const error = requireRecord(value, path);
+  return {
+    code: requireString(readField(error, 'code', path), `${path}.code`),
+    message: requireString(readField(error, 'message', path), `${path}.message`),
   };
 }
 

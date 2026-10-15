@@ -301,7 +301,7 @@ describe('ChatState storage integration', () => {
               time: '11:22:33',
               role: 'assistant',
               content: '## Synthetic Antwort 🧪\n\n- **原文**\n\n```txt\nraw <tag>\n```',
-              status: 'streaming',
+              status: 'interrupted',
             },
             {
               id: 'synthetic-empty-metadata',
@@ -324,12 +324,14 @@ describe('ChatState storage integration', () => {
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.records.get(CHAT_STORAGE_KEY)).toBe(raw);
     TestBed.tick();
-    expect(storedState()).toEqual(saved);
+    const normalized = structuredClone(saved);
+    normalized.sessions[0].items[1].status = 'interrupted';
+    expect(storedState()).toEqual(normalized);
 
     const restored = recreateState();
     expect(snapshotOf(restored)).toEqual(expected);
     TestBed.tick();
-    expect(storedState()).toEqual(saved);
+    expect(storedState()).toEqual(normalized);
     expectOnlyChatKeyWritten();
     expect(console.warn).not.toHaveBeenCalled();
   });
