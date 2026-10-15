@@ -15,10 +15,11 @@ import { ChatState } from './chat-state';
 import { ChatTurns } from './chat-turns';
 import { REASONING_EFFORTS } from './chat.models';
 import { MarkdownPipe } from './markdown.pipe';
+import { MessageTimePipe } from './message-time.pipe';
 import { SettingsDialog } from './settings-dialog';
 
 @Component({
-  imports: [FormsModule, MarkdownPipe, SettingsDialog],
+  imports: [FormsModule, MarkdownPipe, MessageTimePipe, SettingsDialog],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',

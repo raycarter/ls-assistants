@@ -166,6 +166,32 @@ describe('App streaming integration', () => {
     expect(root().textContent).not.toContain('Receiving reply');
   });
 
+  it('displays and persists user and reply timestamps while streaming', async () => {
+    await send();
+    const userTime = state.activeSession().messages[0].time!;
+    const sent = element<HTMLTimeElement>('[role="log"] article:first-child time');
+    expect(sent.dateTime).toBe(userTime);
+    expect(sent.textContent?.trim()).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+
+    const replyTime = new Date(2026, 0, 2, 3, 4, 6).toISOString();
+    api.event(0, 'start', '', { time: replyTime });
+    await settle();
+    const received = element<HTMLTimeElement>('[role="log"] article:last-child time');
+    expect(received.dateTime).toBe(replyTime);
+    expect(received.textContent?.trim()).toBe('2026-01-02 03:04:06');
+
+    api.event(0, 'delta', 'Timestamped answer');
+    api.event(0, 'done', '', { time: replyTime });
+    await settle();
+    expect(element('[role="log"] article:last-child time')).toBe(received);
+    expect(received.dateTime).toBe(replyTime);
+    const saved = JSON.parse(records.get(CHAT_STORAGE_KEY)!);
+    expect(saved.sessions[0].items.map((message: { time: string }) => message.time)).toEqual([
+      userTime,
+      replyTime,
+    ]);
+  });
+
   it('renders growing partial Markdown in a single bubble and scrolls streamed/deferred height changes', async () => {
     const log = element<HTMLDivElement>('[role="log"]');
     Object.defineProperty(log, 'scrollHeight', {

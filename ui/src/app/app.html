@@ -229,12 +229,24 @@
               [class.items-start]="message.role === 'assistant'"
               [class.items-end]="message.role === 'user'"
             >
-              <p class="mb-1 text-sm font-medium text-gray-400">
-                {{
-                  message.role === 'user'
-                    ? 'User'
-                    : (state.activeSession().prompt?.title ?? 'Assistant')
-                }}
+              <p
+                class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm font-medium text-gray-400"
+              >
+                @if (message.role === 'assistant') {
+                  <span class="font-bold text-gray-200">{{
+                    state.activeSession().prompt?.title ?? 'Assistant'
+                  }}</span>
+                }
+                @if (message.time | messageTime; as timestamp) {
+                  <time
+                    [attr.datetime]="message.time"
+                    class="text-xs font-normal whitespace-nowrap tabular-nums"
+                    >{{ timestamp }}</time
+                  >
+                }
+                @if (message.role === 'user') {
+                  <span class="font-bold text-gray-200">User</span>
+                }
               </p>
               <div
                 class="message-markdown max-w-full rounded-xl px-4 py-3 text-base shadow-sm sm:max-w-[90%] sm:px-5 sm:py-4"
@@ -251,8 +263,22 @@
         } @error {
           @for (message of messages(); track message.id) {
             <article #messageBubble class="mb-6">
-              <p class="mb-1 text-sm text-gray-400">
-                {{ message.role === 'user' ? 'User' : 'Assistant' }}
+              <p class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm text-gray-400">
+                @if (message.role === 'assistant') {
+                  <span class="font-bold text-gray-200">{{
+                    state.activeSession().prompt?.title ?? 'Assistant'
+                  }}</span>
+                }
+                @if (message.time | messageTime; as timestamp) {
+                  <time
+                    [attr.datetime]="message.time"
+                    class="text-xs font-normal whitespace-nowrap tabular-nums"
+                    >{{ timestamp }}</time
+                  >
+                }
+                @if (message.role === 'user') {
+                  <span class="font-bold text-gray-200">User</span>
+                }
               </p>
               <p class="rounded-xl bg-gray-100 p-4 whitespace-pre-wrap text-gray-800">
                 {{ message.content }}

@@ -36,6 +36,8 @@ Production hosting must route `/api` to the BFF under the same origin.
   available for every model.
   The BFF reports unsupported combinations in the reply error UI.
 - Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
+- Message headers show timestamps in the browser's local timezone as `yyyy-MM-dd HH:mm:ss`,
+  after the assistant label and before `User`. Missing or invalid historical timestamps stay undated.
 - Replies grow incrementally in one bubble. Partial rendering failures silently show escaped plain text.
 - Each session permits one in-flight turn. You can edit its next draft or chat in another session
   while receiving a reply. Replies never activate another session. Deleting a session aborts its turn.
@@ -107,7 +109,9 @@ Each entry in `sessions`:
 - `id`, `title`, and `type` identify the session; `selected` restores the active session.
 - `items` contain `id`, `time`, `role`, `msg`, `type: "Message"`, and optional `status`.
   Assistant messages use `role: "ai"` in storage and `assistant` in the UI. Raw Markdown is stored,
-  not rendered HTML. Existing timestamps/statuses are preserved, and new user messages get ISO timestamps.
+  not rendered HTML. Existing timestamps/statuses are preserved. New user messages get an ISO
+  timestamp when sent; assistant replies retain their server-provided creation timestamp from `start`
+  (or a local creation timestamp for a failure before `start`). Only the display is localized.
 - New replies also store optional `requestId`, `replyTo` (the submitted user message ID), and
   `error: { code: string, message: string }` on the message. New assistant statuses are `streaming`,
   `complete`, `error`, `stopped`, and `interrupted`; historical arbitrary statuses remain accepted.

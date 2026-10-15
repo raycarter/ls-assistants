@@ -110,6 +110,48 @@ describe('ChatTurns', () => {
     expect(stored().sessions[0].items[1].msg).toBe('## Hello 世界\n\n**partial** final');
   });
 
+  it('preserves send and reply-creation times through deltas, later completion and hydration', async () => {
+    const sentAt = '2026-10-13T11:59:58.123Z';
+    const replyCreatedAt = '2026-10-13T20:00:00.456+08:00';
+    const times = [sentAt, replyCreatedAt];
+    vi.setSystemTime(new Date(sentAt));
+    send();
+    TestBed.tick();
+    expect(state.activeSession().messages[0].time).toBe(sentAt);
+    expect(stored().sessions[0].items[0].time).toBe(sentAt);
+
+    vi.advanceTimersByTime(3_000);
+    api.event(0, 'start', '', { time: replyCreatedAt });
+    api.event(0, 'delta', 'Partial');
+    vi.advanceTimersByTime(32);
+    TestBed.tick();
+    vi.advanceTimersByTime(200);
+    expect(state.activeSession().messages.map((message) => message.time)).toEqual(times);
+    expect(state.activeSession().messages[1]).toMatchObject({
+      content: 'Partial',
+      status: 'streaming',
+    });
+    expect(stored().sessions[0].items.map((message) => message.time)).toEqual(times);
+
+    vi.advanceTimersByTime(60_000);
+    api.event(0, 'delta', ' answer');
+    api.event(0, 'done', '', { time: replyCreatedAt });
+    expect(state.activeSession().messages.map((message) => message.time)).toEqual(times);
+    expect(state.activeSession().messages[1]).toMatchObject({
+      content: 'Partial answer',
+      status: 'complete',
+    });
+    expect(stored().sessions[0].items.map((message) => message.time)).toEqual(times);
+
+    const completed = structuredClone(state.activeSession().messages);
+    TestBed.resetTestingModule();
+    api = new FakeChatApi();
+    await create();
+    expect(state.activeSession().messages).toEqual(completed);
+    expect(turns.activePending()).toBe(false);
+    expect(api.calls).toHaveLength(0);
+  });
+
   it('blocks repeated sends even when a new draft is typed while receiving', () => {
     send();
     state.updateDraft('Next question');

@@ -396,10 +396,12 @@ describe('App', () => {
         expect(element('p[title]', promptSection()).textContent).toContain(importedPrompt.title);
         const articles = elements('[role="log"] article');
         expect(articles).toHaveLength(2);
-        expect(element('p:first-child', articles[0]).textContent?.trim()).toBe('User');
-        expect(element('p:first-child', articles[1]).textContent?.trim()).toBe(
+        expect(element('p:first-child > span', articles[0]).textContent?.trim()).toBe('User');
+        expect(element('p:first-child > span', articles[1]).textContent?.trim()).toBe(
           importedPrompt.title,
         );
+        expect(element<HTMLTimeElement>('time', articles[0]).dateTime).toBe(saved.items[0].time);
+        expect(element<HTMLTimeElement>('time', articles[1]).dateTime).toBe(saved.items[1].time);
         expect(articles[0].classList.contains('items-end')).toBe(true);
         expect(articles[1].classList.contains('items-start')).toBe(true);
         expect(element('h2', articles[1]).textContent).toBe('Saved answer 世界');
@@ -782,7 +784,7 @@ describe('App', () => {
         expect(button('Send').disabled).toBe(true);
         expect(document.activeElement).toBe(element('#message-input'));
         expect(elements('[role="log"] article')).toHaveLength(2);
-        expect(element('[role="log"] article > p').textContent?.trim()).toBe('User');
+        expect(element('[role="log"] article > p > span').textContent?.trim()).toBe('User');
       },
     );
 
@@ -809,7 +811,7 @@ describe('App', () => {
         'assistant',
       ]);
       expect(
-        elements('[role="log"] article > p').map((label) => label.textContent?.trim()),
+        elements('[role="log"] article > p > span').map((label) => label.textContent?.trim()),
       ).toEqual(['User', 'Assistant', 'User', 'Assistant']);
     });
 
@@ -1132,6 +1134,79 @@ describe('App', () => {
       await click(settingsRadio(state.prompts()[0].id));
       expect(state.activeSession().prompt).toBeNull();
     });
+  });
+
+  describe('message timestamps', () => {
+    it.each([DeferBlockState.Complete, DeferBlockState.Error])(
+      'shows local timestamps before User and after Assistant in the %s rendering state',
+      async (renderState) => {
+        TestBed.resetTestingModule();
+        await renderApp(DeferBlockBehavior.Manual);
+        const userTime = new Date(2026, 0, 2, 3, 4, 5).toISOString();
+        const replyTime = new Date(2026, 0, 2, 3, 4, 6).toISOString();
+        state.updateSession(state.activeSessionId(), (session) => ({
+          ...session,
+          messages: [
+            { id: 'timed-question', role: 'user', content: 'Question', time: userTime },
+            { id: 'timed-answer', role: 'assistant', content: 'Answer', time: replyTime },
+          ],
+        }));
+        await settle();
+        const [conversationBlock] = await fixture.getDeferBlocks();
+        await conversationBlock.render(renderState);
+        await settle();
+
+        const [userHeader, assistantHeader] = elements('[role="log"] article > p:first-child');
+        const sent = element<HTMLTimeElement>('time', userHeader);
+        const received = element<HTMLTimeElement>('time', assistantHeader);
+        expect(Array.from(userHeader.children).map((child) => child.tagName)).toEqual([
+          'TIME',
+          'SPAN',
+        ]);
+        expect(Array.from(assistantHeader.children).map((child) => child.tagName)).toEqual([
+          'SPAN',
+          'TIME',
+        ]);
+        expect(userHeader.lastElementChild?.textContent?.trim()).toBe('User');
+        expect(assistantHeader.firstElementChild?.textContent?.trim()).toBe('Assistant');
+        for (const header of [userHeader, assistantHeader]) {
+          const label = element('span', header);
+          expect(label.classList.contains('font-bold')).toBe(true);
+          expect(label.classList.contains('text-gray-200')).toBe(true);
+          expect(element('time', header).classList.contains('font-normal')).toBe(true);
+        }
+        expect(sent.textContent?.trim()).toBe('2026-01-02 03:04:05');
+        expect(received.textContent?.trim()).toBe('2026-01-02 03:04:06');
+        expect(sent.dateTime).toBe(userTime);
+        expect(received.dateTime).toBe(replyTime);
+        expect(state.activeSession().messages.map((message) => message.time)).toEqual([
+          userTime,
+          replyTime,
+        ]);
+      },
+    );
+
+    it.each([undefined, '', 'not-a-timestamp', '10:11'])(
+      'keeps historical messages readable without inventing a timestamp: %s',
+      async (time) => {
+        state.updateSession(state.activeSessionId(), (session) => ({
+          ...session,
+          messages: [
+            { id: 'legacy-question', role: 'user', content: 'Old question', time },
+            { id: 'legacy-answer', role: 'assistant', content: 'Old answer', time },
+          ],
+        }));
+        await settle();
+
+        expect(elements('[role="log"] article')).toHaveLength(2);
+        expect(elements('[role="log"] time')).toHaveLength(0);
+        expect(
+          elements('[role="log"] article > p:first-child').map((header) =>
+            header.textContent?.trim(),
+          ),
+        ).toEqual(['User', 'Assistant']);
+      },
+    );
   });
 
   describe('controlled deferred rendering', () => {

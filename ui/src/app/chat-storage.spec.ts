@@ -237,6 +237,18 @@ describe('decodeChatState', () => {
     );
   });
 
+  it('roundtrips full ISO user and assistant times verbatim, including UTC and an offset', () => {
+    const source = snapshot();
+    const times = ['2026-10-13T11:59:58.123Z', '2026-10-13T20:00:00.456+08:00'];
+    source.sessions[0].messages[0].time = times[0];
+    source.sessions[0].messages[1].time = times[1];
+
+    const encoded = encodeChatState(source);
+
+    expect(encoded.sessions[0].items.map((message) => message.time)).toEqual(times);
+    expect(decode(encoded)).toEqual(source);
+  });
+
   it('accepts empty strings and preserves absent status without inventing metadata', () => {
     const session = storedSession({
       title: '',
