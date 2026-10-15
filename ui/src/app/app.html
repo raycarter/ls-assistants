@@ -19,18 +19,11 @@
       #newSessionButton
       type="button"
       class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold transition hover:bg-blue-500"
+      aria-label="New session"
+      title="New session"
       (click)="newSession()"
     >
-      <svg
-        viewBox="0 0 24 24"
-        class="h-5 w-5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path d="M12 5v14M5 12h14" />
-      </svg>
+      <span class="material-icons" aria-hidden="true">add_comment</span>
       New session
     </button>
 
@@ -60,20 +53,13 @@
             </button>
             <button
               type="button"
-              class="shrink-0 rounded p-2 text-gray-400 hover:bg-gray-600 hover:text-red-300"
+              class="inline-flex shrink-0 items-center justify-center rounded p-2 text-gray-400 hover:bg-gray-600 hover:text-red-300"
               [attr.aria-label]="'Delete session: ' + session.title"
               (click)="deleteSession(session.id)"
             >
-              <svg
-                viewBox="0 0 24 24"
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                aria-hidden="true"
+              <span class="material-icons material-icons--small" aria-hidden="true"
+                >delete_forever</span
               >
-                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
-              </svg>
             </button>
           </li>
         }
@@ -85,7 +71,10 @@
       aria-labelledby="prompts-heading"
     >
       <div class="mb-2 flex items-center justify-between">
-        <h2 id="prompts-heading" class="text-sm font-semibold">System prompts</h2>
+        <h2 id="prompts-heading" class="inline-flex items-center gap-2 text-sm font-semibold">
+          System prompts
+          <span class="material-icons" aria-hidden="true">tune</span>
+        </h2>
         <span class="text-xs text-gray-400">{{ state.prompts().length }}</span>
       </div>
       @if (state.activeSession().promptLocked) {
@@ -141,19 +130,7 @@
       class="flex shrink-0 items-center gap-3 border-t border-gray-700 pt-4 pb-1 text-left font-semibold hover:text-blue-300"
       (click)="openSettings()"
     >
-      <svg
-        viewBox="0 0 24 24"
-        class="h-5 w-5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        aria-hidden="true"
-      >
-        <path
-          d="m9 3-.7 2.2-2 .9-2.1-.5-1.5 2.6 1.5 1.7-.2 2.2-1.6 1.5 1.5 2.6 2.2-.4 1.8 1.3.4 2.2h3l.7-2.1 2-.9 2.1.5 1.5-2.6-1.5-1.7.2-2.2 1.6-1.5-1.5-2.6-2.2.4-1.8-1.3L12 3Z"
-        />
-        <circle cx="10.5" cy="10.5" r="2.8" />
-      </svg>
+      <span class="material-icons" aria-hidden="true">settings</span>
       Settings
     </button>
   </aside>
@@ -164,7 +141,7 @@
     [attr.inert]="sidebarOpen() ? '' : null"
   >
     <header
-      class="flex min-h-14 shrink-0 items-center gap-3 border-b border-gray-700 bg-gray-900 px-4 py-2 sm:px-6"
+      class="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-gray-700 bg-gray-900 px-4 py-2 sm:px-6"
     >
       <button
         #sidebarToggle
@@ -192,6 +169,46 @@
         aria-label="Current interactive mode"
         >{{ modeLabel() }}</span
       >
+      <div class="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-3">
+        <div class="flex min-w-0 items-center gap-2">
+          <label for="model-input" class="shrink-0 text-xs font-medium">Model</label>
+          <select
+            id="model-input"
+            name="model"
+            class="w-36 min-w-0 rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm sm:w-44"
+            [ngModel]="turns.selectedModel()"
+            (ngModelChange)="state.selectModel($event)"
+          >
+            @if (!turns.selectedModel()) {
+              <option value="" disabled>
+                {{ turns.modelsLoading() ? 'Loading models…' : 'Select model' }}
+              </option>
+            }
+            @if (turns.selectedModel() && !turns.models().includes(turns.selectedModel())) {
+              <option [value]="turns.selectedModel()" disabled>
+                {{ turns.selectedModel() }} (unavailable)
+              </option>
+            }
+            @for (model of turns.models(); track model) {
+              <option [value]="model">{{ model }}</option>
+            }
+          </select>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <label for="thinking-input" class="shrink-0 text-xs font-medium">Thinking</label>
+          <select
+            id="thinking-input"
+            name="thinking"
+            class="w-24 rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
+            [ngModel]="turns.selectedEffort()"
+            (ngModelChange)="state.selectReasoningEffort($event)"
+          >
+            @for (effort of efforts; track effort) {
+              <option [value]="effort">{{ effort }}</option>
+            }
+          </select>
+        </div>
+      </div>
     </header>
 
     <div
@@ -311,59 +328,14 @@
           (ngModelChange)="state.updateDraft($event)"
           (keydown)="onComposerKeydown($event)"
         ></textarea>
-        <div class="flex w-36 shrink-0 flex-col gap-2 sm:w-44">
-          <label for="model-input" class="text-xs font-medium">Model</label>
-          <select
-            id="model-input"
-            name="model"
-            class="w-full rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
-            [ngModel]="turns.selectedModel()"
-            (ngModelChange)="state.selectModel($event)"
-          >
-            @if (!turns.selectedModel()) {
-              <option value="" disabled>
-                {{ turns.modelsLoading() ? 'Loading models…' : 'Select model' }}
-              </option>
-            }
-            @if (turns.selectedModel() && !turns.models().includes(turns.selectedModel())) {
-              <option [value]="turns.selectedModel()" disabled>
-                {{ turns.selectedModel() }} (unavailable)
-              </option>
-            }
-            @for (model of turns.models(); track model) {
-              <option [value]="model">{{ model }}</option>
-            }
-          </select>
-          <label for="thinking-input" class="text-xs font-medium">Thinking</label>
-          <select
-            id="thinking-input"
-            name="thinking"
-            class="w-full rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
-            [ngModel]="turns.selectedEffort()"
-            (ngModelChange)="state.selectReasoningEffort($event)"
-          >
-            @for (effort of efforts; track effort) {
-              <option [value]="effort">{{ effort }}</option>
-            }
-          </select>
-          <button
-            type="submit"
-            class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
-            [disabled]="!turns.canSend()"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              class="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              aria-hidden="true"
-            >
-              <path d="m3 3 18 9-18 9 3-9-3-9ZM6 12h15" />
-            </svg>
-            Send
-          </button>
-        </div>
+        <button
+          type="submit"
+          class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
+          [disabled]="!turns.canSend()"
+        >
+          <span class="material-icons" aria-hidden="true">rocket_launch</span>
+          Send
+        </button>
       </div>
       <p id="composer-help" class="mt-2 text-xs text-gray-200">
         Enter to send · Shift + Enter for a new line

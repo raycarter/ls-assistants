@@ -32,7 +32,8 @@ Production hosting must route `/api` to the BFF under the same origin.
 - Open Settings to select, add, edit, or delete system prompts.
 - Send messages with the Send button or Enter; Shift + Enter inserts a new line.
 - Choose a model from the BFF's model list and a Thinking effort (`low`, `medium`, `high`, `xhigh`)
-  above Send. The default effort is `medium`; all four choices remain available for every model.
+  in the main top bar, aligned right. The default effort is `medium`; all four choices remain
+  available for every model.
   The BFF reports unsupported combinations in the reply error UI.
 - Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
 - Replies grow incrementally in one bubble. Partial rendering failures silently show escaped plain text.
@@ -144,6 +145,8 @@ Tests inject fake fetch/API implementations; they never require a running BFF or
 ## Installed libraries
 
 - **Styling:** `tailwindcss`, `@tailwindcss/postcss`, `postcss`, `flowbite`, and `tailwind-scrollbar`.
+- **Icons:** locally bundled Material Icons WOFF2 in `src/assets/fonts/`, with its license and source
+  information. `src/styles.css` loads the font; no external font service or Angular Material is required.
 - **Content rendering:** `marked`, `highlight.js`, and `dompurify`.
 
 Tailwind's PostCSS integration is configured in `.postcssrc.json`. Global styles in

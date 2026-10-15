@@ -153,12 +153,17 @@ describe('App', () => {
   }
 
   function button(label: string, scope: ParentNode = root()): HTMLButtonElement {
-    const found = elements<HTMLButtonElement>('button', scope).find(
-      (candidate) =>
+    const found = elements<HTMLButtonElement>('button', scope).find((candidate) => {
+      if (
         candidate.getAttribute('aria-label') === label ||
-        candidate.getAttribute('title') === label ||
-        candidate.textContent?.replace(/\s+/g, ' ').trim() === label,
-    );
+        candidate.getAttribute('title') === label
+      ) {
+        return true;
+      }
+      const content = candidate.cloneNode(true) as HTMLElement;
+      content.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+      return content.textContent?.replace(/\s+/g, ' ').trim() === label;
+    });
     if (!found) throw new Error(`Missing button: ${label}`);
     return found;
   }
@@ -202,7 +207,7 @@ describe('App', () => {
     expect(selected.getAttribute('aria-pressed')).toBe('true');
     expect(selected.querySelector('[aria-hidden="true"]')?.textContent?.trim()).toBe('✓');
     expect(elements('button[aria-pressed="true"]', promptSection())).toEqual([selected]);
-    expect(elements('[aria-hidden="true"]', promptSection())).toHaveLength(1);
+    expect(elements('button [aria-hidden="true"]', promptSection())).toHaveLength(1);
   }
 
   async function settle(): Promise<void> {
@@ -264,6 +269,55 @@ describe('App', () => {
     expect(sessionButton(state.activeSessionId()).getAttribute('aria-current')).toBe('true');
     expect(promptButtons().every((candidate) => !candidate.disabled)).toBe(true);
     expectSelectedPrompt(null);
+  });
+
+  it('places a decorative add_comment icon before the visible New session label', () => {
+    const control = button('New session');
+    const icon = element('.material-icons', control);
+    expect(control.getAttribute('aria-label')).toBe('New session');
+    expect(control.title).toBe('New session');
+    expect(icon.textContent?.trim()).toBe('add_comment');
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(control.firstElementChild).toBe(icon);
+    expect(control.lastChild?.textContent?.trim()).toBe('New session');
+    expect(control.querySelector('svg')).toBeNull();
+  });
+
+  it.each([
+    ['Settings', 'settings'],
+    ['Send', 'rocket_launch'],
+  ])('places the decorative %s icon before its visible button label', (label, ligature) => {
+    const control = button(label);
+    const icon = element('.material-icons', control);
+    expect(icon.textContent?.trim()).toBe(ligature);
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(control.firstElementChild).toBe(icon);
+    expect(control.lastChild?.textContent?.trim()).toBe(label);
+    expect(control.querySelector('svg')).toBeNull();
+  });
+
+  it('places a decorative tune icon after the System prompts heading label', () => {
+    const heading = element('#prompts-heading');
+    const icon = element('.material-icons', heading);
+    expect(heading.firstChild?.textContent?.trim()).toBe('System prompts');
+    expect(heading.lastElementChild).toBe(icon);
+    expect(icon.textContent?.trim()).toBe('tune');
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('places an accessible delete_forever icon button after every session entry', async () => {
+    fixture.componentInstance.newSession();
+    await settle();
+    expect(historyRows()).toHaveLength(2);
+    for (const session of state.sessions()) {
+      const control = deleteSessionButton(session.id);
+      const icon = element('.material-icons', control);
+      expect(sessionRow(session.id).lastElementChild).toBe(control);
+      expect(control.getAttribute('aria-label')).toBe(`Delete session: ${session.title}`);
+      expect(icon.textContent?.trim()).toBe('delete_forever');
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+      expect(control.querySelector('svg')).toBeNull();
+    }
   });
 
   describe('storage hydration and memory-only UI', () => {

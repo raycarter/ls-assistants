@@ -62,9 +62,12 @@ describe('App streaming integration', () => {
     return root().querySelector<T>(selector)!;
   }
   function button(label: string): HTMLButtonElement {
-    return [...root().querySelectorAll<HTMLButtonElement>('button')].find(
-      (candidate) => candidate.textContent?.trim() === label,
-    )!;
+    return [...root().querySelectorAll<HTMLButtonElement>('button')].find((candidate) => {
+      if (candidate.getAttribute('aria-label') === label) return true;
+      const content = candidate.cloneNode(true) as HTMLElement;
+      content.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+      return content.textContent?.replace(/\s+/g, ' ').trim() === label;
+    })!;
   }
   async function settle(): Promise<void> {
     fixture.detectChanges();
@@ -89,7 +92,7 @@ describe('App streaming integration', () => {
     await settle();
   }
 
-  it('shows API models and all four selectable efforts above Send, with medium default', async () => {
+  it('shows header model and effort selectors, with medium default', async () => {
     const models = element<HTMLSelectElement>('#model-input');
     const thinking = element<HTMLSelectElement>('#thinking-input');
     expect([...models.options].map((option) => option.value)).toEqual(['model-a', 'model-b']);
@@ -101,10 +104,18 @@ describe('App streaming integration', () => {
       ['high', false],
       ['xhigh', false],
     ]);
-    expect(models.parentElement).toBe(button('Send').parentElement);
-    expect(
-      thinking.compareDocumentPosition(button('Send')) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const header = element('main > header');
+    const composerForm = element<HTMLTextAreaElement>('#message-input').form;
+    expect(header.contains(models)).toBe(true);
+    expect(header.contains(thinking)).toBe(true);
+    expect(models.previousElementSibling).toBe(header.querySelector('label[for="model-input"]'));
+    expect(thinking.previousElementSibling).toBe(
+      header.querySelector('label[for="thinking-input"]'),
+    );
+    expect(models.form).toBeNull();
+    expect(thinking.form).toBeNull();
+    expect(composerForm).not.toBeNull();
+    expect(button('Send').form).toBe(composerForm);
     await select('#model-input', 'model-b');
     await select('#thinking-input', 'xhigh');
     await send();
