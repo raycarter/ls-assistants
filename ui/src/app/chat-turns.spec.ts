@@ -80,7 +80,45 @@ describe('ChatTurns', () => {
       reasoning_effort: 'xhigh',
       system_prompt: prompt.content,
       messages: [{ role: 'user', content: 'First question' }],
+      generate_title: true,
     });
+  });
+
+  it('updates and persists the generated title while still waiting for the answer', () => {
+    send('Please help me investigate a Kubernetes networking problem');
+    api.event(0, 'start');
+    api.event(0, 'session_title', 'Kubernetes network troubleshooting');
+    expect(state.activeSession().title).toBe('Kubernetes network troubleshooting');
+    expect(stored().sessions[0].title).toBe('Kubernetes network troubleshooting');
+    expect(turns.activePending()).toBe(true);
+    expect(state.activeSession().messages).toHaveLength(2);
+    expect(state.activeSession().messages[1]).toMatchObject({
+      content: '',
+      status: 'streaming',
+    });
+    api.event(0, 'delta', 'Check your network policies.');
+    api.event(0, 'done');
+    expect(turns.activePending()).toBe(false);
+    expect(state.activeSession().title).toBe('Kubernetes network troubleshooting');
+    expect(state.activeSession().messages[1].content).toBe('Check your network policies.');
+
+    send('What next?');
+    expect(api.calls[1].request.generate_title).toBe(false);
+    expect(state.activeSession().title).toBe('Kubernetes network troubleshooting');
+  });
+
+  it('applies title metadata only to its originating session without changing selection', () => {
+    const first = send('First question');
+    state.newSession();
+    const second = state.activeSessionId();
+    api.event(0, 'start');
+    api.event(0, 'session_title', 'First conversation title');
+    expect(state.activeSessionId()).toBe(second);
+    expect(state.activeSession().title).toBe('New session');
+    expect(state.sessions().find((session) => session.id === first)?.title).toBe(
+      'First conversation title',
+    );
+    expect(turns.pending().has(first)).toBe(true);
   });
 
   it('creates one bubble with the server ID/time and batches deltas until terminal flush', () => {
@@ -207,6 +245,7 @@ describe('ChatTurns', () => {
       const remaining = state.sessions();
       expect(api.calls[0].signal.aborted).toBe(true);
       api.event(0, 'start');
+      api.event(0, 'session_title', 'Late title');
       api.event(0, 'delta', 'Late');
       api.calls[0].reject(new Error('Late rejection'));
       await Promise.resolve();
@@ -293,6 +332,7 @@ describe('ChatTurns', () => {
     const firstRequest = api.calls[0].request;
     const user = state.activeSession().messages[0];
     api.event(0, 'start');
+    api.event(0, 'session_title', 'Stable title');
     api.event(0, 'delta', 'Failed partial');
     api.event(0, 'error');
     state.updateDraft('Unsent next message');
@@ -303,8 +343,12 @@ describe('ChatTurns', () => {
     expect(second.request_id).not.toBe(firstRequest.request_id);
     expect(second.messages).toEqual([{ role: 'user', content: 'Question' }]);
     expect(second.reasoning_effort).toBe('low');
+    expect(second.generate_title).toBe(false);
+    expect(state.activeSession().title).toBe('Stable title');
     expect(state.activeSession().messages).toEqual([user]);
     api.event(0, 'delta', 'stale');
+    api.event(0, 'session_title', 'Stale title');
+    expect(state.activeSession().title).toBe('Stable title');
     api.event(1, 'start');
     api.event(1, 'delta', 'Successful answer');
     api.event(1, 'done');
@@ -373,7 +417,9 @@ describe('ChatTurns', () => {
         content: phase === 'after partial' ? 'Keep this partial' : '',
       });
       api.event(0, 'done');
+      api.event(0, 'session_title', 'Ignored title after Stop');
       expect(state.activeSession().messages).toBe(messages);
+      expect(state.activeSession().title).toBe('Question');
       expect(turns.retry()).toBe(true);
     },
   );

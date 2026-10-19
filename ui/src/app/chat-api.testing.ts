@@ -32,13 +32,15 @@ export class FakeChatApi {
       message_id: `reply-${index}`,
     };
     const extra =
-      type === 'delta'
-        ? { text }
-        : type === 'done'
-          ? { status: 'complete', time: '2026-10-13T12:00:00.000Z' }
-          : type === 'error'
-            ? { code: 'unsupported_reasoning', message: 'This model does not support xhigh.' }
-            : { time: '2026-10-13T12:00:00.000Z' };
+      type === 'session_title'
+        ? { title: text }
+        : type === 'delta'
+          ? { text }
+          : type === 'done'
+            ? { status: 'complete', time: '2026-10-13T12:00:00.000Z' }
+            : type === 'error'
+              ? { code: 'unsupported_reasoning', message: 'This model does not support xhigh.' }
+              : { time: '2026-10-13T12:00:00.000Z' };
     call.emit({ ...identity, type, ...extra, ...overrides } as ChatEvent);
     if (type === 'done' || type === 'error') call.resolve();
   }

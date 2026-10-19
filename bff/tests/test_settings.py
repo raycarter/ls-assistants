@@ -22,6 +22,7 @@ def test_configuration_defaults():
     assert settings.default_model == "deployment-a"
     assert settings.request_timeout_seconds == 120
     assert settings.provider_timeout_seconds == 60
+    assert settings.title_timeout_seconds == 10
     assert settings.max_output_tokens == 4096
     assert settings.max_retries == 2
     assert settings.retry_delay_seconds == 0.5
@@ -104,6 +105,11 @@ def test_empty_credentials_are_absent_and_secrets_are_hidden(settings_factory):
         {"provider_timeout_seconds": -1},
         {"request_timeout_seconds": float("inf")},
         {"provider_timeout_seconds": float("nan")},
+        {"title_timeout_seconds": 0},
+        {"title_timeout_seconds": -1},
+        {"title_timeout_seconds": float("inf")},
+        {"title_timeout_seconds": float("nan")},
+        {"title_timeout_seconds": 3601},
         {"max_output_tokens": 0},
         {"max_retries": -1},
         {"max_retries": 6},
@@ -124,11 +130,13 @@ def test_environment_overrides_dotenv(monkeypatch):
     monkeypatch.setenv("AVAILABLE_MODELS", " env-first,env-second,env-first ")
     monkeypatch.setenv("DEFAULT_MODEL", "env-second")
     monkeypatch.setenv("MAX_OUTPUT_TOKENS", "1024")
+    monkeypatch.setenv("TITLE_TIMEOUT_SECONDS", "3.5")
     settings = Settings(_env_file=fixture)
     assert settings.azure_openai_endpoint == "https://env-example.openai.azure.com"
     assert settings.available_models == ("env-first", "env-second")
     assert settings.default_model == "env-second"
     assert settings.max_output_tokens == 1024
+    assert settings.title_timeout_seconds == 3.5
 
 
 def test_configuration_errors_do_not_print_secret(settings_factory):

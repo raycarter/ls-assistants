@@ -266,6 +266,77 @@ describe('Agent shell and mocked vertical slice', () => {
     await mode('agent');
     expect(element<HTMLTextAreaElement>('#agent-request').value).toBe('Agent draft');
   });
+  it('persists a background Chat title without leaking its conversation or reply controls into Agent mode', async () => {
+    await render();
+    const chatState = TestBed.inject(ChatState);
+    const agentState = TestBed.inject(AgentState);
+    await fill('#message-input', 'Chat title request');
+    element<HTMLButtonElement>('button[type="submit"]').click();
+    await settle();
+    const call = chat.calls[0];
+    expect(call.request).toMatchObject({
+      session_id: chatState.activeSessionId(),
+      generate_title: true,
+    });
+    await fill('#message-input', 'Chat next draft');
+    await mode('agent');
+    const agentId = agentState.selectedId();
+    expect(agentId).toBe('agent-1');
+    await fill('#agent-request', 'Agent draft during Chat reply');
+
+    chat.event(0, 'start');
+    chat.event(0, 'session_title', 'Generated background Chat title');
+    await settle();
+    expect(chatState.activeSession()).toMatchObject({
+      id: call.request.session_id,
+      title: 'Generated background Chat title',
+      draft: 'Chat next draft',
+    });
+    expect(JSON.parse(storage.records.get(CHAT_STORAGE_KEY)!).sessions).toContainEqual(
+      expect.objectContaining({
+        id: call.request.session_id,
+        title: 'Generated background Chat title',
+      }),
+    );
+    expect(fixture.componentInstance.turns.activePending()).toBe(true);
+    expect(agentState.mode()).toBe('agent');
+    expect(root().querySelector('[role="log"][aria-label="Conversation messages"]')).toBeNull();
+    expect(root().querySelector('#message-input')).toBeNull();
+    expect(root().textContent).not.toContain('Receiving reply');
+    expect(root().textContent).not.toContain('Stop reply');
+    expect(root().textContent).not.toContain('Retry reply');
+
+    chat.event(0, 'delta', 'Background Chat answer');
+    chat.event(0, 'done');
+    await settle();
+    expect(call.signal.aborted).toBe(false);
+    expect(fixture.componentInstance.turns.activePending()).toBe(false);
+    expect(agentState.selectedId()).toBe(agentId);
+    expect(agentState.draft()).toBe('Agent draft during Chat reply');
+    expect(element<HTMLTextAreaElement>('#agent-request').value).toBe(
+      'Agent draft during Chat reply',
+    );
+    expect(root().textContent).not.toContain('Background Chat answer');
+
+    await mode('chat');
+    expect(chatState.activeSessionId()).toBe(call.request.session_id);
+    expect(
+      root().querySelectorAll('[role="log"][aria-label="Conversation messages"]'),
+    ).toHaveLength(1);
+    const conversation = element('[role="log"][aria-label="Conversation messages"]');
+    expect(conversation.querySelectorAll('article')).toHaveLength(2);
+    expect(conversation.textContent).toContain('Chat title request');
+    expect(conversation.textContent).toContain('Background Chat answer');
+    expect(element('#assistant-sidebar button[aria-current="true"]').textContent).toContain(
+      'Generated background Chat title',
+    );
+    expect(element<HTMLTextAreaElement>('#message-input').value).toBe('Chat next draft');
+    await mode('agent');
+    expect(agentState.selectedId()).toBe(agentId);
+    expect(element<HTMLTextAreaElement>('#agent-request').value).toBe(
+      'Agent draft during Chat reply',
+    );
+  });
   it('keeps the root Agent request alive across mode navigation without review autoscroll', async () => {
     await render();
     const state = TestBed.inject(AgentState);
@@ -455,6 +526,44 @@ describe('Agent shell and mocked vertical slice', () => {
       model: 'model-b',
       reasoning_effort: 'high',
     });
+  });
+  it("shows the current mode's acknowledged model in the selector tooltip", async () => {
+    await render();
+    const model = element<HTMLSelectElement>('#model-input');
+    expect(model.value).toBe('model-a');
+    expect(model.title).toBe('model-a');
+    await mode('agent');
+    const agentState = TestBed.inject(AgentState);
+    let acknowledge!: (session: AgentSession) => void;
+    api.patch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          acknowledge = resolve;
+        }),
+    );
+    const selection = vi.spyOn(fixture.componentInstance, 'selectModel');
+    model.value = 'model-b';
+    model.dispatchEvent(new Event('change', { bubbles: true }));
+    const pending = selection.mock.results[0].value;
+    await settle();
+    expect(api.patch).toHaveBeenCalledOnce();
+    expect(agentState.model()).toBe('model-a');
+    expect(model.title).toBe('model-a');
+
+    acknowledge({ ...fixtureSession(1), model: 'model-b' });
+    await pending;
+    await settle();
+    expect(agentState.model()).toBe('model-b');
+    expect(model.value).toBe('model-b');
+    expect(model.title).toBe('model-b');
+    expect(fixture.componentInstance.turns.selectedModel()).toBe('model-a');
+
+    await mode('chat');
+    expect(model.value).toBe('model-a');
+    expect(model.title).toBe('model-a');
+    await mode('agent');
+    expect(model.value).toBe('model-b');
+    expect(model.title).toBe('model-b');
   });
   it.each([
     { field: 'model', outcome: 'ack' },

@@ -19,6 +19,7 @@ export interface ChatRequest {
   reasoning_effort: ReasoningEffort;
   system_prompt: string | null;
   messages: { role: 'user' | 'assistant'; content: string }[];
+  generate_title?: boolean;
 }
 
 interface ReplyIdentity {
@@ -30,6 +31,7 @@ interface ReplyIdentity {
 export type ChatEvent = ReplyIdentity &
   (
     | { type: 'start'; time: string }
+    | { type: 'session_title'; title: string }
     | { type: 'delta'; text: string }
     | { type: 'done'; time: string; status: 'complete' }
     | { type: 'error'; code: string; message: string }
@@ -64,6 +66,8 @@ function validTime(value: unknown): value is string {
 export class ChatEventDecoder {
   private identity: ReplyIdentity | undefined;
   private startTime: string | undefined;
+  private titleReceived = false;
+  private textStarted = false;
   private sequence = -1;
   private lastFrame = '';
   terminal = false;
@@ -71,7 +75,7 @@ export class ChatEventDecoder {
   constructor(private readonly request: Pick<ChatRequest, 'session_id' | 'request_id'>) {}
 
   decode(frame: SseEvent): ChatEvent | null {
-    if (!['start', 'delta', 'done', 'error'].includes(frame.event)) return null;
+    if (!['start', 'session_title', 'delta', 'done', 'error'].includes(frame.event)) return null;
     let payload: unknown;
     try {
       payload = JSON.parse(frame.data);
@@ -111,9 +115,26 @@ export class ChatEventDecoder {
         this.startTime = time;
         event = { ...identity, type: 'start', time };
         break;
+      case 'session_title': {
+        const title = payload['title'];
+        if (
+          this.startTime === undefined ||
+          this.titleReceived ||
+          this.textStarted ||
+          !nonempty(title) ||
+          !title.trim() ||
+          [...title].length > 60
+        ) {
+          return protocolError();
+        }
+        this.titleReceived = true;
+        event = { ...identity, type: 'session_title', title };
+        break;
+      }
       case 'delta':
         if (this.startTime === undefined || typeof payload['text'] !== 'string')
           return protocolError();
+        this.textStarted = true;
         event = { ...identity, type: 'delta', text: payload['text'] };
         break;
       case 'done':

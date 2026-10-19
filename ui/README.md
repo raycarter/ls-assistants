@@ -27,6 +27,9 @@ Production hosting must route `/api` to the BFF under the same origin.
 ## Conversations and streaming
 
 - Create, switch, and delete sessions in the sidebar; unfinished drafts stay with their session.
+- The first message requests a BFF-generated session title. Its `session_title` event updates the
+  sidebar before the answer starts streaming, without ending the pending turn. The first-message
+  excerpt is a provisional title and fallback if generation fails. Follow-ups and retries keep the title.
 - Select a system prompt before the first message. That message locks a snapshot of the prompt for
   the session, so later catalogue edits or deletions do not change started sessions.
 - Open Settings to select, add, edit, or delete system prompts.
@@ -35,12 +38,17 @@ Production hosting must route `/api` to the BFF under the same origin.
   in the main top bar, aligned right. The default effort is `medium`; all four choices remain
   available for every model.
   The BFF reports unsupported combinations in the reply error UI.
+- The model dropdown grows with its option names from its existing 9 rem width (11 rem from the
+  `sm` breakpoint), up to 18 rem (22 rem from `sm`). Header controls wrap on narrow screens, and the
+  selected model's full name is also available in the dropdown's tooltip.
 - Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
 - Message headers show timestamps in the browser's local timezone as `yyyy-MM-dd HH:mm:ss`,
   after the assistant label and before `User`. Missing or invalid historical timestamps stay undated.
 - Replies grow incrementally in one bubble. Partial rendering failures silently show escaped plain text.
 - Each session permits one in-flight turn. You can edit its next draft or chat in another session
   while receiving a reply. Replies never activate another session. Deleting a session aborts its turn.
+- “Receiving reply…” includes a decorative spinner while waiting, including during title generation.
+  It stays still when the system's reduced-motion preference is enabled.
 - Stop preserves partial text. Errors preserve partial text and offer Retry on the last failed reply.
   Retry replaces that reply, generates a fresh request ID, and sends the original user message once.
   The current model/effort can be changed before retrying; the session's prompt stays locked.
@@ -63,18 +71,23 @@ Production hosting must route `/api` to the BFF under the same origin.
   "model": "deployment-name",
   "reasoning_effort": "medium",
   "system_prompt": null,
+  "generate_title": true,
   "messages": [{ "role": "user", "content": "Hello" }]
 }
 ```
 
 History is ordered visible user/assistant text. No reasoning payloads are stored or sent.
+`generate_title` is optional (default `false`); the UI sets it only on the first send in an empty session.
 Failed, stopped, interrupted, and streaming assistant replies are excluded from subsequent request
 history; their partial text remains visible until explicitly replaced by retry.
 Zero-length messages are also excluded at the outbound history boundary, while remaining in the
 visible conversation and storage.
 
-SSE events are `start`, `delta`, `done`, and `error`. Each carries `session_id`, `request_id`,
-and server-assigned `message_id`. `start` adds reply-creation `time`; `delta` adds `text` and has no
+SSE events are `start`, `session_title`, `delta`, `done`, and `error`. Each carries `session_id`, `request_id`,
+and server-assigned `message_id`. `start` adds reply-creation `time`; `session_title` adds `title`
+(at most 60 characters) and is nonterminal. On first sends, ordering is `start` → `session_title` →
+`delta`* → `done`/`error`; the BFF sends the title before opening the answer stream.
+`delta` adds `text` and has no
 `time`; `done` adds the same creation `time` and `status: "complete"`, with no final content; `error`
 adds `code` and `message` and has no `time`. The bubble preserves the start timestamp; a terminal
 error received before start uses a local creation timestamp.
@@ -90,7 +103,8 @@ updates them through state methods; one Angular effect persists changes to the l
 `ls-assistants.chat-state`.
 `ChatTurns` coordinates transient requests separately from durable state. Text updates are batched
 at 32 ms; streaming persistence batches encoding, JSON stringification, and writes at 200 ms.
-Completion, errors, and Stop flush accumulated text and storage immediately. Ordinary state changes
+Session titles persist immediately while awaiting the answer. Completion, errors, and Stop flush
+accumulated text and storage immediately. Ordinary state changes
 continue to persist on the existing Angular effect flush.
 
 The saved record contains:
