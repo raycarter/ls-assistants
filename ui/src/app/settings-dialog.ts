@@ -26,6 +26,7 @@ export class SettingsDialog {
   readonly prompts = input.required<readonly SystemPrompt[]>();
   readonly selectedPrompt = input<SystemPrompt | null>(null);
   readonly promptLocked = input(false);
+  readonly chatSelectionContext = input(true);
   readonly closed = output<void>();
   readonly promptSelected = output<string | null>();
   readonly promptSaved = output<PromptDraft>();
@@ -92,11 +93,11 @@ export class SettingsDialog {
   }
 
   protected isSelected(id: string | null): boolean {
-    return (this.selectedPrompt()?.id ?? null) === id;
+    return this.chatSelectionContext() && (this.selectedPrompt()?.id ?? null) === id;
   }
 
   protected selectPrompt(id: string | null): void {
-    if (!this.promptLocked()) this.promptSelected.emit(id);
+    if (this.chatSelectionContext() && !this.promptLocked()) this.promptSelected.emit(id);
   }
 
   protected addPrompt(origin: HTMLElement): void {

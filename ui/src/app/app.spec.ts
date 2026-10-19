@@ -10,6 +10,8 @@ import { CHAT_STORAGE, CHAT_STORAGE_KEY, ChatState, type ChatStorage } from './c
 import type { ChatSession, StoredSession, SystemPrompt } from './chat.models';
 import { ChatApi } from './chat-api';
 import { completedChatApi } from './chat-api.testing';
+import { AgentApi } from './agent-api';
+import { AgentState } from './agent-state';
 
 describe('App', () => {
   let fixture: ComponentFixture<App>;
@@ -125,6 +127,7 @@ describe('App', () => {
       providers: [
         { provide: CHAT_STORAGE, useValue: storage },
         { provide: ChatApi, useValue: completedChatApi },
+        { provide: AgentApi, useValue: { list: async () => [] } },
       ],
       deferBlockBehavior,
     }).compileComponents();
@@ -263,7 +266,9 @@ describe('App', () => {
   it('renders an empty conversation with an enabled prompt selection and a disabled Send button', () => {
     expect(element('[role="log"] h1').textContent).toBe('Start a conversation');
     expect(elements('[role="log"] article')).toHaveLength(0);
-    expect(element('[aria-label="Current interactive mode"]').textContent).toBe('Chat');
+    expect(element<HTMLInputElement>('input[name="interactive-mode"][value="chat"]').checked).toBe(
+      true,
+    );
     expect(button('Send').disabled).toBe(true);
     expect(historyRows()).toHaveLength(1);
     expect(sessionButton(state.activeSessionId()).getAttribute('aria-current')).toBe('true');
@@ -357,7 +362,7 @@ describe('App', () => {
     }
 
     it.each(['bare session', 'bare array', 'v1 envelope'] as const)(
-      'hydrates %s into AI Markdown and a single checkmarked locked prompt',
+      'preserves %s Agent records in a read-only legacy view with a Chat fallback',
       async (format) => {
         const saved = exampleSession();
         const other: StoredSession = {
@@ -385,46 +390,45 @@ describe('App', () => {
 
         await setStorage(storage);
 
-        expect(state.activeSessionId()).toBe(saved.id);
-        expect(state.sessions().map((session) => session.id)).toEqual(
-          format === 'bare session' ? [saved.id] : [other.id, saved.id],
-        );
-        expect(elements('button[aria-current="true"]')).toEqual([sessionButton(saved.id)]);
-        expect(element('[aria-label="Current interactive mode"]').textContent).toBe('Agent');
-        expectSelectedPrompt(importedPrompt.id);
-        expect(promptButtons().every((candidate) => candidate.disabled)).toBe(true);
-        expect(element('p[title]', promptSection()).textContent).toContain(importedPrompt.title);
-        const articles = elements('[role="log"] article');
+        expect(state.activeSession().mode).toBe('chat');
+        expect(state.chatSessions()).toHaveLength(1);
+        expect(state.legacySessions().map((session) => session.id)).toContain(saved.id);
+        expect(historyRows()).toHaveLength(1);
+        const chatId = state.activeSessionId();
+        await click(element('input[name="interactive-mode"][value="agent"]'));
+        TestBed.inject(AgentState).selectLegacy(saved.id);
+        await settle();
+        expect(root().querySelector('[aria-labelledby="prompts-heading"]')).toBeNull();
+        expect(root().querySelector('#message-input, #agent-request')).toBeNull();
+        expect(root().textContent).toContain('Read-only legacy browser record');
+        const articles = elements('[aria-label="Read-only legacy Agent session"] article');
         expect(articles).toHaveLength(2);
-        expect(element('p:first-child > span', articles[0]).textContent?.trim()).toBe('User');
-        expect(element('p:first-child > span', articles[1]).textContent?.trim()).toBe(
-          importedPrompt.title,
-        );
         expect(element<HTMLTimeElement>('time', articles[0]).dateTime).toBe(saved.items[0].time);
         expect(element<HTMLTimeElement>('time', articles[1]).dateTime).toBe(saved.items[1].time);
-        expect(articles[0].classList.contains('items-end')).toBe(true);
-        expect(articles[1].classList.contains('items-start')).toBe(true);
         expect(element('h2', articles[1]).textContent).toBe('Saved answer 世界');
         expect(element('strong', articles[1]).textContent).toBe('clear example');
         expect(element('code', articles[1]).textContent).toBe('savedCode()');
         expect(element('li', articles[1]).textContent).toBe('合成 🌱');
-        expect(state.activeSession().messages[1]).toEqual({
+        expect(
+          state.legacySessions().find((session) => session.id === saved.id)!.messages[1],
+        ).toEqual({
           id: 'synthetic-answer',
           role: 'assistant',
           content: saved.items[1].msg,
           time: saved.items[1].time,
           status: 'complete',
         });
-        expect(element<HTMLTextAreaElement>('#message-input').value).toBe(
-          format === 'v1 envelope' ? ' Saved draft\n未发送 🌱 ' : '',
-        );
+        state.selectSession(saved.id);
+        state.deleteSession(saved.id);
+        state.updateSession(saved.id, (session) => ({ ...session, title: 'must not change' }));
+        expect(state.activeSessionId()).toBe(chatId);
 
         TestBed.tick();
         const persisted = JSON.parse(storage.getItem(CHAT_STORAGE_KEY)!);
         expect(persisted.version).toBe(1);
-        expect(persisted.sessions.filter((session: StoredSession) => session.selected)).toEqual([
-          saved,
-        ]);
+        expect(
+          persisted.sessions.find((session: StoredSession) => session.id === saved.id),
+        ).toEqual({ ...saved, selected: false });
       },
     );
 
@@ -466,7 +470,7 @@ describe('App', () => {
         }),
       },
       { name: 'unavailable storage', storage: () => null },
-    ])('keeps the UI functional without banners on $name', async ({ storage }) => {
+    ])('keeps the UI functional without banners on $name', async ({ storage, name }) => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       await setStorage(storage());
       expect(state.persistenceError()).not.toBeNull();
@@ -500,7 +504,11 @@ describe('App', () => {
       expect(state.activeSessionId()).toBe(firstId);
       expect(state.sessions().some((session) => session.id === newId)).toBe(false);
       expectNoStorageBanner();
-      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledTimes(
+        ['read security failure', 'write quota failure', 'unavailable storage'].includes(name)
+          ? 2
+          : 1,
+      );
       expect(JSON.stringify(warn.mock.calls)).not.toContain('Synthetic in-memory message');
       expect(JSON.stringify(warn.mock.calls)).not.toContain('Retained synthetic draft');
     });

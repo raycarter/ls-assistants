@@ -21,108 +21,173 @@
       class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold transition hover:bg-blue-500"
       aria-label="New session"
       title="New session"
+      [disabled]="agent.mode() === 'agent' && agent.creating()"
       (click)="newSession()"
     >
       <span class="material-icons" aria-hidden="true">add_comment</span>
       New session
     </button>
 
-    <section class="flex min-h-24 flex-1 flex-col" aria-labelledby="history-heading">
-      <div class="mb-3 flex items-center justify-between">
-        <h2 id="history-heading" class="text-sm font-semibold">Session history</h2>
-        <span class="rounded-full bg-blue-900 px-2 py-0.5 text-xs text-blue-200">{{
-          state.sessions().length
-        }}</span>
-      </div>
-      <ul
-        class="scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 min-h-0 space-y-1 overflow-y-auto pr-1"
-      >
-        @for (session of state.sessions(); track session.id) {
-          <li
-            class="flex items-center rounded-lg"
-            [class.bg-gray-700]="session.id === state.activeSessionId()"
-          >
-            <button
-              type="button"
-              class="min-w-0 flex-1 rounded-lg px-2 py-3 text-left text-sm hover:bg-gray-700"
-              [attr.aria-current]="session.id === state.activeSessionId() ? 'true' : null"
-              [title]="session.title"
-              (click)="selectSession(session.id)"
-            >
-              <span class="block truncate">{{ session.title }}</span>
-            </button>
-            <button
-              type="button"
-              class="inline-flex shrink-0 items-center justify-center rounded p-2 text-gray-400 hover:bg-gray-600 hover:text-red-300"
-              [attr.aria-label]="'Delete session: ' + session.title"
-              (click)="deleteSession(session.id)"
-            >
-              <span class="material-icons material-icons--small" aria-hidden="true"
-                >delete_forever</span
-              >
-            </button>
-          </li>
-        }
-      </ul>
-    </section>
-
-    <section
-      class="flex max-h-[40%] min-h-0 flex-col border-t border-gray-700 pt-4"
-      aria-labelledby="prompts-heading"
-    >
-      <div class="mb-2 flex items-center justify-between">
-        <h2 id="prompts-heading" class="inline-flex items-center gap-2 text-sm font-semibold">
-          System prompts
-          <span class="material-icons" aria-hidden="true">tune</span>
-        </h2>
-        <span class="text-xs text-gray-400">{{ state.prompts().length }}</span>
-      </div>
-      @if (state.activeSession().promptLocked) {
-        <p
-          class="mb-2 truncate text-xs text-amber-300"
-          [title]="state.activeSession().prompt?.title ?? 'No system prompt'"
+    @if (agent.mode() === 'chat') {
+      <section class="flex min-h-24 flex-1 flex-col" aria-labelledby="history-heading">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 id="history-heading" class="text-sm font-semibold">Session history</h2>
+          <span class="rounded-full bg-blue-900 px-2 py-0.5 text-xs text-blue-200">{{
+            state.chatSessions().length
+          }}</span>
+        </div>
+        <ul
+          class="scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 min-h-0 space-y-1 overflow-y-auto pr-1"
         >
-          Locked: {{ state.activeSession().prompt?.title ?? 'No system prompt' }}
-        </p>
-      } @else {
-        <p class="mb-2 text-xs text-gray-400">Select before your first message.</p>
-      }
-      <ul class="scrollbar-thin scrollbar-thumb-gray-600 min-h-0 space-y-1 overflow-y-auto">
-        <li>
-          <button
-            type="button"
-            class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 disabled:cursor-default disabled:hover:bg-transparent"
-            [class.bg-blue-950]="selectedPromptId() === null"
-            [attr.aria-pressed]="selectedPromptId() === null"
-            [disabled]="state.activeSession().promptLocked"
-            (click)="state.selectPrompt(null)"
-          >
-            No system prompt
-            @if (selectedPromptId() === null) {
-              <span aria-hidden="true" class="text-lg text-blue-200">✓</span>
+          @for (session of state.chatSessions(); track session.id) {
+            <li
+              class="flex items-center rounded-lg"
+              [class.bg-gray-700]="session.id === state.activeSessionId()"
+            >
+              <button
+                type="button"
+                class="min-w-0 flex-1 rounded-lg px-2 py-3 text-left text-sm hover:bg-gray-700"
+                [attr.aria-current]="session.id === state.activeSessionId() ? 'true' : null"
+                [title]="session.title"
+                (click)="selectSession(session.id)"
+              >
+                <span class="block truncate">{{ session.title }}</span>
+              </button>
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center rounded p-2 text-gray-400 hover:bg-gray-600 hover:text-red-300"
+                [attr.aria-label]="'Delete session: ' + session.title"
+                (click)="deleteSession(session.id)"
+              >
+                <span class="material-icons material-icons--small" aria-hidden="true"
+                  >delete_forever</span
+                >
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    } @else {
+      <section
+        class="flex min-h-24 flex-1 flex-col overflow-y-auto"
+        aria-label="Agent session history"
+      >
+        <h2 class="mb-3 text-sm font-semibold">Agent history ({{ agent.sessions().length }})</h2>
+        <ul class="space-y-1">
+          @for (session of agent.sessions(); track session.id) {
+            <li
+              class="flex items-center rounded-lg"
+              [class.bg-gray-700]="session.id === agent.selectedId()"
+            >
+              <button
+                type="button"
+                class="min-w-0 flex-1 rounded-lg px-2 py-3 text-left text-sm hover:bg-gray-700"
+                [attr.aria-current]="session.id === agent.selectedId() ? 'true' : null"
+                (click)="selectSession(session.id)"
+              >
+                <span class="block truncate">{{ session.title }}</span>
+                @if (session.archived) {
+                  <span class="text-xs text-gray-400">Archived</span>
+                }
+                @if (agent.archivePending().has(session.id)) {
+                  <span class="text-xs text-amber-300">Archive pending</span>
+                }
+              </button>
+              @if (!session.archived) {
+                <button
+                  type="button"
+                  class="rounded p-2 text-gray-400 hover:bg-gray-600"
+                  [attr.aria-label]="'Archive session: ' + session.title"
+                  [disabled]="agent.archivePending().has(session.id)"
+                  (click)="deleteSession(session.id)"
+                >
+                  <span class="material-icons material-icons--small" aria-hidden="true"
+                    >archive</span
+                  >
+                </button>
+              }
+            </li>
+          }
+        </ul>
+        @if (state.legacySessions().length) {
+          <h3 class="mt-4 text-sm font-semibold">Legacy Agent (read-only)</h3>
+          <ul>
+            @for (session of state.legacySessions(); track session.id) {
+              <li>
+                <button
+                  type="button"
+                  class="w-full rounded-lg px-2 py-3 text-left text-sm hover:bg-gray-700"
+                  [attr.aria-current]="session.id === agent.legacyId() ? 'true' : null"
+                  (click)="selectLegacy(session.id)"
+                >
+                  {{ session.title }}
+                </button>
+              </li>
             }
-          </button>
-        </li>
-        @for (prompt of state.prompts(); track prompt.id) {
+          </ul>
+        }
+      </section>
+    }
+
+    @if (agent.mode() === 'chat') {
+      <section
+        class="flex max-h-[40%] min-h-0 flex-col border-t border-gray-700 pt-4"
+        aria-labelledby="prompts-heading"
+      >
+        <div class="mb-2 flex items-center justify-between">
+          <h2 id="prompts-heading" class="inline-flex items-center gap-2 text-sm font-semibold">
+            System prompts
+            <span class="material-icons" aria-hidden="true">tune</span>
+          </h2>
+          <span class="text-xs text-gray-400">{{ state.prompts().length }}</span>
+        </div>
+        @if (state.activeSession().promptLocked) {
+          <p
+            class="mb-2 truncate text-xs text-amber-300"
+            [title]="state.activeSession().prompt?.title ?? 'No system prompt'"
+          >
+            Locked: {{ state.activeSession().prompt?.title ?? 'No system prompt' }}
+          </p>
+        } @else {
+          <p class="mb-2 text-xs text-gray-400">Select before your first message.</p>
+        }
+        <ul class="scrollbar-thin scrollbar-thumb-gray-600 min-h-0 space-y-1 overflow-y-auto">
           <li>
             <button
               type="button"
               class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 disabled:cursor-default disabled:hover:bg-transparent"
-              [class.bg-blue-950]="selectedPromptId() === prompt.id"
-              [attr.aria-pressed]="selectedPromptId() === prompt.id"
+              [class.bg-blue-950]="selectedPromptId() === null"
+              [attr.aria-pressed]="selectedPromptId() === null"
               [disabled]="state.activeSession().promptLocked"
-              [title]="prompt.title"
-              (click)="state.selectPrompt(prompt.id)"
+              (click)="state.selectPrompt(null)"
             >
-              <span class="truncate">{{ prompt.title }}</span>
-              @if (selectedPromptId() === prompt.id) {
+              No system prompt
+              @if (selectedPromptId() === null) {
                 <span aria-hidden="true" class="text-lg text-blue-200">✓</span>
               }
             </button>
           </li>
-        }
-      </ul>
-    </section>
+          @for (prompt of state.prompts(); track prompt.id) {
+            <li>
+              <button
+                type="button"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 disabled:cursor-default disabled:hover:bg-transparent"
+                [class.bg-blue-950]="selectedPromptId() === prompt.id"
+                [attr.aria-pressed]="selectedPromptId() === prompt.id"
+                [disabled]="state.activeSession().promptLocked"
+                [title]="prompt.title"
+                (click)="state.selectPrompt(prompt.id)"
+              >
+                <span class="truncate">{{ prompt.title }}</span>
+                @if (selectedPromptId() === prompt.id) {
+                  <span aria-hidden="true" class="text-lg text-blue-200">✓</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
 
     <button
       #settingsButton
@@ -150,7 +215,7 @@
         aria-label="Open sidebar"
         aria-controls="assistant-sidebar"
         [attr.aria-expanded]="sidebarOpen()"
-        (click)="sidebarOpen.set(!sidebarOpen())"
+        (click)="toggleSidebar()"
       >
         <svg
           viewBox="0 0 24 24"
@@ -164,29 +229,47 @@
         </svg>
       </button>
       <span class="font-semibold">Mode:</span>
-      <span
-        class="rounded-md bg-violet-700 px-3 py-1 text-sm"
-        aria-label="Current interactive mode"
-        >{{ modeLabel() }}</span
+      <fieldset
+        class="flex rounded-lg border border-gray-500 text-sm"
+        aria-label="Interactive mode"
       >
+        <legend class="sr-only">Interactive mode</legend>
+        @for (mode of ['chat', 'agent']; track mode) {
+          <label
+            class="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 has-checked:bg-violet-700 has-focus-visible:outline-2 has-focus-visible:outline-blue-300"
+          >
+            <input
+              type="radio"
+              name="interactive-mode"
+              [value]="mode"
+              [checked]="agent.mode() === mode"
+              (change)="setMode(mode === 'chat' ? 'chat' : 'agent')"
+              class="accent-blue-400"
+            />
+            {{ mode === 'chat' ? 'Chat' : 'Agent' }}
+          </label>
+        }
+      </fieldset>
       <div class="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-3">
         <div class="flex min-w-0 items-center gap-2">
           <label for="model-input" class="shrink-0 text-xs font-medium">Model</label>
           <select
+            #modelControl="ngModel"
             id="model-input"
             name="model"
             class="w-36 min-w-0 rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm sm:w-44"
-            [ngModel]="turns.selectedModel()"
-            (ngModelChange)="state.selectModel($event)"
+            [ngModel]="selectedModel()"
+            [disabled]="agent.mode() === 'agent' && agent.locked()"
+            (ngModelChange)="selectModel($event, modelControl)"
           >
-            @if (!turns.selectedModel()) {
+            @if (!selectedModel()) {
               <option value="" disabled>
                 {{ turns.modelsLoading() ? 'Loading models…' : 'Select model' }}
               </option>
             }
-            @if (turns.selectedModel() && !turns.models().includes(turns.selectedModel())) {
-              <option [value]="turns.selectedModel()" disabled>
-                {{ turns.selectedModel() }} (unavailable)
+            @if (selectedModel() && !turns.models().includes(selectedModel())) {
+              <option [value]="selectedModel()" disabled>
+                {{ selectedModel() }} (unavailable)
               </option>
             }
             @for (model of turns.models(); track model) {
@@ -197,11 +280,13 @@
         <div class="flex shrink-0 items-center gap-2">
           <label for="thinking-input" class="shrink-0 text-xs font-medium">Thinking</label>
           <select
+            #effortControl="ngModel"
             id="thinking-input"
             name="thinking"
             class="w-24 rounded-lg border border-gray-400 bg-gray-900 px-2 py-1 text-sm"
-            [ngModel]="turns.selectedEffort()"
-            (ngModelChange)="state.selectReasoningEffort($event)"
+            [ngModel]="selectedEffort()"
+            [disabled]="agent.mode() === 'agent' && agent.locked()"
+            (ngModelChange)="selectEffort($event, effortControl)"
           >
             @for (effort of efforts; track effort) {
               <option [value]="effort">{{ effort }}</option>
@@ -211,124 +296,8 @@
       </div>
     </header>
 
-    <div
-      #messageList
-      class="scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-8"
-      role="log"
-      aria-label="Conversation messages"
-      aria-live="polite"
-      aria-relevant="additions"
-      tabindex="0"
-    >
-      @if (messages().length) {
-        @defer (when messages().length > 0) {
-          @for (message of messages(); track message.id) {
-            <article
-              #messageBubble
-              class="mb-6 flex flex-col"
-              [class.items-start]="message.role === 'assistant'"
-              [class.items-end]="message.role === 'user'"
-            >
-              <p
-                class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm font-medium text-gray-400"
-              >
-                @if (message.role === 'assistant') {
-                  <span class="font-bold text-gray-200">{{
-                    state.activeSession().prompt?.title ?? 'Assistant'
-                  }}</span>
-                }
-                @if (message.time | messageTime; as timestamp) {
-                  <time
-                    [attr.datetime]="message.time"
-                    class="text-xs font-normal whitespace-nowrap tabular-nums"
-                    >{{ timestamp }}</time
-                  >
-                }
-                @if (message.role === 'user') {
-                  <span class="font-bold text-gray-200">User</span>
-                }
-              </p>
-              <div
-                class="message-markdown max-w-full rounded-xl px-4 py-3 text-base shadow-sm sm:max-w-[90%] sm:px-5 sm:py-4"
-                [class.bg-blue-100]="message.role === 'user'"
-                [class.text-blue-900]="message.role === 'user'"
-                [class.bg-gray-100]="message.role === 'assistant'"
-                [class.text-gray-800]="message.role === 'assistant'"
-                [innerHTML]="message.content | markdown"
-              ></div>
-            </article>
-          }
-        } @placeholder {
-          <p role="status" class="text-gray-400">Loading conversation…</p>
-        } @error {
-          @for (message of messages(); track message.id) {
-            <article #messageBubble class="mb-6">
-              <p class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm text-gray-400">
-                @if (message.role === 'assistant') {
-                  <span class="font-bold text-gray-200">{{
-                    state.activeSession().prompt?.title ?? 'Assistant'
-                  }}</span>
-                }
-                @if (message.time | messageTime; as timestamp) {
-                  <time
-                    [attr.datetime]="message.time"
-                    class="text-xs font-normal whitespace-nowrap tabular-nums"
-                    >{{ timestamp }}</time
-                  >
-                }
-                @if (message.role === 'user') {
-                  <span class="font-bold text-gray-200">User</span>
-                }
-              </p>
-              <p class="rounded-xl bg-gray-100 p-4 whitespace-pre-wrap text-gray-800">
-                {{ message.content }}
-              </p>
-            </article>
-          }
-        }
-      } @else {
-        <div class="mx-auto flex h-full max-w-xl flex-col items-center justify-center text-center">
-          <div class="mb-5 rounded-2xl bg-gray-700 p-4 text-blue-300" aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              class="h-8 w-8"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-            >
-              <path d="M4 4h16v12H9l-5 4V4Z" />
-              <path d="M8 8h8M8 12h5" />
-            </svg>
-          </div>
-          <h1 class="mb-3 text-2xl font-semibold">Start a conversation</h1>
-          <p class="text-gray-400">Choose a system prompt, then write your first message.</p>
-        </div>
-      }
-    </div>
-
-    @if (turns.activePending()) {
-      <div class="flex items-center gap-3 px-4 pb-2 text-sm" role="status">
-        Receiving reply…
-        <button type="button" class="rounded px-2 py-1 underline" (click)="turns.stop()">
-          Stop reply
-        </button>
-      </div>
-    }
-    @if (replyError()) {
-      <div class="px-4 pb-2 text-sm text-amber-300" role="alert">{{ replyError() }}</div>
-    }
-    @if (turns.retryMessage() && !turns.activePending()) {
-      <button
-        type="button"
-        class="mx-4 mb-2 self-start rounded px-2 py-1 text-sm underline disabled:text-gray-500"
-        [disabled]="!turns.models().includes(turns.selectedModel())"
-        (click)="turns.retry()"
-      >
-        Retry reply
-      </button>
-    }
     @if (turns.modelsError()) {
-      <div class="px-4 pb-2 text-sm text-amber-300" role="alert">
+      <div class="px-4 py-2 text-sm text-amber-300" role="alert">
         {{ turns.modelsError() }}
         <button type="button" class="ml-2 underline" (click)="turns.loadModels()">
           Reload models
@@ -336,37 +305,168 @@
       </div>
     }
 
-    <form
-      class="shrink-0 border-t border-gray-600 bg-gray-600 pt-1 pr-3 pb-3 pl-1 sm:pt-[5px] sm:pr-4 sm:pb-4 sm:pl-[5px]"
-      (ngSubmit)="sendMessage()"
-    >
-      <label for="message-input" class="sr-only">Message to the assistant</label>
-      <div class="flex items-end gap-3">
-        <textarea
-          #composer
-          id="message-input"
-          name="message"
-          rows="4"
-          class="min-h-24 max-h-60 min-w-0 flex-1 resize-y rounded-lg border border-gray-300 bg-white px-3 py-3 text-gray-900 placeholder:text-gray-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-          placeholder="Type your message..."
-          aria-describedby="composer-help"
-          [ngModel]="state.activeSession().draft"
-          (ngModelChange)="state.updateDraft($event)"
-          (keydown)="onComposerKeydown($event)"
-        ></textarea>
-        <button
-          type="submit"
-          class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
-          [disabled]="!turns.canSend()"
-        >
-          <span class="material-icons" aria-hidden="true">rocket_launch</span>
-          Send
-        </button>
+    @if (agent.mode() === 'agent') {
+      @defer (on immediate) {
+        <app-agent-workspace #agentWorkspace [legacy]="legacy()" />
+      } @placeholder {
+        <p role="status" class="p-4">Opening Agent workspace…</p>
+      } @error {
+        <p role="alert" class="p-4">
+          Agent workspace could not load. Refresh the page to try again.
+        </p>
+      }
+    } @else {
+      <div
+        #messageList
+        class="scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-8"
+        role="log"
+        aria-label="Conversation messages"
+        aria-live="polite"
+        aria-relevant="additions"
+        tabindex="0"
+      >
+        @if (messages().length) {
+          @defer (when messages().length > 0) {
+            @for (message of messages(); track message.id) {
+              <article
+                #messageBubble
+                class="mb-6 flex flex-col"
+                [class.items-start]="message.role === 'assistant'"
+                [class.items-end]="message.role === 'user'"
+              >
+                <p
+                  class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm font-medium text-gray-400"
+                >
+                  @if (message.role === 'assistant') {
+                    <span class="font-bold text-gray-200">{{
+                      state.activeSession().prompt?.title ?? 'Assistant'
+                    }}</span>
+                  }
+                  @if (message.time | messageTime; as timestamp) {
+                    <time
+                      [attr.datetime]="message.time"
+                      class="text-xs font-normal whitespace-nowrap tabular-nums"
+                      >{{ timestamp }}</time
+                    >
+                  }
+                  @if (message.role === 'user') {
+                    <span class="font-bold text-gray-200">User</span>
+                  }
+                </p>
+                <div
+                  class="message-markdown max-w-full rounded-xl px-4 py-3 text-base shadow-sm sm:max-w-[90%] sm:px-5 sm:py-4"
+                  [class.bg-blue-100]="message.role === 'user'"
+                  [class.text-blue-900]="message.role === 'user'"
+                  [class.bg-gray-100]="message.role === 'assistant'"
+                  [class.text-gray-800]="message.role === 'assistant'"
+                  [innerHTML]="message.content | markdown"
+                ></div>
+              </article>
+            }
+          } @placeholder {
+            <p role="status" class="text-gray-400">Loading conversation…</p>
+          } @error {
+            @for (message of messages(); track message.id) {
+              <article #messageBubble class="mb-6">
+                <p class="mb-1 flex max-w-full flex-wrap items-center gap-2 text-sm text-gray-400">
+                  @if (message.role === 'assistant') {
+                    <span class="font-bold text-gray-200">{{
+                      state.activeSession().prompt?.title ?? 'Assistant'
+                    }}</span>
+                  }
+                  @if (message.time | messageTime; as timestamp) {
+                    <time
+                      [attr.datetime]="message.time"
+                      class="text-xs font-normal whitespace-nowrap tabular-nums"
+                      >{{ timestamp }}</time
+                    >
+                  }
+                  @if (message.role === 'user') {
+                    <span class="font-bold text-gray-200">User</span>
+                  }
+                </p>
+                <p class="rounded-xl bg-gray-100 p-4 whitespace-pre-wrap text-gray-800">
+                  {{ message.content }}
+                </p>
+              </article>
+            }
+          }
+        } @else {
+          <div
+            class="mx-auto flex h-full max-w-xl flex-col items-center justify-center text-center"
+          >
+            <div class="mb-5 rounded-2xl bg-gray-700 p-4 text-blue-300" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                class="h-8 w-8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              >
+                <path d="M4 4h16v12H9l-5 4V4Z" />
+                <path d="M8 8h8M8 12h5" />
+              </svg>
+            </div>
+            <h1 class="mb-3 text-2xl font-semibold">Start a conversation</h1>
+            <p class="text-gray-400">Choose a system prompt, then write your first message.</p>
+          </div>
+        }
       </div>
-      <p id="composer-help" class="mt-2 text-xs text-gray-200">
-        Enter to send · Shift + Enter for a new line
-      </p>
-    </form>
+
+      @if (turns.activePending()) {
+        <div class="flex items-center gap-3 px-4 pb-2 text-sm" role="status">
+          Receiving reply…
+          <button type="button" class="rounded px-2 py-1 underline" (click)="turns.stop()">
+            Stop reply
+          </button>
+        </div>
+      }
+      @if (replyError()) {
+        <div class="px-4 pb-2 text-sm text-amber-300" role="alert">{{ replyError() }}</div>
+      }
+      @if (turns.retryMessage() && !turns.activePending()) {
+        <button
+          type="button"
+          class="mx-4 mb-2 self-start rounded px-2 py-1 text-sm underline disabled:text-gray-500"
+          [disabled]="!turns.models().includes(turns.selectedModel())"
+          (click)="turns.retry()"
+        >
+          Retry reply
+        </button>
+      }
+
+      <form
+        class="shrink-0 border-t border-gray-600 bg-gray-600 pt-1 pr-3 pb-3 pl-1 sm:pt-[5px] sm:pr-4 sm:pb-4 sm:pl-[5px]"
+        (ngSubmit)="sendMessage()"
+      >
+        <label for="message-input" class="sr-only">Message to the assistant</label>
+        <div class="flex items-end gap-3">
+          <textarea
+            #composer
+            id="message-input"
+            name="message"
+            rows="4"
+            class="min-h-24 max-h-60 min-w-0 flex-1 resize-y rounded-lg border border-gray-300 bg-white px-3 py-3 text-gray-900 placeholder:text-gray-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="Type your message..."
+            aria-describedby="composer-help"
+            [ngModel]="state.activeSession().draft"
+            (ngModelChange)="state.updateDraft($event)"
+            (keydown)="onComposerKeydown($event)"
+          ></textarea>
+          <button
+            type="submit"
+            class="flex shrink-0 items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 font-semibold hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-gray-500 disabled:text-gray-300"
+            [disabled]="!turns.canSend()"
+          >
+            <span class="material-icons" aria-hidden="true">rocket_launch</span>
+            Send
+          </button>
+        </div>
+        <p id="composer-help" class="mt-2 text-xs text-gray-200">
+          Enter to send · Shift + Enter for a new line
+        </p>
+      </form>
+    }
   </main>
 </div>
 
@@ -374,10 +474,11 @@
   @if (settingsOpen()) {
     <app-settings-dialog
       [prompts]="state.prompts()"
-      [selectedPrompt]="state.activeSession().prompt"
-      [promptLocked]="state.activeSession().promptLocked"
+      [chatSelectionContext]="agent.mode() === 'chat'"
+      [selectedPrompt]="agent.mode() === 'chat' ? state.activeSession().prompt : null"
+      [promptLocked]="agent.mode() === 'chat' && state.activeSession().promptLocked"
       (closed)="closeSettings()"
-      (promptSelected)="state.selectPrompt($event)"
+      (promptSelected)="agent.mode() === 'chat' && state.selectPrompt($event)"
       (promptSaved)="state.savePrompt($event)"
       (promptDeleted)="state.deletePrompt($event)"
     />

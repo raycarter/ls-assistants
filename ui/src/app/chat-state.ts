@@ -100,16 +100,24 @@ function readInitialState(storage: ChatStorage | null): {
   try {
     const snapshot = decodeChatState(raw, fallback.prompts);
     for (const session of snapshot.sessions) {
+      if (session.mode !== 'chat') continue;
       session.messages = session.messages.map((message) =>
         message.role === 'assistant' && message.status === 'streaming'
           ? { ...message, status: 'interrupted' }
           : message,
       );
     }
-    if (!snapshot.sessions.length) {
+    if (!snapshot.sessions.some((session) => session.mode === 'chat')) {
       const session = emptySession(crypto.randomUUID());
-      snapshot.sessions = [session];
+      snapshot.sessions = [...snapshot.sessions, session];
       snapshot.activeSessionId = session.id;
+    }
+    if (
+      !snapshot.sessions.some(
+        (session) => session.id === snapshot.activeSessionId && session.mode === 'chat',
+      )
+    ) {
+      snapshot.activeSessionId = snapshot.sessions.find((session) => session.mode === 'chat')!.id;
     }
     return { snapshot, canPersist: true, error: null };
   } catch {
@@ -132,6 +140,12 @@ export class ChatState {
 
   readonly prompts = signal<SystemPrompt[]>(this.initial.snapshot.prompts);
   readonly sessions = signal<ChatSession[]>(this.initial.snapshot.sessions);
+  readonly chatSessions = computed(() =>
+    this.sessions().filter((session) => session.mode === 'chat'),
+  );
+  readonly legacySessions = computed(() =>
+    this.sessions().filter((session) => session.mode === 'agent'),
+  );
   readonly activeSessionId = signal(this.initial.snapshot.activeSessionId);
   readonly activeSession = computed(() =>
     this.sessions().find((session) => session.id === this.activeSessionId())!,
@@ -149,7 +163,10 @@ export class ChatState {
     effect(() => {
       const snapshot = this.snapshot();
       if (
-        snapshot.sessions.some((session) => session.messages.some((m) => m.status === 'streaming'))
+        snapshot.sessions.some(
+          (session) =>
+            session.mode === 'chat' && session.messages.some((m) => m.status === 'streaming'),
+        )
       ) {
         // Defer encoding AND stringification, not just the storage write.
         this.persistTimer ??= setTimeout(() => this.flushPersistence(), 200);
@@ -201,7 +218,9 @@ export class ChatState {
 
   updateSession(id: string, update: (session: ChatSession) => ChatSession): void {
     this.sessions.update((sessions) =>
-      sessions.map((session) => (session.id === id ? update(session) : session)),
+      sessions.map((session) =>
+        session.id === id && session.mode === 'chat' ? update(session) : session,
+      ),
     );
   }
 
@@ -212,18 +231,20 @@ export class ChatState {
   }
 
   selectSession(id: string): void {
-    if (this.sessions().some((session) => session.id === id)) {
+    if (this.chatSessions().some((session) => session.id === id)) {
       this.activeSessionId.set(id);
     }
   }
 
   deleteSession(id: string): void {
-    if (!this.sessions().some((session) => session.id === id)) return;
+    if (!this.chatSessions().some((session) => session.id === id)) return;
 
     const remaining = this.sessions().filter((session) => session.id !== id);
-    if (!remaining.length) remaining.push(emptySession(crypto.randomUUID()));
+    if (!remaining.some((session) => session.mode === 'chat'))
+      remaining.push(emptySession(crypto.randomUUID()));
     this.sessions.set(remaining);
-    if (this.activeSessionId() === id) this.activeSessionId.set(remaining[0].id);
+    if (this.activeSessionId() === id)
+      this.activeSessionId.set(remaining.find((session) => session.mode === 'chat')!.id);
   }
 
   updateDraft(draft: string): void {
@@ -231,6 +252,7 @@ export class ChatState {
   }
 
   sendMessage(): boolean {
+    if (this.activeSession().mode !== 'chat') return false;
     const content = this.activeSession().draft.trim();
     if (!content) return false;
 
@@ -251,7 +273,7 @@ export class ChatState {
   }
 
   selectPrompt(id: string | null): void {
-    if (this.activeSession().promptLocked) return;
+    if (this.activeSession().mode !== 'chat' || this.activeSession().promptLocked) return;
     const prompt = id === null ? null : this.prompts().find((entry) => entry.id === id);
     if (prompt === undefined) return;
     this.updateActiveSession((session) => ({ ...session, prompt: prompt ? { ...prompt } : null }));
@@ -271,7 +293,7 @@ export class ChatState {
     );
     this.sessions.update((sessions) =>
       sessions.map((session) =>
-        !session.promptLocked && session.prompt?.id === prompt.id
+        session.mode === 'chat' && !session.promptLocked && session.prompt?.id === prompt.id
           ? { ...session, prompt: { ...prompt } }
           : session,
       ),
@@ -282,7 +304,9 @@ export class ChatState {
     this.prompts.update((prompts) => prompts.filter((prompt) => prompt.id !== id));
     this.sessions.update((sessions) =>
       sessions.map((session) =>
-        !session.promptLocked && session.prompt?.id === id ? { ...session, prompt: null } : session,
+        session.mode === 'chat' && !session.promptLocked && session.prompt?.id === id
+          ? { ...session, prompt: null }
+          : session,
       ),
     );
   }

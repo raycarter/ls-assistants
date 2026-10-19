@@ -45,6 +45,7 @@ export class ChatTurns {
   readonly selectedEffort = computed(() => this.state.activeSession().reasoningEffort ?? 'medium');
   readonly canSend = computed(
     () =>
+      this.state.activeSession().mode === 'chat' &&
       !this.activePending() &&
       this.models().includes(this.selectedModel()) &&
       !!this.state.activeSession().draft.trim(),
@@ -52,6 +53,7 @@ export class ChatTurns {
   readonly retryMessage = computed(() => {
     if (this.activePending()) return null;
     const session = this.state.activeSession();
+    if (session.mode !== 'chat') return null;
     const last = session.messages.at(-1);
     if (last?.role === 'user') return last.content.length > 0 ? last : null;
     return last?.role === 'assistant' &&
@@ -67,7 +69,7 @@ export class ChatTurns {
 
   constructor() {
     effect(() => {
-      const ids = new Set(this.state.sessions().map((session) => session.id));
+      const ids = new Set(this.state.chatSessions().map((session) => session.id));
       untracked(() => {
         for (const [id, turn] of this.turns) {
           if (!ids.has(id)) this.discard(id, turn);
@@ -129,6 +131,7 @@ export class ChatTurns {
   }
 
   retry(): boolean {
+    if (this.state.activeSession().mode !== 'chat') return false;
     const target = this.retryMessage();
     const session = this.state.activeSession();
     if (!target || this.activePending() || !this.models().includes(this.selectedModel()))
@@ -165,6 +168,7 @@ export class ChatTurns {
   }
 
   deleteSession(id: string): void {
+    if (!this.state.chatSessions().some((session) => session.id === id)) return;
     const turn = this.turns.get(id);
     if (turn) this.discard(id, turn);
     this.errors.update((errors) => {

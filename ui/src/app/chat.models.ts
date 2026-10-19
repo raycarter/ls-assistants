@@ -34,6 +34,8 @@ export interface ChatSession {
   promptLocked: boolean;
   model?: string;
   reasoningEffort?: ReasoningEffort;
+  /** Original supported legacy record; Agent records are never Chat mutation targets. */
+  legacyStored?: StoredSession;
 }
 
 export interface ChatSnapshot {

@@ -1,0 +1,1294 @@
+{
+  "version": 1,
+  "streams": [
+    {
+      "name": "planning",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 1,
+        "runs": []
+      },
+      "command": {
+        "action": "runs",
+        "content": "Read the public fixture"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct01/runs",
+        "body": {
+          "request_id": "plan",
+          "content": "Read the public fixture"
+        }
+      },
+      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.planning\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.attempt\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":4,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.result\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":5,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.awaiting_approval\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000004\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 1,
+              "digest": "80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000004"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "revision",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 1,
+              "digest": "80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000004"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "command": {
+        "action": "revise",
+        "run_id": "00000000000000000000000000000001",
+        "plan_id": "00000000000000000000000000000003",
+        "revision": 1,
+        "digest": "80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258",
+        "kind": "feedback",
+        "content": "Keep the two-line page."
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct01/runs/00000000000000000000000000000001/revise",
+        "body": {
+          "request_id": "revise",
+          "plan_id": "00000000000000000000000000000003",
+          "revision": 1,
+          "digest": "80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258",
+          "kind": "feedback",
+          "content": "Keep the two-line page."
+        }
+      },
+      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"run.planning\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000004\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"planner.attempt\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000004\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"planner.result\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"80b488afc734cdab03ca2acdd882b8d8b9176578e47aa6de4b22f15b83b4a258\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000004\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"run.awaiting_approval\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 9,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 2,
+              "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000006"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "execution",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 9,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 2,
+              "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000006"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "command": {
+        "action": "execute",
+        "run_id": "00000000000000000000000000000001",
+        "plan_id": "00000000000000000000000000000003",
+        "revision": 2,
+        "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct01/runs/00000000000000000000000000000001/execute",
+        "body": {
+          "request_id": "execute",
+          "plan_id": "00000000000000000000000000000003",
+          "revision": 2,
+          "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a"
+        }
+      },
+      "sse": "id: 10\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.approved\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000007\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.executing\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"tool.intent\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":12,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000006\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"tool.result\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":13,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000006\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 14\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":14,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.completed\",\"session\":{\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":14,\"runs\":[{\"id\":\"00000000000000000000000000000001\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"completed\",\"operation_id\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000006\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true}],\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 14,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "completed",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 2,
+              "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000006"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [
+              {
+                "step_id": "00000000000000000000000000000006",
+                "status": "completed",
+                "content": "1: alpha 🌱\n2: beta",
+                "time": "2026-10-16T09:00:00.123456Z",
+                "error": null,
+                "path": "public.txt",
+                "offset": 1,
+                "returned_lines": 2,
+                "truncated": true
+              }
+            ],
+            "answer": "Completed 1 approved file read(s). See the recorded excerpts.",
+            "error": null,
+            "clarification": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "stale_baseline",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct02",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000008",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "0000000000000000000000000000000a",
+              "revision": 1,
+              "digest": "7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "0000000000000000000000000000000b"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "command": {
+        "action": "execute",
+        "run_id": "00000000000000000000000000000008",
+        "plan_id": "0000000000000000000000000000000a",
+        "revision": 1,
+        "digest": "7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct02/runs/00000000000000000000000000000008/execute",
+        "body": {
+          "request_id": "execute",
+          "plan_id": "0000000000000000000000000000000a",
+          "revision": 1,
+          "digest": "7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab"
+        }
+      },
+      "sse": "id: 7\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.approved\",\"session\":{\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"runs\":[{\"id\":\"00000000000000000000000000000008\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"approved\",\"operation_id\":\"0000000000000000000000000000000c\",\"plan\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000000b\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.executing\",\"session\":{\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"runs\":[{\"id\":\"00000000000000000000000000000008\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"plan\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000000b\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"tool.intent\",\"session\":{\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"runs\":[{\"id\":\"00000000000000000000000000000008\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"plan\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000000b\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"0000000000000000000000000000000b\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"tool.result\",\"session\":{\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"runs\":[{\"id\":\"00000000000000000000000000000008\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"plan\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000000b\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"0000000000000000000000000000000b\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.completed\",\"session\":{\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"runs\":[{\"id\":\"00000000000000000000000000000008\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"completed\",\"operation_id\":null,\"plan\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000000b\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"0000000000000000000000000000000b\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true}],\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct02",
+        "title": "A title committed before admission",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 11,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000008",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "completed",
+            "operation_id": null,
+            "plan": {
+              "id": "0000000000000000000000000000000a",
+              "revision": 1,
+              "digest": "7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "0000000000000000000000000000000b"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [
+              {
+                "step_id": "0000000000000000000000000000000b",
+                "status": "completed",
+                "content": "1: alpha 🌱\n2: beta",
+                "time": "2026-10-16T09:00:00.123456Z",
+                "error": null,
+                "path": "public.txt",
+                "offset": 1,
+                "returned_lines": 2,
+                "truncated": true
+              }
+            ],
+            "answer": "Completed 1 approved file read(s). See the recorded excerpts.",
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "controls": [
+        {
+          "http": {
+            "method": "PATCH",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct02",
+            "body": {
+              "request_id": "title",
+              "title": "A title committed before admission"
+            }
+          },
+          "status": 200,
+          "session": {
+            "id": "20261016T090000123456Z-ct02",
+            "title": "A title committed before admission",
+            "model": "deployment-a",
+            "reasoning_effort": "medium",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "archived": false,
+            "archive_pending": false,
+            "sequence": 6,
+            "runs": [
+              {
+                "id": "00000000000000000000000000000008",
+                "request": "Read the public fixture",
+                "created_at": "2026-10-16T09:00:00.123456Z",
+                "updated_at": "2026-10-16T09:00:00.123456Z",
+                "status": "awaiting_approval",
+                "operation_id": null,
+                "plan": {
+                  "id": "0000000000000000000000000000000a",
+                  "revision": 1,
+                  "digest": "7a1dd9521f86d0a328d509581cb71e3c78d1d49a59ee08a5572eff2f4537c8ab",
+                  "objective": "Read the public fixture",
+                  "assumptions": [
+                    "Workspace assumptions are unverified; planning performs no reads.",
+                    "The public file is unverified."
+                  ],
+                  "model": "deployment-a",
+                  "reasoning_effort": "medium",
+                  "limits": {
+                    "max_steps": 1,
+                    "max_tool_calls": 1,
+                    "timeout_seconds": 30
+                  },
+                  "steps": [
+                    {
+                      "title": "Read public text",
+                      "description": "Read the first two lines only.",
+                      "tool": "read_file",
+                      "arguments": {
+                        "workspace_id": "public",
+                        "path": "public.txt",
+                        "offset": 1,
+                        "limit": 2
+                      },
+                      "id": "0000000000000000000000000000000b"
+                    }
+                  ],
+                  "access_policy": {
+                    "version": "read-text-v3",
+                    "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                    "workspaces": "public",
+                    "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                    "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+                  }
+                },
+                "results": [],
+                "answer": null,
+                "error": null,
+                "clarification": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cancellation_archive",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct03",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "runs": [
+          {
+            "id": "0000000000000000000000000000000d",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "0000000000000000000000000000000f",
+              "revision": 1,
+              "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000010"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "command": {
+        "action": "execute",
+        "run_id": "0000000000000000000000000000000d",
+        "plan_id": "0000000000000000000000000000000f",
+        "revision": 1,
+        "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/execute",
+        "body": {
+          "request_id": "execute",
+          "plan_id": "0000000000000000000000000000000f",
+          "revision": 1,
+          "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4"
+        }
+      },
+      "controls": [
+        {
+          "http": {
+            "method": "POST",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/cancel",
+            "body": {
+              "request_id": "old-stop",
+              "operation_id": "0000000000000000000000000000000e"
+            }
+          },
+          "status": 200,
+          "session": {
+            "id": "20261016T090000123456Z-ct03",
+            "title": "New Agent session",
+            "model": "deployment-a",
+            "reasoning_effort": "medium",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "archived": false,
+            "archive_pending": false,
+            "sequence": 9,
+            "runs": [
+              {
+                "id": "0000000000000000000000000000000d",
+                "request": "Read the public fixture",
+                "created_at": "2026-10-16T09:00:00.123456Z",
+                "updated_at": "2026-10-16T09:00:00.123456Z",
+                "status": "executing",
+                "operation_id": "00000000000000000000000000000011",
+                "plan": {
+                  "id": "0000000000000000000000000000000f",
+                  "revision": 1,
+                  "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4",
+                  "objective": "Read the public fixture",
+                  "assumptions": [
+                    "Workspace assumptions are unverified; planning performs no reads.",
+                    "The public file is unverified."
+                  ],
+                  "model": "deployment-a",
+                  "reasoning_effort": "medium",
+                  "limits": {
+                    "max_steps": 1,
+                    "max_tool_calls": 1,
+                    "timeout_seconds": 30
+                  },
+                  "steps": [
+                    {
+                      "title": "Read public text",
+                      "description": "Read the first two lines only.",
+                      "tool": "read_file",
+                      "arguments": {
+                        "workspace_id": "public",
+                        "path": "public.txt",
+                        "offset": 1,
+                        "limit": 2
+                      },
+                      "id": "00000000000000000000000000000010"
+                    }
+                  ],
+                  "access_policy": {
+                    "version": "read-text-v3",
+                    "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                    "workspaces": "public",
+                    "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                    "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+                  }
+                },
+                "results": [
+                  {
+                    "step_id": "00000000000000000000000000000010",
+                    "status": "running",
+                    "content": "",
+                    "time": "2026-10-16T09:00:00.123456Z",
+                    "error": null,
+                    "path": null,
+                    "offset": null,
+                    "returned_lines": null,
+                    "truncated": false
+                  }
+                ],
+                "answer": null,
+                "error": null,
+                "clarification": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/cancel",
+            "body": {
+              "request_id": "stop",
+              "operation_id": "00000000000000000000000000000011"
+            }
+          },
+          "status": 202,
+          "session": {
+            "id": "20261016T090000123456Z-ct03",
+            "title": "New Agent session",
+            "model": "deployment-a",
+            "reasoning_effort": "medium",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "archived": false,
+            "archive_pending": false,
+            "sequence": 11,
+            "runs": [
+              {
+                "id": "0000000000000000000000000000000d",
+                "request": "Read the public fixture",
+                "created_at": "2026-10-16T09:00:00.123456Z",
+                "updated_at": "2026-10-16T09:00:00.123456Z",
+                "status": "cancelling",
+                "operation_id": "00000000000000000000000000000011",
+                "plan": {
+                  "id": "0000000000000000000000000000000f",
+                  "revision": 1,
+                  "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4",
+                  "objective": "Read the public fixture",
+                  "assumptions": [
+                    "Workspace assumptions are unverified; planning performs no reads.",
+                    "The public file is unverified."
+                  ],
+                  "model": "deployment-a",
+                  "reasoning_effort": "medium",
+                  "limits": {
+                    "max_steps": 1,
+                    "max_tool_calls": 1,
+                    "timeout_seconds": 30
+                  },
+                  "steps": [
+                    {
+                      "title": "Read public text",
+                      "description": "Read the first two lines only.",
+                      "tool": "read_file",
+                      "arguments": {
+                        "workspace_id": "public",
+                        "path": "public.txt",
+                        "offset": 1,
+                        "limit": 2
+                      },
+                      "id": "00000000000000000000000000000010"
+                    }
+                  ],
+                  "access_policy": {
+                    "version": "read-text-v3",
+                    "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                    "workspaces": "public",
+                    "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                    "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+                  }
+                },
+                "results": [
+                  {
+                    "step_id": "00000000000000000000000000000010",
+                    "status": "running",
+                    "content": "",
+                    "time": "2026-10-16T09:00:00.123456Z",
+                    "error": null,
+                    "path": null,
+                    "offset": null,
+                    "returned_lines": null,
+                    "truncated": false
+                  }
+                ],
+                "answer": null,
+                "error": null,
+                "clarification": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/archive",
+            "body": {
+              "request_id": "archive"
+            }
+          },
+          "status": 202,
+          "session": {
+            "id": "20261016T090000123456Z-ct03",
+            "title": "New Agent session",
+            "model": "deployment-a",
+            "reasoning_effort": "medium",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "archived": false,
+            "archive_pending": true,
+            "sequence": 12,
+            "runs": [
+              {
+                "id": "0000000000000000000000000000000d",
+                "request": "Read the public fixture",
+                "created_at": "2026-10-16T09:00:00.123456Z",
+                "updated_at": "2026-10-16T09:00:00.123456Z",
+                "status": "cancelling",
+                "operation_id": "00000000000000000000000000000011",
+                "plan": {
+                  "id": "0000000000000000000000000000000f",
+                  "revision": 1,
+                  "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4",
+                  "objective": "Read the public fixture",
+                  "assumptions": [
+                    "Workspace assumptions are unverified; planning performs no reads.",
+                    "The public file is unverified."
+                  ],
+                  "model": "deployment-a",
+                  "reasoning_effort": "medium",
+                  "limits": {
+                    "max_steps": 1,
+                    "max_tool_calls": 1,
+                    "timeout_seconds": 30
+                  },
+                  "steps": [
+                    {
+                      "title": "Read public text",
+                      "description": "Read the first two lines only.",
+                      "tool": "read_file",
+                      "arguments": {
+                        "workspace_id": "public",
+                        "path": "public.txt",
+                        "offset": 1,
+                        "limit": 2
+                      },
+                      "id": "00000000000000000000000000000010"
+                    }
+                  ],
+                  "access_policy": {
+                    "version": "read-text-v3",
+                    "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                    "workspaces": "public",
+                    "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                    "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+                  }
+                },
+                "results": [
+                  {
+                    "step_id": "00000000000000000000000000000010",
+                    "status": "running",
+                    "content": "",
+                    "time": "2026-10-16T09:00:00.123456Z",
+                    "error": null,
+                    "path": null,
+                    "offset": null,
+                    "returned_lines": null,
+                    "truncated": false
+                  }
+                ],
+                "answer": null,
+                "error": null,
+                "clarification": null
+              }
+            ]
+          }
+        }
+      ],
+      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.approved\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.executing\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"tool.intent\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"old-stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.cancelling\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"archive\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.archive_pending\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":true,\"sequence\":12,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.cancelled\",\"session\":{\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":true,\"archive_pending\":false,\"sequence\":13,\"runs\":[{\"id\":\"0000000000000000000000000000000d\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"cancelled\",\"operation_id\":null,\"plan\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000010\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"failed\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false}],\"answer\":null,\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct03",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": true,
+        "archive_pending": false,
+        "sequence": 13,
+        "runs": [
+          {
+            "id": "0000000000000000000000000000000d",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "cancelled",
+            "operation_id": null,
+            "plan": {
+              "id": "0000000000000000000000000000000f",
+              "revision": 1,
+              "digest": "141ebb7b4b6732bfb0e00e22963ed393af0a448dddddcb2cb6b659e6acc654f4",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000010"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [
+              {
+                "step_id": "00000000000000000000000000000010",
+                "status": "failed",
+                "content": "",
+                "time": "2026-10-16T09:00:00.123456Z",
+                "error": {
+                  "code": "operation_stopped",
+                  "message": "The read operation stopped."
+                },
+                "path": null,
+                "offset": null,
+                "returned_lines": null,
+                "truncated": false
+              }
+            ],
+            "answer": null,
+            "error": {
+              "code": "operation_stopped",
+              "message": "The read operation stopped."
+            },
+            "clarification": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "backwards_clock",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct04",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 1,
+        "runs": []
+      },
+      "command": {
+        "action": "runs",
+        "content": "Read the public fixture"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct04/runs",
+        "body": {
+          "request_id": "plan",
+          "content": "Read the public fixture"
+        }
+      },
+      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"run.planning\",\"session\":{\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"runs\":[{\"id\":\"00000000000000000000000000000012\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"planner.attempt\",\"session\":{\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"runs\":[{\"id\":\"00000000000000000000000000000012\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":4,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"planner.result\",\"session\":{\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"runs\":[{\"id\":\"00000000000000000000000000000012\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"plan\":null,\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":1,\"sequence\":5,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"run.awaiting_approval\",\"session\":{\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"runs\":[{\"id\":\"00000000000000000000000000000012\",\"request\":\"Read the public fixture\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"plan\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"36a64051e05fcd1426f2ee0cc3bf0049a5d9d694d4d113c4ddc73af7ea0ddb0a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"limits\":{\"max_steps\":1,\"max_tool_calls\":1,\"timeout_seconds\":30},\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000015\"}],\"access_policy\":{\"version\":\"read-text-v3\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"workspaces\":\"public\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"rules_digest\":\"060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a\"}},\"results\":[],\"answer\":null,\"error\":null,\"clarification\":null}]}}\n\n",
+      "terminal": {
+        "id": "20261016T090000123456Z-ct04",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T08:59:59.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000012",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T08:59:59.123456Z",
+            "status": "awaiting_approval",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000014",
+              "revision": 1,
+              "digest": "36a64051e05fcd1426f2ee0cc3bf0049a5d9d694d4d113c4ddc73af7ea0ddb0a",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000015"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [],
+            "answer": null,
+            "error": null,
+            "clarification": null
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "name": "duplicate_execution",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct01",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 14,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "request": "Read the public fixture",
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "status": "completed",
+            "operation_id": null,
+            "plan": {
+              "id": "00000000000000000000000000000003",
+              "revision": 2,
+              "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a",
+              "objective": "Read the public fixture",
+              "assumptions": [
+                "Workspace assumptions are unverified; planning performs no reads.",
+                "The public file is unverified."
+              ],
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "limits": {
+                "max_steps": 1,
+                "max_tool_calls": 1,
+                "timeout_seconds": 30
+              },
+              "steps": [
+                {
+                  "title": "Read public text",
+                  "description": "Read the first two lines only.",
+                  "tool": "read_file",
+                  "arguments": {
+                    "workspace_id": "public",
+                    "path": "public.txt",
+                    "offset": 1,
+                    "limit": 2
+                  },
+                  "id": "00000000000000000000000000000006"
+                }
+              ],
+              "access_policy": {
+                "version": "read-text-v3",
+                "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+                "workspaces": "public",
+                "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+                "rules_digest": "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
+              }
+            },
+            "results": [
+              {
+                "step_id": "00000000000000000000000000000006",
+                "status": "completed",
+                "content": "1: alpha 🌱\n2: beta",
+                "time": "2026-10-16T09:00:00.123456Z",
+                "error": null,
+                "path": "public.txt",
+                "offset": 1,
+                "returned_lines": 2,
+                "truncated": true
+              }
+            ],
+            "answer": "Completed 1 approved file read(s). See the recorded excerpts.",
+            "error": null,
+            "clarification": null
+          }
+        ]
+      },
+      "command": {
+        "action": "execute",
+        "run_id": "00000000000000000000000000000001",
+        "plan_id": "00000000000000000000000000000003",
+        "revision": 2,
+        "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct01/runs/00000000000000000000000000000001/execute",
+        "body": {
+          "request_id": "execute",
+          "plan_id": "00000000000000000000000000000003",
+          "revision": 2,
+          "digest": "b203963712526d6874172a05c5cefc9680217cea81dd1bb47636d24235b1f66a"
+        }
+      },
+      "status": 409,
+      "body": {
+        "error": {
+          "code": "duplicate_command",
+          "message": "Command was already accepted; fetch the session."
+        }
+      }
+    },
+    {
+      "name": "agent_not_configured",
+      "baseline": {
+        "id": "20261016T090000123456Z-ct05",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 1,
+        "runs": []
+      },
+      "command": {
+        "action": "runs",
+        "content": "Read the public fixture"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct05/runs",
+        "body": {
+          "request_id": "plan",
+          "content": "Read the public fixture"
+        }
+      },
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "agent_not_configured",
+          "message": "Agent planning is unavailable. Configure a planner and allowed workspaces."
+        }
+      }
+    }
+  ]
+}

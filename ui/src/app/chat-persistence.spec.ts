@@ -34,7 +34,7 @@ function savedSession(overrides: Partial<StoredSession> = {}): StoredSession {
   return {
     id: 'synthetic-saved-session',
     title: 'Synthetic saved history 世界 🌱',
-    type: 'Agent',
+    type: 'Chat',
     selected: true,
     selectedSystemPromptId: savedPrompt.id,
     systemPromptSnapshot: { ...savedPrompt },
@@ -284,7 +284,7 @@ describe('ChatState storage integration', () => {
         {
           id: 'synthetic-saved-session',
           title: 'Synthetic saved history 世界 🌱',
-          mode: 'agent',
+          mode: 'chat',
           draft: ' Saved draft\n未发送 🧪\t',
           prompt: { ...savedPrompt },
           promptLocked: true,

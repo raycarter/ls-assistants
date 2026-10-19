@@ -232,9 +232,9 @@ describe('decodeChatState', () => {
     source.sessions[0].messages[0].status = 'sent';
     source.sessions[0].messages[1].status = 'streaming';
 
-    expect(decode(encodeChatState(source), [{ id: 'ignored', title: '', content: '' }])).toEqual(
-      source,
-    );
+    expect(
+      decode(encodeChatState(source), [{ id: 'ignored', title: '', content: '' }]),
+    ).toMatchObject(source);
   });
 
   it('roundtrips full ISO user and assistant times verbatim, including UTC and an offset', () => {

@@ -133,6 +133,96 @@ Storage is local to this browser profile and origin, unencrypted, and not synchr
 or devices. Avoid storing secrets; multiple open tabs can overwrite each other's changes. Removing
 only `ls-assistants.chat-state` from browser storage resets this application's data on the next reload.
 
+## Agent mode: first mocked vertical slice
+
+The header has a native Chat/Agent radio group (arrow-key navigation follows the browser's native
+radio behavior). Both coordinators are root-scoped: switching views preserves pending replies,
+selected sessions and drafts. Agent history is fetched on first entry, not on initial Chat startup.
+Settings still edits the shared **Chat** prompt catalogue; Agent has no active Chat prompt-selection
+context and does not consume those instructions.
+
+Agent sessions come only from the BFF. Create/select/archive actions target the active mode.
+Agent preferences are saved by PATCH; the controls reconcile to the acknowledged server settings on
+success or failure. They stay locked throughout planning, clarification/review, execution, cancellation
+and pending archive. A rejected or settled run releases the session when no archive is pending. Legacy browser
+`type: "Agent"` records remain in the existing Chat v1 envelope, with selection normalized to a Chat
+fallback. They are displayed separately as read-only local records: no upload, streaming repair,
+prompt propagation, send, retry or deletion through Chat routes.
+
+### Implemented interaction
+
+Request → tool-free plan → structured scope review → **Approve and run** → bounded `read_file`
+result → answer → GET-based history after reload. The component integration test drives the actual
+Agent transport through an HTTP/SSE double with a numbered public-text fixture. It does not establish
+backend durability, access-policy enforcement or provider compatibility.
+
+The plan displays unverified assumptions, workspace/path and exact arguments, model/effort, limits,
+revision/digest and any recorded search policy. Approval, rejection and plan feedback bind the current
+identity. Double clicks are guarded while a command is pending. Results and answers use the existing
+sanitized Markdown and local-time display pipes; original server timestamps are preserved. Agent
+history does not auto-scroll, so updates do not pull a user away from review.
+File results retain the BFF's path, offset, returned-line count and truncation flag. Live and reloaded
+result cards show the recorded excerpt range/count and explicitly disclose omitted content or clipped
+long lines when `truncated` is true; an excerpt is not presented as evidence of the complete file.
+
+Stop sends the captured operation ID. **Stopping…** is nonterminal and keeps preferences locked.
+Archive retains the session in reviewable history; pending archive stays locked even after a run settles,
+until the server reports archival or explicitly clears `archive_pending`. A lost/failed archive
+acknowledgement remains uncertain until an authoritative reload. Reload history is a safe GET/list action,
+including archived sessions. No execution or
+planning command is automatically reposted after a transport error or reload.
+An in-flight archive command has separate local ownership: a concurrently delivered, earlier
+`archive_pending: false` projection cannot release its lock before acknowledgement or confirmed recovery.
+
+### Agent API and recovery
+
+All routes are under `/api/agent/sessions`: list (`include_archived=true`), create, get, preference
+PATCH, `/{sid}/runs`, `/{sid}/runs/{rid}/execute`, `/revise`, `/reject`, `/cancel`, and
+`/{sid}/archive`. Mutation bodies contain a fresh `request_id`. Approval sends `plan_id`, `revision`
+and `digest`; Stop sends `operation_id`. The transport understands question-identified clarification
+rejection, but the current BFF returns HTTP 501 for the deferred clarification flow.
+HTTP JSON failures are shown with status and API detail, including missing planner configuration.
+
+Agent SSE uses event `agent` and decimal committed sequence IDs, with schema version 1 and a full
+session snapshot per envelope. Its independent decoder validates timestamps, snapshot shapes,
+session correlation and frozen approval identity. Work records must match the owning request/run/operation;
+known session lifecycle records can carry other request IDs and null run/operation IDs without taking
+ownership of the stream. A validated first planning/approval admission establishes the server baseline
+even if metadata commits advanced it beyond the cached sequence; subsequent records must be contiguous.
+Committed sequence is the causal order. Strict timestamp syntax is checked, but UTC wall-clock readings
+may step backwards and are not used as a monotonic clock.
+New-run acknowledgements must match the submitted request and use a new run ID. Execution requires a
+reviewed plan, completed runs require completed results, and archived sessions must contain only settled runs.
+Identical duplicates are ignored; gaps, conflicting duplicates, invalid responses and EOF during
+active work fail safely and trigger GET recovery. A failed recovery leaves the last committed view
+visible with an error. Reading an active operation after reload never takes ownership or resumes it;
+use Stop or reload history to inspect eventual settlement.
+
+Only navigation metadata and unsent Agent drafts are saved in version 1 of
+`ls-assistants.agent-ui-state`; server plans/results are not browser-authoritative copies. Invalid or
+unsupported saved metadata is left untouched, with a content-free console warning and memory-only
+changes. The key shares Chat's injectable storage boundary for deterministic tests.
+
+### Current limitations and retained content
+
+- The production UI does **not** fabricate fixture/demo plans. The BFF planner is unavailable until
+  explicitly injected/configured. These frontend tests make no real provider or search calls.
+- This slice supports only `read_file` and reasoning-only plan steps. Web search and folder grep are
+  unavailable. The full three-tool release, full event/audit timeline, pagination and live deployment
+  compatibility remain outside this slice.
+- Plan feedback is supported. Clarification handling, including replies and rejection, is deferred in
+  the current BFF, which produces no clarification states. Compatibility question records are rendered
+  read-only without offering unsupported commands; use a new session or await server-side resolution.
+- History renders the server's run projections, including archived sessions. It does not implement
+  event replay or automatic background polling; reload history to refresh settlement after reconnection.
+- The UI discloses retention before use: user requests, reviewed plans, approved source excerpts,
+  tool results and logical model input/output are retained by the BFF. Archive preserves records;
+  there is no automatic expiry. Permitted content may contain sensitive text; there is no guarantee
+  of secret-content scrubbing. Future search queries would leave the BFF. Resource limits are not a
+  guaranteed currency ceiling; cost is displayed as unknown.
+- Mocked approval/Stop tests verify UI command ownership only. Durable approval, tool authorization,
+  request-id idempotency and cancellation settlement remain BFF responsibilities.
+
 ## Build, test, and scaffold
 
 ```bash
@@ -145,6 +235,14 @@ npx --no-install ng generate component component-name
 
 Production output is written to `dist/ui/`. `npm test` without additional flags runs tests in watch mode.
 Tests inject fake fetch/API implementations; they never require a running BFF or provider credentials.
+
+First-slice verification is exercised by frontend API/state/component doubles, including preference
+rollback, archive settlement, correlated acknowledgements, recovery validation and session-scoped errors.
+Review-fix verification (2026-10-16): 543 frontend tests pass, including the independent backend-generated
+HTTP/SSE fixture contract suite,
+alongside TypeScript checking, the production build and repository-wide Prettier checking.
+The build's initial bundle is approximately 442 kB; Agent workspace and Markdown load lazily.
+The build reports two CSS critical-inlining selector warnings; the full stylesheet remains available.
 
 ## Installed libraries
 

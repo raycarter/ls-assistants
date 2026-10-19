@@ -1,0 +1,258 @@
+<div class="agent-history" tabindex="0" aria-label="Agent run history">
+  <aside class="disclosure" aria-label="Agent capabilities and retained content">
+    <strong>First Agent slice · review before execution</strong>
+    <p>
+      Only configured, approved read_file steps are supported. Search and folder search are
+      unavailable. Planning runs no tools. A planner must be explicitly configured in the BFF.
+    </p>
+    <p>
+      User requests, reviewed plans, approved source excerpts, tool results and logical model
+      inputs/outputs are retained by the BFF. Archive preserves this history; there is no automatic
+      expiry. Permitted source text may contain sensitive content; this is not guaranteed
+      secret-content scrubbing. Search queries would leave the BFF when search becomes available.
+    </p>
+  </aside>
+  @if (state.globalError()) {
+    <p role="alert" class="error">{{ state.globalError() }}</p>
+  }
+  @if (state.sessionError()) {
+    <p role="alert" class="error">{{ state.sessionError() }}</p>
+  }
+  <div class="history-actions">
+    <button type="button" (click)="state.load()" [disabled]="state.loading()">
+      {{ state.loading() ? 'Loading Agent history…' : 'Reload Agent history' }}
+    </button>
+  </div>
+  @if (legacy(); as saved) {
+    <section aria-label="Read-only legacy Agent session">
+      <h1 tabindex="-1">{{ saved.title }}</h1>
+      <p>Read-only legacy browser record. Preserved locally; it is not uploaded or executable.</p>
+      @for (message of saved.messages; track message.id) {
+        <article class="card">
+          <p>
+            {{ message.role === 'user' ? 'User' : 'Assistant' }}
+            @if (message.time | messageTime; as timestamp) {
+              <time [attr.datetime]="message.time">{{ timestamp }}</time>
+            }
+          </p>
+          <div class="message-markdown" [innerHTML]="message.content | markdown"></div>
+        </article>
+      }
+      @if (saved.draft) {
+        <h2>Preserved unsent draft</h2>
+        <pre>{{ saved.draft }}</pre>
+      }
+    </section>
+  } @else if (state.activeSession(); as session) {
+    <h1 tabindex="-1">{{ session.title }}</h1>
+    @if (session.archived) {
+      <p role="status">Archived · read-only retained history</p>
+    }
+    @if (state.archivePending().has(session.id)) {
+      <p role="status">
+        Archive pending — awaiting server confirmation and settlement. Reload history to check
+        status. History is retained.
+      </p>
+    }
+    @if (!session.runs.length) {
+      <p>Describe a task to request a tool-free plan. Review its exact scope before approving.</p>
+    }
+    @for (run of session.runs; track run.id) {
+      <article class="run" [attr.aria-label]="'Agent run: ' + run.id">
+        <section class="card request">
+          <h2>
+            User request
+            <time [attr.datetime]="run.created_at">{{ run.created_at | messageTime }}</time>
+          </h2>
+          <div class="message-markdown" [innerHTML]="run.request | markdown"></div>
+        </section>
+        <p role="status">
+          {{ stopping(run) ? 'Stopping…' : run.status.replaceAll('_', ' ') }}
+        </p>
+        @if (run.plan; as plan) {
+          <section class="card" aria-label="Reviewed plan">
+            <h2>{{ plan.objective }}</h2>
+            <p>
+              Revision {{ plan.revision }} · <code class="digest">{{ plan.digest }}</code>
+            </p>
+            <h3>Unverified assumptions</h3>
+            <ul>
+              @for (assumption of plan.assumptions; track $index) {
+                <li>{{ assumption }}</li>
+              }
+            </ul>
+            <p>Model: {{ plan.model }} · Thinking: {{ plan.reasoning_effort }}</p>
+            <p>
+              Limits: {{ plan.limits.max_steps }} steps · {{ plan.limits.max_tool_calls }} tool
+              calls · {{ plan.limits.timeout_seconds }} seconds. Cost: unknown; resource limits are
+              not a currency ceiling.
+            </p>
+            @if (plan.search_policy !== undefined) {
+              <h3>Effective search/query policy (as recorded)</h3>
+              <pre>{{ plan.search_policy | json }}</pre>
+            }
+            <ol>
+              @for (step of plan.steps; track step.id) {
+                <li>
+                  <h3>{{ step.title }}</h3>
+                  <p>{{ step.description }}</p>
+                  <p>Tool: {{ step.tool ?? 'None (reasoning only)' }}</p>
+                  @if (step.arguments; as args) {
+                    <p>
+                      Workspace: {{ args.workspace_id }} · Path: <code>{{ args.path }}</code> ·
+                      Lines {{ args.offset }}–{{ args.offset + args.limit - 1 }}
+                    </p>
+                    <details>
+                      <summary>Exact tool arguments</summary>
+                      <pre>{{ args | json }}</pre>
+                    </details>
+                  }
+                  <p>Step: {{ step.id }} · {{ stepStatus(run, step.id) }}</p>
+                </li>
+              }
+            </ol>
+            @if (run.status === 'awaiting_approval' && !session.archived) {
+              <div class="actions">
+                <button
+                  type="button"
+                  [disabled]="
+                    state.busy().has(session.id) || state.archivePending().has(session.id)
+                  "
+                  (click)="state.approve(run)"
+                >
+                  Approve and run
+                </button>
+                <button
+                  type="button"
+                  [disabled]="
+                    state.busy().has(session.id) || state.archivePending().has(session.id)
+                  "
+                  (click)="state.reject(run)"
+                >
+                  Reject
+                </button>
+              </div>
+              <label [for]="'feedback-' + run.id">Requested plan changes</label>
+              <textarea
+                [id]="'feedback-' + run.id"
+                rows="2"
+                [disabled]="state.archivePending().has(session.id)"
+                [ngModel]="state.feedback(run)"
+                (ngModelChange)="state.updateFeedback(run, $event)"
+              ></textarea>
+              <button
+                type="button"
+                [disabled]="
+                  state.busy().has(session.id) ||
+                  state.archivePending().has(session.id) ||
+                  !state.feedback(run).trim()
+                "
+                (click)="state.revise(run, state.feedback(run))"
+              >
+                Request changes
+              </button>
+            }
+          </section>
+        }
+        @if (run.status === 'awaiting_clarification' && run.clarification; as clarification) {
+          <section class="card">
+            <h2>Clarification requested</h2>
+            <ul>
+              @for (question of clarification.questions; track $index) {
+                <li>{{ question }}</li>
+              }
+            </ul>
+            <p>
+              Clarification handling, including replies and rejection, is deferred in the current
+              BFF slice. This question record is read-only. Use a new Agent session or reload
+              history after server-side resolution.
+            </p>
+          </section>
+        }
+        @for (result of run.results; track result.step_id) {
+          <section class="card" aria-label="Step result">
+            <h2>
+              {{ result.step_id }} · {{ result.status }}
+              <time [attr.datetime]="result.time">{{ result.time | messageTime }}</time>
+            </h2>
+            @if (result.path != null || result.offset != null || result.returned_lines != null) {
+              <p>
+                Recorded file excerpt
+                @if (result.path != null) {
+                  · <code>{{ result.path }}</code>
+                }
+              </p>
+              @if (result.offset != null) {
+                <p>
+                  Read range:
+                  @if (result.returned_lines != null && result.returned_lines! > 0) {
+                    lines {{ result.offset }}–{{ result.offset + result.returned_lines! - 1 }}
+                  } @else {
+                    starting at line {{ result.offset }}
+                  }
+                </p>
+              }
+              @if (result.returned_lines != null) {
+                <p>Returned lines: {{ result.returned_lines }}</p>
+              }
+            }
+            @if (result.truncated) {
+              <p role="note">
+                Partial/truncated excerpt: source content or long lines were omitted. Do not treat
+                this as the complete file.
+              </p>
+            }
+            <div class="message-markdown" [innerHTML]="result.content | markdown"></div>
+            @if (result.error) {
+              <p class="error">{{ result.error.code }}: {{ result.error.message }}</p>
+            }
+          </section>
+        }
+        @if (run.answer !== null) {
+          <section class="card" aria-label="Agent answer">
+            <h2>Answer</h2>
+            <div class="message-markdown" [innerHTML]="run.answer | markdown"></div>
+          </section>
+        }
+        @if (run.error) {
+          <p class="error">{{ run.error.code }}: {{ run.error.message }}</p>
+        }
+        @if (
+          ['planning', 'approved', 'executing', 'cancelling'].includes(run.status) &&
+          !session.archived
+        ) {
+          <button
+            type="button"
+            [disabled]="stopping(run) || state.archivePending().has(session.id)"
+            (click)="state.stop(run)"
+          >
+            {{ stopping(run) ? 'Stopping…' : 'Stop operation' }}
+          </button>
+        }
+      </article>
+    }
+  } @else {
+    <h1 tabindex="-1">Plan a task</h1>
+    <p>Create or select an Agent session to begin. Agent history is provided by the BFF.</p>
+  }
+</div>
+@if (!legacy() && state.activeSession() && !state.activeSession()?.archived) {
+  <form class="agent-composer" (ngSubmit)="state.request()">
+    <label for="agent-request">Request a plan</label>
+    <textarea
+      id="agent-request"
+      name="agent-request"
+      rows="3"
+      [disabled]="state.archivePending().has(state.selectedId() ?? '')"
+      [ngModel]="state.draft()"
+      (ngModelChange)="state.updateDraft($event)"
+      (keydown)="keydown($event)"
+      aria-describedby="agent-request-help"
+    ></textarea>
+    <button type="submit" [disabled]="!state.canRequest()">Request plan</button>
+    <p id="agent-request-help">
+      Enter to request · Shift + Enter for a new line. A waiting or active run must settle or be
+      rejected before a new request.
+    </p>
+  </form>
+}

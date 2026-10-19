@@ -2,7 +2,11 @@
 
 FastAPI backend for the Azure OpenAI **v1 Responses API**. The caller owns the
 conversation history and sends it explicitly on every turn. The backend keeps no
-conversation state and calls the provider with `store=False`.
+Chat conversation state and calls the provider with `store=False`. The separate
+Agent API has a **first mocked vertical slice**, described in [AGENT_API.md](AGENT_API.md):
+journal-backed sessions, injected tool-free planning, exact-plan approval, bounded
+fixture-tested file reads, progress, rejection, cancellation and restart recovery.
+Its production planner is unavailable by default; this is not a full Agent release.
 
 ## Setup
 
@@ -209,6 +213,7 @@ Run from `bff`:
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv lock --check
 ```
 
 Tests supply settings with `.env` loading disabled, except for a committed,
@@ -233,4 +238,8 @@ acquisition serialization and lifespan draining. No real subprocess is started.
 - `app/schemas.py`: strict request schema, typed SSE payloads and frame encoding.
 - `app/routes.py`: HTTP endpoints and disconnect-aware streaming response.
 - `app/responses.py`: injectable `ChatService`, Responses mapping and stream lifecycle.
+- `app/agent.py`, `app/agent_schemas.py`, `app/agent_routes.py`: isolated Agent
+  coordinator, strict contracts, planner injection and HTTP/SSE endpoints.
+- `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.
+- `app/agent_files.py`: fail-closed workspace policy and bounded no-follow text reads.
 - `main.py`: thin compatibility entry point.

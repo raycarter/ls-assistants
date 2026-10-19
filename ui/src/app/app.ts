@@ -3,6 +3,7 @@ import {
   afterNextRender,
   Component,
   computed,
+  DestroyRef,
   ElementRef,
   inject,
   Injector,
@@ -10,16 +11,19 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgModel } from '@angular/forms';
 import { ChatState } from './chat-state';
 import { ChatTurns } from './chat-turns';
 import { REASONING_EFFORTS } from './chat.models';
 import { MarkdownPipe } from './markdown.pipe';
 import { MessageTimePipe } from './message-time.pipe';
 import { SettingsDialog } from './settings-dialog';
+import { AgentState } from './agent-state';
+import { AgentWorkspace } from './agent-workspace';
+import type { ReasoningEffort } from './chat.models';
 
 @Component({
-  imports: [FormsModule, MarkdownPipe, MessageTimePipe, SettingsDialog],
+  imports: [FormsModule, MarkdownPipe, MessageTimePipe, SettingsDialog, AgentWorkspace],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',
@@ -31,6 +35,19 @@ import { SettingsDialog } from './settings-dialog';
 export class App {
   readonly state = inject(ChatState);
   readonly turns = inject(ChatTurns);
+  readonly agent = inject(AgentState);
+  readonly legacy = computed(
+    () =>
+      this.state.legacySessions().find((session) => session.id === this.agent.legacyId()) ?? null,
+  );
+  readonly selectedModel = computed(() =>
+    this.agent.mode() === 'chat'
+      ? this.turns.selectedModel()
+      : this.agent.model() || this.turns.defaultModel(),
+  );
+  readonly selectedEffort = computed(() =>
+    this.agent.mode() === 'chat' ? this.turns.selectedEffort() : this.agent.effort(),
+  );
   readonly efforts = REASONING_EFFORTS;
   readonly replyError = computed(() => {
     const last = this.messages().at(-1);
@@ -44,19 +61,23 @@ export class App {
   readonly sidebarOpen = signal(false);
   readonly messages = computed(() => this.state.activeSession().messages);
   readonly selectedPromptId = computed(() => this.state.activeSession().prompt?.id ?? null);
-  readonly modeLabel = computed(() =>
-    this.state.activeSession().mode === 'chat' ? 'Chat' : 'Agent',
-  );
   private readonly messageList = viewChild<ElementRef<HTMLDivElement>>('messageList');
   private readonly messageElements = viewChildren<ElementRef<HTMLElement>>('messageBubble');
   private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
+  private readonly agentWorkspace = viewChild<unknown, ElementRef<HTMLElement>>('agentWorkspace', {
+    read: ElementRef,
+  });
   private readonly sidebar = viewChild<ElementRef<HTMLElement>>('sidebar');
   private readonly sidebarToggle = viewChild<ElementRef<HTMLButtonElement>>('sidebarToggle');
   private readonly newSessionButton = viewChild<ElementRef<HTMLButtonElement>>('newSessionButton');
   private readonly settingsButton = viewChild<ElementRef<HTMLButtonElement>>('settingsButton');
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private navigation = 0;
 
   constructor() {
+    if (this.agent.legacyId() && !this.legacy()) this.agent.legacyId.set(null);
+    this.agent.setMode(this.agent.mode());
     afterRenderEffect((onCleanup) => {
       this.messages();
       this.messageElements();
@@ -80,30 +101,59 @@ export class App {
   }
 
   newSession(): void {
-    this.state.newSession();
+    const navigation = ++this.navigation;
+    if (this.agent.mode() === 'agent') {
+      void this.agent.create(this.turns.defaultModel()).then((session) => {
+        if (session && this.agent.mode() === 'agent' && this.agent.selectedId() === session.id)
+          this.focusWorkspace(navigation);
+      });
+    } else this.state.newSession();
     this.sidebarOpen.set(false);
-    this.focusAfterRender(() => this.composer()?.nativeElement);
+    this.focusWorkspace(navigation);
   }
 
   selectSession(id: string): void {
-    this.state.selectSession(id);
+    this.navigation++;
+    if (this.agent.mode() === 'agent') this.agent.select(id);
+    else this.state.selectSession(id);
     this.sidebarOpen.set(false);
-    this.focusAfterRender(() => this.composer()?.nativeElement);
+    this.focusWorkspace();
+  }
+
+  selectLegacy(id: string): void {
+    this.navigation++;
+    this.agent.selectLegacy(id);
+    this.sidebarOpen.set(false);
+    this.focusWorkspace();
+  }
+
+  setMode(mode: 'chat' | 'agent'): void {
+    this.navigation++;
+    this.agent.setMode(mode);
   }
 
   deleteSession(id: string): void {
-    this.turns.deleteSession(id);
+    this.navigation++;
+    if (this.agent.mode() === 'agent') void this.agent.archive(id);
+    else this.turns.deleteSession(id);
     this.focusAfterRender(() =>
-      this.sidebarOpen() ? this.newSessionButton()?.nativeElement : this.composer()?.nativeElement,
+      this.sidebarOpen() ? this.newSessionButton()?.nativeElement : this.activeComposer(),
     );
   }
 
   closeSidebar(): void {
+    this.navigation++;
     this.sidebarOpen.set(false);
     this.focusAfterRender(() => this.sidebarToggle()?.nativeElement);
   }
 
+  toggleSidebar(): void {
+    this.navigation++;
+    this.sidebarOpen.set(!this.sidebarOpen());
+  }
+
   closeSettings(): void {
+    this.navigation++;
     this.settingsOpen.set(false);
     this.focusAfterRender(() =>
       window.innerWidth < 768
@@ -115,7 +165,7 @@ export class App {
   onViewportResize(): void {
     if (window.innerWidth >= 768 && this.sidebarOpen()) {
       this.sidebarOpen.set(false);
-      this.focusAfterRender(() => this.composer()?.nativeElement);
+      this.focusAfterRender(() => this.activeComposer());
     }
   }
 
@@ -143,12 +193,30 @@ export class App {
   }
 
   openSettings(): void {
+    this.navigation++;
     this.sidebarOpen.set(false);
     this.settingsOpen.set(true);
   }
 
   sendMessage(): void {
+    if (this.agent.mode() !== 'chat') return;
     if (this.turns.send()) this.composer()?.nativeElement.focus();
+  }
+
+  async selectModel(model: string, control?: NgModel): Promise<void> {
+    if (this.agent.mode() === 'chat') this.state.selectModel(model);
+    else if (model !== this.selectedModel()) {
+      await this.agent.preferences({ model });
+      this.reconcilePreference(control, this.selectedModel());
+    }
+  }
+
+  async selectEffort(reasoning_effort: ReasoningEffort, control?: NgModel): Promise<void> {
+    if (this.agent.mode() === 'chat') this.state.selectReasoningEffort(reasoning_effort);
+    else if (reasoning_effort !== this.selectedEffort()) {
+      await this.agent.preferences({ reasoning_effort });
+      this.reconcilePreference(control, this.selectedEffort());
+    }
   }
 
   onComposerKeydown(event: KeyboardEvent): void {
@@ -159,6 +227,31 @@ export class App {
   }
 
   private focusAfterRender(target: () => HTMLElement | undefined): void {
+    if (this.destroyRef.destroyed) return;
     afterNextRender(() => target()?.focus(), { injector: this.injector });
+  }
+
+  private reconcilePreference(control: NgModel | undefined, value: string): void {
+    if (this.destroyRef.destroyed || !control) return;
+    // Keep NgModel's binding cache in sync without invoking a mode-dependent user action.
+    control.viewModel = value;
+    control.control.setValue(value, { emitEvent: false, emitViewToModelChange: false });
+  }
+
+  private activeComposer(): HTMLElement | undefined {
+    if (this.agent.mode() === 'chat') return this.composer()?.nativeElement;
+    const workspace = this.agentWorkspace()?.nativeElement;
+    return (
+      workspace?.querySelector<HTMLElement>('#agent-request:not(:disabled)') ??
+      workspace?.querySelector<HTMLElement>('h1[tabindex]') ??
+      workspace?.querySelector<HTMLElement>('.agent-history') ??
+      undefined
+    );
+  }
+
+  private focusWorkspace(navigation = this.navigation): void {
+    this.focusAfterRender(() =>
+      navigation === this.navigation ? this.activeComposer() : undefined,
+    );
   }
 }

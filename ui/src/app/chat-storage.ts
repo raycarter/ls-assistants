@@ -23,32 +23,40 @@ export function encodeChatState(snapshot: ChatSnapshot): StoredChatState {
 
   return {
     version: 1,
-    sessions: snapshot.sessions.map((session) => ({
-      id: session.id,
-      items: session.messages.map((message): StoredMessage => {
-        const status = message.status ?? (message.role === 'assistant' ? 'complete' : undefined);
-        return {
-          id: message.id,
-          time: message.time ?? '',
-          role: message.role === 'assistant' ? 'ai' : 'user',
-          msg: message.content,
-          type: 'Message',
-          ...(status === undefined ? {} : { status }),
-          ...messageMetadata(message),
-        };
-      }),
-      title: session.title,
-      type: session.mode === 'agent' ? 'Agent' : 'Chat',
-      selected: session.id === activeId,
-      selectedSystemPromptId: session.prompt?.id ?? null,
-      systemPromptSnapshot:
-        session.promptLocked && session.prompt ? clonePrompt(session.prompt) : null,
-      systemPromptLocked: session.promptLocked,
-      ...(session.model === undefined ? {} : { model: session.model }),
-      ...(session.reasoningEffort === undefined
-        ? {}
-        : { reasoningEffort: session.reasoningEffort }),
-    })),
+    sessions: snapshot.sessions.map((session) =>
+      session.mode === 'agent' && session.legacyStored
+        ? {
+            ...session.legacyStored,
+            selected: session.id === activeId,
+          }
+        : {
+            id: session.id,
+            items: session.messages.map((message): StoredMessage => {
+              const status =
+                message.status ?? (message.role === 'assistant' ? 'complete' : undefined);
+              return {
+                id: message.id,
+                time: message.time ?? '',
+                role: message.role === 'assistant' ? 'ai' : 'user',
+                msg: message.content,
+                type: 'Message',
+                ...(status === undefined ? {} : { status }),
+                ...messageMetadata(message),
+              };
+            }),
+            title: session.title,
+            type: session.mode === 'agent' ? 'Agent' : 'Chat',
+            selected: session.id === activeId,
+            selectedSystemPromptId: session.prompt?.id ?? null,
+            systemPromptSnapshot:
+              session.promptLocked && session.prompt ? clonePrompt(session.prompt) : null,
+            systemPromptLocked: session.promptLocked,
+            ...(session.model === undefined ? {} : { model: session.model }),
+            ...(session.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: session.reasoningEffort }),
+          },
+    ),
     systemPrompts: snapshot.prompts.map(clonePrompt),
     drafts: Object.fromEntries(snapshot.sessions.map((session) => [session.id, session.draft])),
   };
@@ -113,6 +121,7 @@ export function decodeChatState(
         id: session.id,
         title: session.title,
         mode: session.type === 'Agent' ? 'agent' : 'chat',
+        ...(session.type === 'Agent' ? { legacyStored: { ...session, selected: false } } : {}),
         messages: session.items.map((message): ChatMessage => ({
           id: message.id,
           role: message.role === 'ai' ? 'assistant' : 'user',

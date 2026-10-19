@@ -75,26 +75,36 @@
             System prompts
           </h2>
           <p class="mt-2 text-sm leading-relaxed text-gray-400 md:text-base">
-            Select a prompt before sending the first message in a chat.
+            {{
+              chatSelectionContext()
+                ? 'Select a prompt before sending the first message in a chat.'
+                : 'Manage the shared Chat prompt catalogue.'
+            }}
           </p>
         </div>
 
-        <div
-          role="status"
-          aria-live="polite"
-          class="rounded-lg border px-5 py-4"
-          [class.border-amber-600]="promptLocked()"
-          [class.bg-amber-950]="promptLocked()"
-          [class.text-amber-200]="promptLocked()"
-          [class.border-blue-800]="!promptLocked()"
-          [class.bg-blue-950]="!promptLocked()"
-          [class.text-blue-200]="!promptLocked()"
-        >
-          <p class="font-semibold">
-            {{ promptLocked() ? 'Locked for this chat' : 'Selected for this chat' }}
+        @if (chatSelectionContext()) {
+          <div
+            role="status"
+            aria-live="polite"
+            class="rounded-lg border px-5 py-4"
+            [class.border-amber-600]="promptLocked()"
+            [class.bg-amber-950]="promptLocked()"
+            [class.text-amber-200]="promptLocked()"
+            [class.border-blue-800]="!promptLocked()"
+            [class.bg-blue-950]="!promptLocked()"
+            [class.text-blue-200]="!promptLocked()"
+          >
+            <p class="font-semibold">
+              {{ promptLocked() ? 'Locked for this chat' : 'Selected for this chat' }}
+            </p>
+            <p class="mt-1 break-words">{{ selectedPrompt()?.title ?? 'No system prompt' }}</p>
+          </div>
+        } @else {
+          <p role="status">
+            Chat prompt catalogue only. No active Chat selection context in Agent mode.
           </p>
-          <p class="mt-1 break-words">{{ selectedPrompt()?.title ?? 'No system prompt' }}</p>
-        </div>
+        }
 
         <div class="flex flex-wrap items-center justify-between gap-4">
           <h3 class="text-xl font-semibold">
@@ -191,21 +201,29 @@
           aria-describedby="settings-prompt-help"
           class="min-h-64 min-w-0 flex-1 rounded-lg border border-gray-700"
         >
-          <legend class="sr-only">Choose a system prompt for this chat</legend>
+          <legend class="sr-only">
+            {{
+              chatSelectionContext()
+                ? 'Choose a system prompt for this chat'
+                : 'Manage Chat system prompts'
+            }}
+          </legend>
           <ul class="divide-y divide-gray-700">
             <li [class.bg-blue-950]="isSelected(null)">
               <label
                 class="flex min-h-20 cursor-pointer items-center gap-4 px-4 py-5 has-disabled:cursor-not-allowed md:px-5"
               >
-                <input
-                  type="radio"
-                  name="settings-system-prompt"
-                  value=""
-                  class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-                  [checked]="isSelected(null)"
-                  [disabled]="promptLocked()"
-                  (change)="selectPrompt(null)"
-                />
+                @if (chatSelectionContext()) {
+                  <input
+                    type="radio"
+                    name="settings-system-prompt"
+                    value=""
+                    class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                    [checked]="isSelected(null)"
+                    [disabled]="promptLocked()"
+                    (change)="selectPrompt(null)"
+                  />
+                }
                 <span class="min-w-0 flex-1 break-words font-semibold">No system prompt</span>
                 @if (isSelected(null)) {
                   <span
@@ -224,15 +242,17 @@
                 <label
                   class="flex min-h-20 w-full min-w-0 cursor-pointer items-center gap-4 py-5 has-disabled:cursor-not-allowed sm:w-auto sm:flex-1"
                 >
-                  <input
-                    type="radio"
-                    name="settings-system-prompt"
-                    [value]="prompt.id"
-                    class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-                    [checked]="isSelected(prompt.id)"
-                    [disabled]="promptLocked()"
-                    (change)="selectPrompt(prompt.id)"
-                  />
+                  @if (chatSelectionContext()) {
+                    <input
+                      type="radio"
+                      name="settings-system-prompt"
+                      [value]="prompt.id"
+                      class="h-5 w-5 shrink-0 cursor-pointer accent-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                      [checked]="isSelected(prompt.id)"
+                      [disabled]="promptLocked()"
+                      (change)="selectPrompt(prompt.id)"
+                    />
+                  }
                   <span class="min-w-0 flex-1 break-words text-base md:text-lg">{{
                     prompt.title
                   }}</span>
