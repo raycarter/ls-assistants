@@ -6,15 +6,20 @@ This is the only implementation progress/evidence ledger; use the plan for archi
 
 **Firm constraint:** Borrow OpenCode's architectural/behavioral ideas only. Write the implementation independently; do not copy, translate, vendor, or adapt OpenCode implementation code or embed its runtime.
 
+**Confirmed product rules (2026-10-19):** approve each plan once and obtain approval for each new/revised executable plan; no separate step/tool/query approval; no product-level step/call/run-duration or retained-history quotas; web search only when the task needs it. Record every LLM interaction in its session folder with plan, step/stage, timestamp, model, actual prompt/input, and observable response/output. Existing prototype caps and partial recording still require runtime migration; these documentation changes do not implement that migration.
+
 ## Phase 0 — Confirm decisions and establish the baseline
 
 - [x] **P0-01** Research the current application and OpenCode; save the design plan.
-- [ ] **P0-02 — User decision:** Choose the web-search provider and confirm credentials, cost, and data handling.
-- [ ] **P0-03 — User decision:** Choose allowed filesystem roots and exclusions; keep access disabled until configured.
-- [ ] **P0-04** Finalize schemas/transitions, including question-identified clarification replies/rejection, nonterminal cancelling, and terminal scope/information stop reasons requiring a new run.
-- [ ] **P0-05 — User decision:** Confirm exact-query versus bounded-query approval, allowances across all LLM/search attempts, retained content/archive behavior, literal grep, single-worker operation, and disconnect/settlement behavior.
+- [ ] **P0-02 — Provider decision and setup:**
+  - [x] User selected **Tavily** as the first web-search provider on 2026-10-19.
+  - [ ] Configure credentials locally; real-provider verification by this assistant still requires separate authorization. No additional quota-policy decision is needed to implement the selected provider.
+- [x] **P0-03 — User decision:** Approved `/tmp/ls-assistants` as the sole filesystem-tool root for this implementation phase; retain mandatory exclusions and keep access disabled until configured.
+- [ ] **P0-04** Finalize schemas/transitions for one approval per plan, clarification replies/rejection, nonterminal cancelling, and renewed approval only when a new/revised executable plan is created.
+- [x] **P0-05 — User decision:** Approve each plan once; approve any new/revised plan again; impose no product-level quotas; use web search only if needed; record every LLM interaction with plan/step/timestamp/model/prompt/response in its session folder.
 - [x] **P0-06** Run the existing frontend/backend checks and record a clean Chat regression baseline.
-- [ ] **P0-07** Specify commit/creation-idempotency recovery, process-local versus retained limits, input/output caps, and estimated/unknown cost reporting; do not promise a hard currency ceiling.
+- [ ] **P0-07** Specify commit/creation-idempotency recovery, complete interaction-record fields, per-request failure handling, and provider/model constraints without cumulative run allowances; usage/cost reporting is informational.
+- [ ] **P0-08** Migrate prototype plan/call/attempt/session/event/payload caps, fixed storage reservations, and overall planning/execution expiry out of the runtime; preserve existing journals and approval/idempotency guarantees during the change.
 
 **Gate:** Required decisions and contracts are explicit; the existing application passes its baseline checks. Provider credentials are not needed for mocked development.
 
@@ -30,45 +35,47 @@ After contracts and minimum Phase 1 primitives, bring forward a subset of P2-03,
 
 Depends on Phase 0 contracts.
 
-- [ ] **P1-01** Add strict Agent schemas and injectable clock, ID generator, storage root, and limits.
+- [ ] **P1-01** Add strict Agent schemas and injectable clock, ID generator, storage root, and complete LLM interaction identities without product-quota fields.
 - [x] **P1-02** Ignore `/sessions/` in `bff/.gitignore` and verify it before writing real session records.
 - [x] **P1-03** Create server-owned `<UTC-timestamp>-<4-random-chars>` folders exclusively, with collision retries and safe permissions/path handling.
 - [x] **P1-04** Implement serialized append-only `events.jsonl` with schema version, sequence, server timestamps, and correlation IDs.
-- [ ] **P1-05** Implement immutable plans, bounded artifacts, and atomic snapshots; flush/fsync the required files/directory changes before acknowledgements/publication under the documented crash-recovery contract.
-- [ ] **P1-06** Persist command claims and creation keys/digests; rebuild the creation lookup from committed `session.created` records, serialize creation, and add session ownership/locking plus process-local concurrency limits.
+- [ ] **P1-05** Implement immutable plans, complete session-local prompt/response artifacts, incremental journals, and atomic rebuildable projections; flush/fsync before acknowledgement/publication and do not silently truncate retained LLM interactions.
+- [ ] **P1-06** Persist command claims and creation keys/digests; rebuild the creation lookup from committed `session.created` records, serialize creation, and coordinate active session ownership without imposing cumulative work quotas.
 - [ ] **P1-07** Implement replay, incomplete-final-record/orphan recovery, and interrupted/unknown outcomes before admitting new commands, without automatic execution replay.
-- [ ] **P1-08** Implement archive/list filtering and disk/session/artifact limits; stop new dispatch on recording failure.
+- [ ] **P1-08** Implement archive/list filtering, paged history, and incremental storage without artificial session/event/payload quotas; stop new dispatch on actual recording failure, not an application-defined history allowance.
 - [ ] **P1-09** Test collisions, unsafe paths, concurrent writes, partial/orphan records, commit ordering, disk failures, creation retry after a lost acknowledgement, restart idempotency, and pending/archive preservation.
 
 **Gate:** Session history can be rebuilt from its journal; failures never silently restart work or publish uncommitted success.
 
-## Phase 2 — Implement the three tools and shared policy
+## Phase 2 — Implement the four tools and shared policy
 
 Depends on Phase 1 schemas and recording primitives.
 
-- [ ] **P2-01** Add a fixed registry for `web_search`, `read_file`, and `grep_in_folder`, with strict argument/result validation.
-- [ ] **P2-02** Implement shared filesystem allowlists, exclusions, containment, and no-follow access checks for both read and grep.
+- [ ] **P2-01** Add a fixed registry for `web_search`, `web_fetch`, `read_file`, and `grep_in_folder`, with strict argument/result validation.
+- [ ] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
 - [x] **P2-03** Implement bounded text `read_file`: relative paths, numbered lines, pagination, safe errors, and truncation metadata.
-- [ ] **P2-04** Implement bounded literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and scan/result limits.
+- [ ] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas.
 - [ ] **P2-05** Move blocking filesystem work off the event loop; add cooperative cancellation and retain ownership until workers settle.
-- [ ] **P2-06** Implement one injected web-search provider with HTTPX, the confirmed query/call/result policy, snippet citations, timeouts, and no silent fallback or implicit page fetching.
+- [ ] **P2-06** Implement task-dependent Tavily search with HTTPX, provider-supported result paging, citations, and per-request timeouts; no mandatory search step, per-run call quota, extra query approval, silent fallback, or implicit page fetching.
 - [ ] **P2-07** Add safe configuration examples in `bff/.env.example`; keep credentials out of UI, logs, and tool results.
 - [ ] **P2-08** Test path escapes, symlink races, secret exclusions through both tools, binary/special files, oversized data, cancellation, search failures, and missing configuration.
+- [ ] **P2-09** Implement `web_fetch` using HTTPX public HTTP(S) GET and static HTML/main-text/plain-text extraction; return requested/final URL, title, status/content type, retrieval timestamp, and extracted content with continuation when needed. No browser/JavaScript execution or arbitrary file downloads.
+- [ ] **P2-10** Test fetch SSRF controls at URL parsing, DNS, actual connection, and every redirect: private/loopback/link-local/reserved targets, metadata services, rebinding, URL credentials, and non-HTTP(S)/file schemes. Verify no ambient credential/cookie forwarding, safe extraction/rendering, operational errors/timeouts, cancellation, and recorded provenance/results.
 
-**Gate:** Every tool is bounded, independently testable with fixtures/mocks, and unable to bypass the shared access policy.
+**Gate:** All four tools are independently testable, respect filesystem/network policy, and handle paged I/O without cumulative task quotas; valid plans may use zero searches/fetches or fetch a supplied URL without searching.
 
 ## Phase 3 — Generate plans and enforce explicit approval
 
 Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implementations of all tools need not block the slice. No tool implementation is exposed during planning. P3-08 is a prerequisite to the first planner call, not executor-only hardening.
 
 - [x] **P3-01** Add BFF-owned, versioned Agent instructions independent of the editable Chat prompt catalogue.
-- [ ] **P3-02** Implement tool-free structured planning with objective, explicitly unverified assumptions, ordered discovery steps, tools/scopes, expected results, and limits.
+- [ ] **P3-02** Implement tool-free structured planning with objective, unverified assumptions, ordered steps, intended tools, and expected results; allow no-tool/no-search plans and omit task-budget fields.
 - [ ] **P3-03** Validate capabilities; persist clarification question IDs and accept answers through discriminated `/revise` requests, with new planning operation IDs and stale-answer rejection.
 - [x] **P3-04** Persist immutable plan revisions, stable step IDs, canonical digests, and frozen model/thinking/policy settings.
-- [ ] **P3-05** Implement serialized waiting-state transitions: question-identified answer/rejection or plan-identified feedback/rejection; only the exact awaiting-approval plan can execute.
-- [x] **P3-06** Claim each revision for execution once; require a new run and fresh approval after failure, cancellation, or interruption.
-- [ ] **P3-07** Test zero tools before approval, spoofed approval, malformed plans, changed settings, stale/duplicate commands, clarification answer/rejection without a plan, and waiting-state recovery.
-- [ ] **P3-08** Before planning, implement shared AgentResponses request/result/attempt recording, disabled SDK retries, coordinator retry/budget accounting, and failure handling; test planning/revision audit completeness.
+- [ ] **P3-05** Implement serialized clarification/review transitions and one approval before each plan's execution; steps, queries, tool calls, and ordinary retries must not ask for additional approval.
+- [x] **P3-06** Claim each approved plan execution once and reject duplicate/stale execution commands; do not silently replay completed or interrupted work.
+- [ ] **P3-07** Test approval once per plan, fresh approval for a new/revised plan, no extra approval for calls/queries/URLs/retries, no fetch or other tools before approval, spoofed approval, clarification, stale/duplicate commands, and waiting-state recovery.
+- [ ] **P3-08** Before dispatch, allocate plan and step/stage identities and record each LLM interaction's timestamps/model/actual prompt/observable response, including retries/invalid/partial/failed attempts; control hidden SDK retries and verify complete planning/revision audit data.
 
 **Gate:** Only an explicit valid user command can authorize the reviewed revision; no model message, tool output, or reused approval can do so.
 
@@ -76,17 +83,17 @@ Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implemen
 
 Depends on storage/approval primitives and the tool(s) used by the slice; complete the full Phase 2–3 gates before release.
 
-- [ ] **P4-01** Implement coordinator-owned step selection and a bounded Responses/function-call loop.
+- [ ] **P4-01** Implement coordinator-owned step selection and a Responses/function-call loop without cumulative step/round/call/run-duration quotas.
 - [ ] **P4-02** Collect complete arguments and validate the terminal provider response before dispatch; accept tool-only intermediate responses.
 - [ ] **P4-03** Preserve canonical response items, matching `call_id` outputs, and required opaque reasoning continuation; retain `store=False`.
-- [ ] **P4-04** Reuse Phase 3's shared audited retry/budget path for execution/synthesis; enforce sequential tool execution regardless of model/provider parallel-call settings.
-- [ ] **P4-05** Check current-step tool/resource permissions, state, and budgets on every call; persist intent before invocation and outcomes before advancement.
-- [ ] **P4-06** Enforce all attempt/context/output/time limits; preserve partial results on `scope_change_required` or `clarification_required`, terminate execution, and require a new run/fresh approval rather than same-run resume.
-- [ ] **P4-07** Implement targeted nonterminal cancelling, deadlines, and cleanup; retain ownership after transport teardown until workers settle, and stop new dispatch on audit failure.
+- [ ] **P4-04** Reuse complete per-interaction recording for execution/synthesis/retries; enforce sequential tool execution regardless of provider parallel-call settings.
+- [ ] **P4-05** Check available tools, filesystem/network policy, and state on every call; persist intent/results without asking the user to approve individual calls or URLs within the approved plan.
+- [ ] **P4-06** Remove prototype run/call/attempt quotas and overall expiry; continue the approved plan as needed, use search only when useful, and await approval if a genuinely new executable plan is created.
+- [ ] **P4-07** Implement targeted nonterminal cancelling, per-request timeout/failure handling, and cleanup; retain settlement ownership and stop dispatch if recording actually fails.
 - [ ] **P4-08** Produce step results and a final evidence-based synthesis without extra unapproved tool work.
-- [ ] **P4-09** Test partial/invalid calls, multiple calls, out-of-step access, prompt injection, refusals, retries, budget exhaustion, unknown outcomes, and recording failures.
+- [ ] **P4-09** Test partial/invalid calls, filesystem/network escapes, prompt injection from fetched pages, refusals, retries, zero-search and fetch-only plans, work beyond former quotas, unknown outcomes, full prompt/response retention, and recording failures.
 
-**Gate:** Execution cannot outrun approval, step order, access policy, budgets, or durable recording.
+**Gate:** Execution follows the approved plan and access policy, with every LLM interaction durably recorded, no cumulative product quotas, and no extra step/tool/query approval.
 
 ## Phase 5 — Expose Agent APIs and progress events
 
@@ -98,7 +105,7 @@ Use Phase 0 contracts to bring forward the slice's routes alongside their minima
 - [x] **P5-04** Add a separate typed Agent SSE contract and paginated journal replay using committed event sequences.
 - [ ] **P5-05** Apply durable idempotency and payload binding; reject stale/conflicting commands without duplicate execution.
 - [x] **P5-06** Bind Stop/disconnect to the owning operation; distinguish `202` cancelling from known terminal outcomes and keep settlement ownership without continuing plan execution.
-- [ ] **P5-07** Enforce absolute deadlines, backpressure handling, bounded cleanup, safe errors, and controlled artifact exposure.
+- [ ] **P5-07** Handle per-request provider/transport timeouts, backpressure, bounded cleanup, safe errors, and controlled artifact access without an overall Agent-run deadline.
 - [ ] **P5-08** Test direct ASGI disconnects, delayed Stop, blocked-worker/pending-archive status, duplicate commands, clarification/rejection paths, replay, shutdown, and unchanged Chat SSE behavior.
 
 **Gate:** The complete approval workflow works through mocked HTTP/SSE, including interruptions and duplicate commands.
@@ -124,11 +131,11 @@ Depends on stable Agent contracts; build the slice's shell against an injected A
 Bring the slice's review/result UI forward with the minimal API/navigation pieces; complete full Phases 5–6 integration before release.
 
 - [ ] **P7-01** Build clarification answer/reject and plan-feedback flows bound to their current question/plan identities; rejection must release the waiting session.
-- [ ] **P7-02** Show unverified assumptions, steps, allowed folders/tools, effective search policy/exact queries when required, model/thinking, and resource limits; submit the displayed revision/digest on Approve and run.
+- [ ] **P7-02** Show assumptions, steps, intended tools, filesystem scope, and model/thinking for one plan-level approval; submit its displayed revision/digest without per-query prompts or mandatory task-budget controls.
 - [ ] **P7-03** Decode Agent events independently of Chat; reconcile committed sequences and reject stale session/run/operation/revision callbacks.
-- [ ] **P7-04** Render bounded step/tool results, citations, and final output safely; label search snippets separately from files actually read and never imply linked pages were fetched.
+- [ ] **P7-04** Render paged step/tool results, citations, and final output safely; distinguish search snippets, fetched page text with final URL/time, and filesystem evidence. Never claim page retrieval without a successful recorded `web_fetch` result.
 - [ ] **P7-05** Add targeted Stop, visible Stopping/pending-archive status, partial results and typed scope/information errors; prevent double-click execution or automatic resume after reload.
-- [ ] **P7-06** Add read-only timeline/history replay and archived-session review from BFF records.
+- [ ] **P7-06** Add paged timeline/history and archived-session review with plan/step/timestamp/model/prompt/response details for every LLM interaction; shortened previews must link to complete retained data.
 - [x] **P7-07** Preserve review focus and useful scrolling; show interruptions without silently resuming work.
 - [ ] **P7-08** Test displayed-versus-approved scope, clarification/revision races, duplicate/gapped events, stopping status, mode switches, safe rendering/links, and accessibility.
 - [x] **P7-09** Disclose retained user/source/tool/LLM content and external-query behavior before use; do not describe credential-field exclusion as complete secret-content scrubbing.
@@ -139,18 +146,18 @@ Bring the slice's review/result UI forward with the minimal API/navigation piece
 
 Depends on Phases 0–7.
 
-- [ ] **P8-01** Run a mocked end-to-end flow: request → plan → review → approve → all three tools → final result → reload/history.
+- [ ] **P8-01** Run mocked end-to-end scenarios covering all four tools, a reasoning-only/no-search task, a filesystem-only task, and fetch of a directly supplied URL without search; four-tool coverage is a test case, not a requirement for every plan.
 - [ ] **P8-02** Verify rejection, stale approval, duplicate commands, delayed Stop, disconnect, and restart never trigger unauthorized or repeated execution.
-- [ ] **P8-03** Verify complete logical LLM/tool records across planning/revisions/execution, credential-field exclusion, opaque continuation, truncation, disk failure, retained-content disclosure, and archive review.
+- [ ] **P8-03** Verify every planning/revision/execution/synthesis/retry interaction retains its plan/step/timestamps/model/actual prompt/response, including failed/partial outputs; test credential exclusion, lossless artifacts, disk failure, and history review.
 - [x] **P8-04** Run frontend tests, TypeScript checks, production build, and formatting checks using the commands in plan §10 from `ui/` with the default Node activated.
 - [x] **P8-05** Run backend pytest, Ruff lint/format checks, and lock validation using the commands in plan §10 from `bff/` with `uv`.
 - [x] **P8-06** Verify session files are Git-ignored, inspect `git status`/diff, and run `git diff --check`; never stage session data or secrets.
-- [ ] **P8-07** Update frontend/backend documentation with actual contracts, configuration, limits, recovery behavior, and verification results.
+- [ ] **P8-07** Update frontend/backend documentation with actual contracts, configuration, provider constraints, full interaction recording, recovery behavior, and verification results; remove obsolete quota/extra-approval descriptions as runtime migration lands.
 - [ ] **P8-08** Reconcile implementation deviations with the design plan and record completed-task evidence here.
-- [ ] **P8-09 — User walkthrough:** Evaluate a realistic workspace grep/read plus web-search task, including unverified planning assumptions, snippet-only evidence, query-policy usefulness, and scope-change behavior; passing scripted mocks alone is not proof of usefulness.
+- [ ] **P8-09 — User walkthrough:** Evaluate a task that needs search and one that does not; verify one approval per plan, useful results, and complete plan/step-correlated LLM history. Passing scripted mocks alone is not proof of usefulness.
 - [x] **P8-10** Review code provenance and the final diff against the independent-implementation constraint: no copied/translated/vendored OpenCode implementation source or embedded OpenCode runtime.
 
-**Release gate:** Required tasks, early-slice/user walkthroughs, and mocked checks pass; modes/histories are independent, approval is enforced in BFF, waiting/stopping/scope-change paths are complete, tools are bounded, logical records are durable, and Chat remains regression-free. Live provider compatibility remains separately unverified until the optional checks below.
+**Release gate:** Required tasks/walkthroughs/checks pass; modes are independent, each plan is approved once, new plans need approval, tools stay within configured access, no product quotas remain, search is optional, every LLM prompt/response has its plan/step/time/model recorded, and Chat remains regression-free. Live compatibility is separately unverified until the optional checks below.
 
 ## Optional live verification — Separate authorization required
 
@@ -168,3 +175,23 @@ Live verification is not required for mocked implementation completion. No real 
 - Broad unchecked tasks may have partial foundations: creation idempotency, recovery, storage limits, shared path policy, planner attempt recording, and review/results UI exist. They remain unchecked where all-tool, real-provider, clarification, artifact-layout, or broader release requirements are not met.
 - Current backend contract/limits: [bff/AGENT_API.md](bff/AGENT_API.md). Journals contain bounded full snapshots/audit records rather than separate artifact/snapshot files. `read_file` is the only implemented tool; the default planner returns `503 agent_not_configured`, clarification returns `501`, and final output is a completion receipt rather than LLM synthesis. No actual provider calls or automatic execution resume occur.
 - Still needed: production Responses planning and tool loop, grep/search and provider selection, clarification, complete history/replay UI, confirmed filesystem/search/retention policies, and the user walkthrough. No native browser visual test, live Azure/search check, Git staging, or commit was performed.
+
+## Decision record — 2026-10-19
+
+- User approved `/tmp/ls-assistants` as the only filesystem-tool scope for this implementation phase. P0-03 records the decision; P2-02 remains open for configuration/enforcement and tests. No directory was inspected or created while recording it.
+- Existing secret/private-archive/session-log exclusions remain. Application-owned journals stay in `bff/sessions`; that does not grant filesystem tools access to the journal store.
+- OpenCode V2's provider selection was rechecked: Exa, Firecrawl, Parallel, Tavily, and TinyFish are supported, with configured/remembered or prompted selection rather than a single hardwired provider. Our provider is chosen independently of OpenCode.
+- User subsequently selected **Tavily** as our first provider. The choice is complete; credential setup and live-use cost/data-handling confirmation remain open under P0-02. Recommended initial integration is direct HTTPX with Tavily Basic and bounded results, not MCP, provider failover, or automatic Advanced search.
+
+### Subsequent user clarification — replaces earlier policy proposals
+
+- One approval starts execution of a plan. Calls, queries, steps, and retries within it need no separate approval; each new/revised executable plan requires approval again.
+- No product-imposed step, LLM/tool/search-call, total-run-duration, or retained-history quotas. Web search depends on the task, and plans may use none. Operational provider/model constraints, request failures, and file/result paging must not be relabeled task allowances.
+- Every LLM interaction is recorded in its session folder with plan identity, step/stage identity, timestamps, requested/reported model names, actual prompt/input, and observable response/output. Include planning, revisions, synthesis, retries, invalid/refused/partial/failed/cancelled attempts; mark unavailable outputs honestly and never silently truncate the only retained record.
+- P0-05 records the confirmed policy. P0-08, P1-05/P1-08, P3-08, and P4-06 remain open for migration: current BFF schemas/admission/storage/transport still enforce prototype caps and do not yet retain all required LLM data. The existing fixed event reservations/full-snapshot-per-event design must be changed coherently, not merely have numeric checks removed. No runtime code, provider calls, or filesystem-root access changed in this documentation update.
+
+### MVP tool addition — web_fetch
+
+- User identified page fetching as essential. The target MVP now has four tools: `web_search`, `web_fetch`, `read_file`, and `grep_in_folder`.
+- `web_fetch` retrieves actual public page content, not search snippets; it can fetch a supplied URL without a preceding search. No browser/JavaScript automation or private/internal network access is included.
+- P2-09/P2-10 track implementation and security/provenance tests. Existing once-per-plan approval, optional tool use, no cumulative quotas, full LLM audit, `/tmp/ls-assistants` filesystem scope, and no OpenCode source/runtime reuse remain unchanged. The runtime tool is not implemented by this documentation update.
