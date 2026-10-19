@@ -38,12 +38,17 @@ Production hosting must route `/api` to the BFF under the same origin.
   in the main top bar, aligned right. The default effort is `medium`; all four choices remain
   available for every model.
   The BFF reports unsupported combinations in the reply error UI.
+- The model dropdown grows with its option names from its existing 9 rem width (11 rem from the
+  `sm` breakpoint), up to 18 rem (22 rem from `sm`). Header controls wrap on narrow screens, and the
+  selected model's full name is also available in the dropdown's tooltip.
 - Both user and assistant bubbles render sanitized Markdown, with syntax highlighting for code.
 - Message headers show timestamps in the browser's local timezone as `yyyy-MM-dd HH:mm:ss`,
   after the assistant label and before `User`. Missing or invalid historical timestamps stay undated.
 - Replies grow incrementally in one bubble. Partial rendering failures silently show escaped plain text.
 - Each session permits one in-flight turn. You can edit its next draft or chat in another session
   while receiving a reply. Replies never activate another session. Deleting a session aborts its turn.
+- “Receiving reply…” includes a decorative spinner while waiting, including during title generation.
+  It stays still when the system's reduced-motion preference is enabled.
 - Stop preserves partial text. Errors preserve partial text and offer Retry on the last failed reply.
   Retry replaces that reply, generates a fresh request ID, and sends the original user message once.
   The current model/effort can be changed before retrying; the session's prompt stays locked.

@@ -123,6 +123,55 @@ describe('App streaming integration', () => {
     expect([...thinking.options].every((option) => !option.disabled)).toBe(true);
   });
 
+  it('sizes the model list from its options with the old width as its minimum and double the maximum', async () => {
+    const longModel = 'azure-openai-gpt-long-deployment-name-2026-10-19';
+    api.modelsResponse = { models: ['short', longModel], default_model: longModel };
+    await fixture.componentInstance.turns.loadModels();
+    await settle();
+
+    const models = element<HTMLSelectElement>('#model-input');
+    expect(models.value).toBe(longModel);
+    expect(models.title).toBe(longModel);
+    expect([...models.options].map((option) => option.textContent?.trim())).toEqual([
+      'short',
+      longModel,
+    ]);
+    for (const token of ['w-auto', 'min-w-36', 'max-w-72', 'sm:min-w-44', 'sm:max-w-88']) {
+      expect(models.classList.contains(token)).toBe(true);
+    }
+    expect(models.classList.contains('w-36')).toBe(false);
+    expect(models.classList.contains('sm:w-44')).toBe(false);
+    expect(models.parentElement?.classList.contains('max-w-full')).toBe(true);
+    await select('#model-input', 'short');
+    expect(models.value).toBe('short');
+    expect(models.title).toBe('short');
+    expect(element<HTMLSelectElement>('#thinking-input').value).toBe('medium');
+  });
+
+  it('shows a decorative, reduced-motion-aware spinner only while awaiting a reply', async () => {
+    expect(root().querySelector('[role="status"] [aria-hidden="true"]')).toBeNull();
+    await send();
+
+    const status = element('[role="status"]');
+    const spinner = status.querySelector<HTMLElement>('[aria-hidden="true"]')!;
+    expect(spinner.tagName).toBe('SPAN');
+    expect(spinner.classList.contains('motion-safe:animate-spin')).toBe(true);
+    expect(spinner.classList.contains('animate-spin')).toBe(false);
+    expect(spinner.previousElementSibling?.textContent).toBe('Receiving reply…');
+    expect(status.textContent).toContain('Receiving reply…');
+    expect(button('Stop reply').disabled).toBe(false);
+
+    api.event(0, 'start');
+    api.event(0, 'session_title', 'Generated title');
+    await settle();
+    expect(root().contains(spinner)).toBe(true);
+    api.event(0, 'delta', 'Answer');
+    api.event(0, 'done');
+    await settle();
+    expect(root().contains(spinner)).toBe(false);
+    expect(root().textContent).not.toContain('Receiving reply');
+  });
+
   it('restores per-session controls on switching, including unavailable models', async () => {
     const first = state.activeSessionId();
     await select('#model-input', 'model-b');
