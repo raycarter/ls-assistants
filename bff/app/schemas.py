@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     reasoning_effort: Literal["low", "medium", "high", "xhigh"]
     system_prompt: str | None
     messages: list[ChatMessage] = Field(min_length=1)
+    generate_title: bool = False
 
 
 class ModelsResponse(BaseModel):
@@ -36,6 +37,11 @@ class CorrelatedEvent(BaseModel):
 class StartEvent(CorrelatedEvent):
     event: ClassVar[str] = "start"
     time: datetime
+
+
+class SessionTitleEvent(CorrelatedEvent):
+    event: ClassVar[str] = "session_title"
+    title: str
 
 
 class DeltaEvent(CorrelatedEvent):
@@ -55,7 +61,7 @@ class ErrorEvent(CorrelatedEvent):
     message: str
 
 
-ChatEvent = StartEvent | DeltaEvent | DoneEvent | ErrorEvent
+ChatEvent = StartEvent | SessionTitleEvent | DeltaEvent | DoneEvent | ErrorEvent
 
 
 def encode_sse(event: ChatEvent, sequence: int) -> str:

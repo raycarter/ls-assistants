@@ -68,6 +68,13 @@ def chat_request():
 
 
 @pytest.fixture
+def first_turn(chat_request):
+    return chat_request.model_copy(
+        update={"messages": chat_request.messages[:1], "generate_title": True}
+    )
+
+
+@pytest.fixture
 def mock_client():
     return SimpleNamespace(
         responses=SimpleNamespace(create=AsyncMock()),

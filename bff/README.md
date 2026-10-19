@@ -35,8 +35,9 @@ startup. `.env.example` contains placeholders only.
 | `AZURE_TENANT_ID` | Unset | Service-principal tenant ID. |
 | `AZURE_CLIENT_ID` | Unset | Service-principal client ID. |
 | `AZURE_CLIENT_SECRET` | Unset | Service-principal secret, represented internally as `SecretStr`. |
-| `REQUEST_TIMEOUT_SECONDS` | `120` | One fixed deadline for token acquisition waits, opening attempts, retry delays, provider stream reads and ASGI response sends. Positive, at most `3600`. |
+| `REQUEST_TIMEOUT_SECONDS` | `120` | One fixed deadline for title generation, token acquisition waits, opening attempts, retry delays, provider stream reads and ASGI response sends. Positive, at most `3600`. |
 | `PROVIDER_TIMEOUT_SECONDS` | `60` | OpenAI HTTP timeout per transport operation, including stream-read inactivity. Positive, at most `3600`; the whole-operation deadline still applies. |
+| `TITLE_TIMEOUT_SECONDS` | `10` | Best-effort title call timeout, bounded by the remaining absolute request deadline. Positive, finite, at most `3600`. No title retries. |
 | `MAX_OUTPUT_TOKENS` | `4096` | Positive Responses output-token limit, including reasoning tokens where applicable. |
 | `MAX_RETRIES` | `2` | Additional stream-opening attempts (`0`–`5`). The default permits three attempts total. |
 | `RETRY_DELAY_SECONDS` | `0.5` | Initial retry delay (`0`–`10` seconds), doubled per retry and capped at five seconds. |
@@ -96,10 +97,10 @@ Models come exclusively from configuration. No provider discovery call is made.
 
 ### `POST /api/chat`
 
-Send `Content-Type: application/json`. All fields below are required, including
-`system_prompt`, which may be `null`. Unknown fields and camelCase names are
-rejected. IDs and model must be nonempty strings; `messages` must contain at least
-one message with a nonempty string `content`.
+Send `Content-Type: application/json`. All fields below except `generate_title`
+are required, including `system_prompt`, which may be `null`. Unknown fields and
+camelCase names are rejected. IDs and model must be nonempty strings; `messages`
+must contain at least one message with a nonempty string `content`.
 
 ```json
 {
@@ -108,6 +109,7 @@ one message with a nonempty string `content`.
   "model": "deployment-a",
   "reasoning_effort": "xhigh",
   "system_prompt": "Be concise.",
+  "generate_title": false,
   "messages": [
     {"role": "user", "content": "Earlier question"},
     {"role": "assistant", "content": "Earlier answer"},
@@ -122,9 +124,36 @@ one message with a nonempty string `content`.
 - Message roles are exactly `user` or `assistant`; ordering and content are preserved.
 - A nonnull `system_prompt` becomes `instructions`, including an empty string.
   A null prompt omits `instructions`.
-- History becomes Responses `input`. Every call uses `stream=True`, `store=False`,
+- History becomes Responses `input`. The answer call uses `stream=True`, `store=False`,
   the configured `max_output_tokens`, and `reasoning={"effort": reasoning_effort}`.
   No provider conversation or previous-response ID is used.
+- `generate_title` is an optional **strict boolean**, default `false` (`null`, numbers
+  and strings are rejected). Set it to `true` only for the first new send, not
+  followups or retries. Title generation additionally requires **exactly one
+  message whose role is `user`**; otherwise the flag is ignored. The service is
+  stateless and does not track whether a session has already been titled.
+
+### First-turn titles
+
+For a qualifying request, the backend sends `start` immediately, generates and
+sends one `session_title`, **then opens the answer stream**. The title uses the
+same `AsyncOpenAI` Responses client and selected deployment, with fixed title-only
+instructions independent of `system_prompt`, only the first user message as
+`input`, `stream=False`, and `store=False`. It uses `reasoning={"effort":"low"}`
+and a fixed `max_output_tokens=1024`, including reasoning tokens, rather than the
+user's answer effort or output limit. Low effort keeps this small task inexpensive;
+deployments that reject it use the fallback without another title attempt.
+
+Whitespace is collapsed, matching surrounding quotes are removed, and titles are
+truncated to at most 60 characters with trailing whitespace removed. Any title
+exception, refusal, incomplete/noncompleted response, unusable output or title
+timeout produces a deterministic, identically normalized first-message excerpt
+instead (`New chat` if the excerpt is empty). Title failures expose no provider
+details and do not emit an `error` of their own. The answer proceeds normally with
+the remaining request budget; if the absolute deadline has expired, its existing
+timeout behavior applies. Cancellation stops the request without emitting a
+fallback or starting an answer. Clients can keep a local excerpt as the immediate
+fallback while waiting for the title event.
 
 Schema or allowlist errors return a normal **HTTP 422 JSON** response before any
 stream starts. A valid request returns **HTTP 200 `text/event-stream`**; subsequent
@@ -147,6 +176,7 @@ The `data` fields are exactly:
 | Event | JSON payload |
 | --- | --- |
 | `start` | `{session_id, request_id, message_id, time}` |
+| `session_title` | `{session_id, request_id, message_id, title}` |
 | `delta` | `{session_id, request_id, message_id, text}` |
 | `done` | `{session_id, request_id, message_id, time, status: "complete"}` |
 | `error` | `{session_id, request_id, message_id, code, message}` |
@@ -158,12 +188,17 @@ UTC RFC 3339 format, identical on `start` and `done`. Event IDs are
 They identify frames; the stateless API does not implement replay/resume or
 idempotent request deduplication. A fresh POST creates a fresh reply identity.
 
-The stream starts with one `start`, then forwards each nonempty
-`response.output_text.delta` immediately. Exactly one `done` or `error` terminates
+The stream starts with one `start`, followed by one `session_title` only for a
+qualifying title request, then forwards each nonempty `response.output_text.delta`
+immediately. The title participates in the same correlation identity and sequence
+(normally `start :0`, `session_title :1`, first `delta :2`). Requests without the
+flag retain `start` → `delta`* → `done`/`error`; title requests use
+`start` → `session_title` → `delta`* → `done`/`error`.
+Exactly one `done` or `error` terminates
 a stream whose transport remains writable within its deadline. **`done` contains
 no final content**: append only `delta.text` to avoid duplicate text. Final text
 snapshots, reasoning text/summaries and tool
-events are not forwarded. No complete response is buffered by the service.
+events are not forwarded. No complete answer response is buffered by the service.
 
 Provider `response.completed` succeeds only after text has been emitted. Failed
 or incomplete responses, refusal, completion without text, and EOF without a
@@ -186,7 +221,8 @@ text, credentials or tracebacks. Error codes include:
 - `provider_error`, `internal_error`
 
 Only connection failures, HTTP 429 and HTTP 5xx may retry **while opening** the
-provider stream. OpenAI SDK retries are disabled; the service owns the explicit
+answer provider stream. Title calls never retry. OpenAI SDK retries are disabled;
+the service owns the explicit
 budget. Once a stream opens there are no retries, even before its first delta,
 so an emitted answer is never duplicated. Provider authentication or validation
 failures do not retry. The fixed request deadline is never reset by a token or
@@ -216,7 +252,8 @@ secret-free configuration fixture. Credentials, provider streams and HTTP
 transports are mocked; real credential acquisition, socket connections and DNS
 lookups are blocked. Coverage includes config
 precedence/validation, credential selection/failure, token caching/refresh,
-request mapping, exact JSON/SSE contracts, immediate deltas, terminal errors,
+request mapping, exact JSON/SSE contracts, immediate start/title/delta delivery,
+first-turn title guards, title normalization/fallback/timeout/cancellation, terminal errors,
 refusal, retry budgets, whole-operation deadlines, cleanup, cancellation and ASGI
 disconnects. Mock HTTP tests exercise the installed OpenAI SDK's actual request
 serialization and event parsing. No live Azure inference is needed for this suite.

@@ -122,6 +122,7 @@ export class ChatTurns {
         reasoning_effort: effort,
         system_prompt: session.prompt?.content ?? null,
         messages: history(session),
+        generate_title: session.messages.length === 1,
       },
       session.messages.at(-1)!.id,
     );
@@ -142,6 +143,7 @@ export class ChatTurns {
       reasoning_effort: this.selectedEffort(),
       system_prompt: session.prompt?.content ?? null,
       messages: history(session, userIndex + 1),
+      generate_title: false,
     };
     this.state.updateSession(session.id, (entry) => ({
       ...entry,
@@ -235,7 +237,14 @@ export class ChatTurns {
         event.type === 'start' ? event.time : new Date().toISOString(),
       );
     }
-    if (event.type === 'delta') {
+    if (event.type === 'session_title') {
+      this.state.updateSession(turn.request.session_id, (session) => ({
+        ...session,
+        title: event.title,
+      }));
+      // Metadata must survive a reload even while the answer is still pending.
+      this.state.flushPersistence();
+    } else if (event.type === 'delta') {
       turn.buffer += event.text;
       turn.timer ??= setTimeout(() => this.flushText(turn), 32);
     } else if (event.type === 'done') {

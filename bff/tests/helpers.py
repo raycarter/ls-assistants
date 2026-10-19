@@ -18,6 +18,10 @@ def terminal(status="completed", *, error=None, reason=None, output=None):
     )
 
 
+def title_response(text="A concise title", *, status="completed", output=None):
+    return SimpleNamespace(status=status, output_text=text, output=output or [])
+
+
 class FakeStream:
     def __init__(self, *events):
         self.events = iter(events)

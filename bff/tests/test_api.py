@@ -7,7 +7,7 @@ import pytest
 from starlette.requests import ClientDisconnect
 
 from app.main import create_app
-from tests.helpers import FakeStream, delta, terminal
+from tests.helpers import FakeStream, delta, terminal, title_response
 from tests.test_responses import BlockingStream, status_error
 
 
@@ -53,7 +53,9 @@ async def test_sse_contract_and_ids(app_factory, mock_client, chat_request):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
-            response = await client.post("/api/chat", json=chat_request.model_dump())
+            body = chat_request.model_dump()
+            del body["generate_title"]
+            response = await client.post("/api/chat", json=body)
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.headers["cache-control"] == "no-cache, no-transform"
@@ -85,6 +87,10 @@ async def test_sse_contract_and_ids(app_factory, mock_client, chat_request):
         {"model": "unlisted"},
         {"reasoning_effort": "none"},
         {"reasoning_effort": "XHIGH"},
+        {"generate_title": "true"},
+        {"generate_title": 1},
+        {"generate_title": None},
+        {"generateTitle": True},
         {"session_id": ""},
         {"request_id": 42},
         {"messages": []},
@@ -248,6 +254,120 @@ async def test_asgi_forwards_delta_while_provider_has_not_completed(
             release_provider.set()
             await task
     stream.close.assert_awaited_once()
+
+
+async def test_asgi_delivers_title_before_gated_answer_open(app_factory, mock_client, first_turn):
+    title_started = asyncio.Event()
+    release_title = asyncio.Event()
+    title_sent = asyncio.Event()
+    release_title_send = asyncio.Event()
+    answer_opening = asyncio.Event()
+    release_answer = asyncio.Event()
+    stream = FakeStream(delta("Answer"), terminal())
+
+    async def create(**kwargs):
+        if not kwargs["stream"]:
+            title_started.set()
+            await release_title.wait()
+            return title_response("Early title")
+        answer_opening.set()
+        await release_answer.wait()
+        return stream
+
+    mock_client.responses.create.side_effect = create
+    app, _, _ = app_factory()
+    body_received = False
+    sent = []
+
+    async def receive():
+        nonlocal body_received
+        if body_received:
+            await asyncio.Event().wait()
+        body_received = True
+        return {
+            "type": "http.request",
+            "body": first_turn.model_dump_json().encode(),
+            "more_body": False,
+        }
+
+    async def send(message):
+        sent.append(message)
+        if b"event: session_title" in message.get("body", b""):
+            title_sent.set()
+            await release_title_send.wait()
+
+    def frames():
+        return decode_frames(b"".join(message.get("body", b"") for message in sent).decode())
+
+    async with app.router.lifespan_context(app), asyncio.timeout(1):
+        task = asyncio.create_task(app(request_scope(), receive, send))
+        try:
+            await title_started.wait()
+            assert [frame["event"] for frame in frames()] == ["start"]
+            release_title.set()
+            await title_sent.wait()
+            assert mock_client.responses.create.await_count == 1
+            assert not answer_opening.is_set()
+            release_title_send.set()
+            await answer_opening.wait()
+            assert not task.done()
+            assert [frame["event"] for frame in frames()] == ["start", "session_title"]
+        finally:
+            release_title.set()
+            release_title_send.set()
+            release_answer.set()
+            await task
+    result = frames()
+    assert [frame["event"] for frame in result] == ["start", "session_title", "delta", "done"]
+    message_id = result[0]["data"]["message_id"]
+    assert result[1]["data"] == {
+        "session_id": first_turn.session_id,
+        "request_id": first_turn.request_id,
+        "message_id": message_id,
+        "title": "Early title",
+    }
+    for sequence, frame in enumerate(result):
+        assert frame["id"] == f"{message_id}:{sequence}"
+        assert frame["data"]["message_id"] == message_id
+    assert result[2]["data"]["text"] == "Answer"
+    stream.close.assert_awaited_once()
+
+
+async def test_blocked_title_send_obeys_deadline_without_opening_answer(
+    app_factory, mock_client, first_turn
+):
+    app, _, _ = app_factory(request_timeout_seconds=0.02)
+    mock_client.responses.create.return_value = title_response()
+    body_received = False
+    sent = []
+    send_cancelled = asyncio.Event()
+
+    async def receive():
+        nonlocal body_received
+        if body_received:
+            await asyncio.Event().wait()
+        body_received = True
+        return {
+            "type": "http.request",
+            "body": first_turn.model_dump_json().encode(),
+            "more_body": False,
+        }
+
+    async def send(message):
+        sent.append(message)
+        if b"event: session_title" in message.get("body", b""):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                send_cancelled.set()
+
+    async with app.router.lifespan_context(app), asyncio.timeout(1):
+        await app(request_scope(), receive, send)
+    assert send_cancelled.is_set()
+    mock_client.responses.create.assert_awaited_once()
+    assert not any(message.get("more_body") is False for message in sent)
+    frames = decode_frames(b"".join(message.get("body", b"") for message in sent).decode())
+    assert [frame["event"] for frame in frames] == ["start", "session_title"]
 
 
 async def test_failed_asgi_send_closes_suspended_generator(app_factory, mock_client, chat_request):

@@ -385,14 +385,29 @@ describe('App with literal backend SSE payloads', () => {
     vi.restoreAllMocks();
   });
 
-  async function render(stream: string) {
+  async function render(stream: string, deferredAnswer?: string) {
     const records = new Map<string, string>();
+    let releaseAnswer: (() => void) | undefined;
     const fetch = vi.fn(async (url: string | URL | Request, options?: RequestInit) => {
       if (url === '/api/models') {
         return new Response('{"models":["deployment"],"default_model":"deployment"}');
       }
       const request = JSON.parse(options!.body as string);
-      return new Response(stream.replaceAll('REQUEST_ID', request.request_id), {
+      const correlated = (text: string) => text.replaceAll('REQUEST_ID', request.request_id);
+      const body =
+        deferredAnswer === undefined
+          ? correlated(stream)
+          : new ReadableStream<Uint8Array>({
+              start(controller) {
+                const encoder = new TextEncoder();
+                controller.enqueue(encoder.encode(correlated(stream)));
+                releaseAnswer = () => {
+                  controller.enqueue(encoder.encode(correlated(deferredAnswer)));
+                  controller.close();
+                };
+              },
+            });
+      return new Response(body, {
         headers: { 'Content-Type': 'text/event-stream' },
       });
     });
@@ -418,12 +433,66 @@ describe('App with literal backend SSE payloads', () => {
     );
     state.updateDraft('Question');
     expect(fixture.componentInstance.turns.send()).toBe(true);
+    if (deferredAnswer === undefined) {
+      await vi.waitFor(() => expect(fixture.componentInstance.turns.activePending()).toBe(false));
+    } else {
+      await vi.waitFor(() => expect(state.activeSession().messages).toHaveLength(2));
+    }
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, state, records, fetch, releaseAnswer: () => releaseAnswer?.() };
+  }
+
+  it('shows and saves the title before the paused answer stream resumes', async () => {
+    const { fixture, state, records, fetch, releaseAnswer } = await render(
+      [
+        'id: server-reply:0',
+        'event: start',
+        'data: {"session_id":"initial-session","request_id":"REQUEST_ID","message_id":"server-reply","time":"2026-10-13T12:00:00.000Z"}',
+        '',
+        'id: server-reply:1',
+        'event: session_title',
+        'data: {"session_id":"initial-session","request_id":"REQUEST_ID","message_id":"server-reply","title":"Generated session title 世界"}',
+        '',
+        '',
+      ].join('\n'),
+      [
+        'id: server-reply:2',
+        'event: delta',
+        'data: {"session_id":"initial-session","request_id":"REQUEST_ID","message_id":"server-reply","text":"**The answer**"}',
+        '',
+        'id: server-reply:3',
+        'event: done',
+        'data: {"session_id":"initial-session","request_id":"REQUEST_ID","message_id":"server-reply","time":"2026-10-13T12:00:00.000Z","status":"complete"}',
+        '',
+        '',
+      ].join('\n'),
+    );
+    const root = fixture.nativeElement as HTMLElement;
+    const title = 'Generated session title 世界';
+    expect(JSON.parse(fetch.mock.calls[1][1]!.body as string).generate_title).toBe(true);
+    expect(state.activeSession().title).toBe(title);
+    expect(
+      root.querySelector('#assistant-sidebar button[aria-current="true"]')?.textContent,
+    ).toContain(title);
+    expect(JSON.parse(records.get(CHAT_STORAGE_KEY)!).sessions[0].title).toBe(title);
+    expect(fixture.componentInstance.turns.activePending()).toBe(true);
+    expect(root.textContent).toContain('Receiving reply');
+    expect(state.activeSession().messages[1].content).toBe('');
+    expect(root.querySelector('[role="status"] button')?.textContent?.trim()).toBe('Stop reply');
+    expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+
+    releaseAnswer();
     await vi.waitFor(() => expect(fixture.componentInstance.turns.activePending()).toBe(false));
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, state, records };
-  }
+    expect(root.querySelector('article:last-child strong')?.textContent).toBe('The answer');
+    expect(root.textContent).not.toContain('Receiving reply');
+    expect(state.activeSession().title).toBe(title);
+    expect(state.activeSession().messages).toHaveLength(2);
+  });
 
   it('completes literal start/delta/done through fetch, rendering and storage without time on delta', async () => {
     const { fixture, state, records } = await render(

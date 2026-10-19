@@ -9,6 +9,7 @@ const request: ChatRequest = {
   reasoning_effort: 'xhigh',
   system_prompt: 'Locked prompt',
   messages: [{ role: 'user', content: 'Hello 世界' }],
+  generate_title: true,
 };
 const identity = {
   session_id: 'session',
@@ -62,6 +63,37 @@ describe('ChatEventDecoder', () => {
     expect(() => decoder.decode(frame('delta', 2, { text: 'changed' }))).toThrow(/invalid/);
   });
 
+  it('accepts and deduplicates a nonterminal title before answer text', () => {
+    const decoder = new ChatEventDecoder(request);
+    decoder.decode(frame('start', 0));
+    const title = '🌱'.repeat(60);
+    expect(decoder.decode(frame('session_title', 1, { title }))).toEqual({
+      ...identity,
+      type: 'session_title',
+      title,
+    });
+    expect(decoder.terminal).toBe(false);
+    expect(decoder.decode(frame('session_title', 1, { title }))).toBeNull();
+    expect(decoder.decode(frame('delta', 2, { text: 'Answer' }))?.type).toBe('delta');
+    expect(decoder.decode(frame('done', 3, { status: 'complete' }))?.type).toBe('done');
+  });
+
+  it('rejects a second title or a title arriving after answer text', () => {
+    const decoder = new ChatEventDecoder(request);
+    decoder.decode(frame('start', 0));
+    decoder.decode(frame('session_title', 1, { title: 'First title' }));
+    expect(() => decoder.decode(frame('session_title', 2, { title: 'Changed title' }))).toThrow(
+      /invalid/,
+    );
+
+    const late = new ChatEventDecoder(request);
+    late.decode(frame('start', 0));
+    late.decode(frame('delta', 1, { text: 'Answer' }));
+    expect(() => late.decode(frame('session_title', 2, { title: 'Late title' }))).toThrow(
+      /invalid/,
+    );
+  });
+
   it.each([
     { event: 'start', id: 'reply:1', data: '{' },
     { event: 'start', id: 'reply:1', data: 'null' },
@@ -73,6 +105,7 @@ describe('ChatEventDecoder', () => {
     { ...frame('start', 1), id: 'wrong:1' },
     { ...frame('start', 1), id: 'reply:NaN' },
     frame('delta', 1, { text: 'before start' }),
+    frame('session_title', 1, { title: 'Before start' }),
     frame('done', 1, { status: 'complete' }),
     frame('error', 1, { code: 'error', message: 42 }),
   ])('rejects malformed or uncorrelated event %#', (event) => {
@@ -83,6 +116,13 @@ describe('ChatEventDecoder', () => {
     frame('start', 2),
     frame('delta', 2, { text: null }),
     frame('delta', 2, { text: 'x', message_id: 'other' }),
+    frame('session_title', 2, { title: null }),
+    frame('session_title', 2, { title: '' }),
+    frame('session_title', 2, { title: ' \n\t ' }),
+    frame('session_title', 2, { title: '🌱'.repeat(61) }),
+    frame('session_title', 2, { title: 'Wrong session', session_id: 'other' }),
+    frame('session_title', 2, { title: 'Wrong request', request_id: 'other' }),
+    frame('session_title', 2, { title: 'Wrong reply', message_id: 'other' }),
     frame('done', 2, { status: 'complete', time: '2026-10-13T12:01:00Z' }),
     frame('done', 2, { status: 'complete', time: undefined }),
     frame('done', 2, { status: 'complete', time: null }),
@@ -124,9 +164,10 @@ describe('ChatApi native fetch transport', () => {
       .mockResolvedValue(
         response(
           wire('start', 1) +
-            wire('delta', 2, { text: '**世界 🌱' }) +
-            wire('delta', 3, { text: '**' }) +
-            wire('done', 4, { status: 'complete' }),
+            wire('session_title', 2, { title: 'A greeting 世界 🌱' }) +
+            wire('delta', 3, { text: '**世界 🌱' }) +
+            wire('delta', 4, { text: '**' }) +
+            wire('done', 5, { status: 'complete' }),
         ),
       );
     const events = vi.fn();
@@ -140,13 +181,15 @@ describe('ChatApi native fetch transport', () => {
     });
     expect(events.mock.calls.map(([event]) => event.type)).toEqual([
       'start',
+      'session_title',
       'delta',
       'delta',
       'done',
     ]);
-    expect(events.mock.calls[1][0].text).toBe('**世界 🌱');
-    expect(events.mock.calls[1][0]).not.toHaveProperty('time');
-    expect(events.mock.calls[3][0]).not.toHaveProperty('content');
+    expect(events.mock.calls[1][0].title).toBe('A greeting 世界 🌱');
+    expect(events.mock.calls[2][0].text).toBe('**世界 🌱');
+    expect(events.mock.calls[2][0]).not.toHaveProperty('time');
+    expect(events.mock.calls[4][0]).not.toHaveProperty('content');
   });
 
   it('loads and validates models using GET and forwards the abort signal', async () => {
@@ -220,18 +263,20 @@ describe('ChatApi native fetch transport', () => {
     },
   );
 
-  it.each([wire('start', 1), wire('start', 1) + wire('delta', 2, { text: 'partial' }), ''])(
-    'rejects EOF without a terminal event %#',
-    async (text) => {
-      await expect(
-        api(vi.fn().mockResolvedValue(response(text, 1000))).stream(
-          request,
-          new AbortController().signal,
-          vi.fn(),
-        ),
-      ).rejects.toThrow(/unexpectedly/);
-    },
-  );
+  it.each([
+    wire('start', 1),
+    wire('start', 1) + wire('session_title', 2, { title: 'Only metadata' }),
+    wire('start', 1) + wire('delta', 2, { text: 'partial' }),
+    '',
+  ])('rejects EOF without a terminal event %#', async (text) => {
+    await expect(
+      api(vi.fn().mockResolvedValue(response(text, 1000))).stream(
+        request,
+        new AbortController().signal,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(/unexpectedly/);
+  });
 
   it('rejects a non-SSE response', async () => {
     await expect(
