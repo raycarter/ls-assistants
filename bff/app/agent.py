@@ -336,10 +336,7 @@ class AgentService:
                         self.registry.validate(step)
                     run.status = "approved"
                 else:
-                    attempts = sum(
-                        record.event.type == "planner.attempt" and record.event.run_id == run.id
-                        for record in self.store.records[sid]
-                    )
+                    attempts = self.store.attempt_count(sid, run.id)
                     if attempts >= 8:
                         raise AgentFault(
                             "attempt_limit", "Planning attempt allowance is exhausted."
@@ -774,20 +771,16 @@ class AgentService:
             # durable mutation is blocking the command lock. Published claims
             # are immutable; reject a known reused key before signaling Stop.
             digest = canonical_digest({"action": f"cancel:{rid}", "body": body.model_dump()})
-            for record in self.store.records[sid]:
-                if record.claim is not None and record.claim.request_id == body.request_id:
-                    if record.claim.digest != digest:
-                        raise AgentFault("request_conflict", "Request ID has different content.")
+            prior = self.store.claim_digest(sid, body.request_id)
+            if prior is not None and prior != digest:
+                raise AgentFault("request_conflict", "Request ID has different content.")
             self.request_stop(candidate, "cancelled")
         async with self.lock:
             await self.ready()
             snapshot = await self.io(self.store.get, sid)
             self.run(snapshot, rid)
             claim, fresh = await self.check_claim(sid, f"cancel:{rid}", body)
-            known = any(
-                r.event.operation_id == body.operation_id and r.event.run_id == rid
-                for r in self.store.records[sid]
-            )
+            known = self.store.operation_known(sid, rid, body.operation_id)
             if not known:
                 raise AgentFault(
                     "operation_not_found", "Operation does not belong to this run.", 404

@@ -201,7 +201,8 @@ def test_artifact_body_not_subject_to_existing_journal_disk_budget_and_legacy_st
     store.close()
     journal = root / snapshot.id / "events.jsonl"
     record = json.loads(journal.read_text())
-    assert record["event"]["session"]["runs"] == []
+    assert record["storage_version"] == 2
+    assert record["runs"] == [] and "session" not in record["event"]
     recovered = SessionStore(root, limits=limits)
     recovered.start()
     assert recovered.get(snapshot.id).runs == []

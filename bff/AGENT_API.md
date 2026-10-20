@@ -251,19 +251,43 @@ UTC timestamp plus four cryptographically random lowercase/digit characters,
 validated IDs, no-follow path components, `0700` directories and `0600` journals.
 The suffix is not an authentication token.
 
-`events.jsonl` is authoritative. Each bounded record contains the validated public
-event/full snapshot, optional command claim and bounded internal audit data.
-Historical plans remain immutable in earlier append-only records. Successful fetch
-text lives in separate artifact files; complete LLM artifacts, incremental journals,
-and separate rebuildable snapshot files remain pending. Append/write/fsync of the
-journal and directory precede in-memory publication/acknowledgement; root/parent
-directory changes are fsynced too. Creation keys/digests are rebuilt from the
+`events.jsonl` is authoritative. New entries use private `storage_version: 2`:
+event headers, fixed session/run/result changes, optional command claims, and
+references to immutable JSON payloads. This is not a public protocol change:
+HTTP/SSE still returns full `AgentEvent` snapshots with `schema_version: 1`.
+Private JSON uses UTF-8 without ASCII escaping; canonical approval and command
+digest encoding is unchanged.
+
+Session-local `payloads/<server-id>.json` files hold request text, exact plan
+revisions, new/replaced step results, answers, and existing logical audit records.
+References contain ID, SHA-256, and byte length. Unchanged bodies reuse references
+without serialization or hashing; control/title updates do not rewrite old bodies.
+Successful fetched text remains separately stored in `artifacts/<uuid>.txt`.
+These storage primitives do **not** complete provider input/output instrumentation.
+
+The store keeps one private hydrated latest-session baseline, its reference
+projection, and compact record/claim/attempt/operation/integrity indexes. It does
+not retain every historical full snapshot or audit body. Historical records and
+50-event replay pages are reconstructed on demand; paused iterators own read
+descriptors, never the store lock. Early Stop's committed-claim lookup remains
+lock-free and I/O-free. No on-disk `session.json` cache is introduced.
+
+Payload files and directories are fsynced before their journal references; journal
+and directory fsyncs precede verified in-memory publication/acknowledgement. A final
+stable-metadata fingerprint check covers the complete journal prefix and new entry.
+A short failure/publication barrier prevents publishing success after another
+reader or worker has already latched recording failure; it never holds a lock
+across filesystem I/O. Root/parent directory changes are fsynced too.
+Creation keys/digests are rebuilt from the
 first committed event, so a lost creation acknowledgement remains retryable.
 Creation capacity is checked before mkdir, and no session/creation lookup entry
 is published until the first event is fsynced. Capacity rejection therefore leaves
 no empty visible session or growing retry cache. A possibly written creation
 journal after an I/O failure is retained for replay/quarantine, never discarded.
 
+Recovery reads legacy unversioned `{event,claim,audit}` records and new v2 entries
+sequentially, including mixed journals. Legacy bytes, identities, digests, and
+sequences are not rewritten, and no migration event or extra approval is added.
 Replay discards and fsync-truncates only an unterminated final JSONL record.
 Uncommitted empty/orphan folders are renamed `.orphan-<sid>`. Corrupt complete or
 middle records fail startup closed; they are never skipped/trusted. Unfinished
@@ -274,18 +298,33 @@ publication, signals cooperative stop, and retains ownership until settlement.
 A failed disk cannot promise a final event; the last durable intent remains the
 recovery authority. Local filesystem/fsync behavior is assumed, not universal
 hardware/power-loss or network-filesystem durability.
-Recovery accepts legacy journal-only sessions and expected no-follow, regular
-artifact files. Safe uncommitted artifact files may remain after interruption but
-are not exposed. Committed evidence is verified before recovered success is served.
+Recovery accepts legacy journal-only sessions and expected no-follow, single-link
+regular payload/artifact files. Safe uncommitted files may remain after interruption
+but are not exposed or interpreted as completed work. All committed JSON references,
+including superseded plans and audit-only payloads, are verified during recovery.
+Live cached reads and commit boundaries check all committed payload metadata;
+changed files receive SHA verification. Journal rereads are bound to committed
+record fingerprints. Live reads use the pinned storage root; closed diagnostic
+reads reject a replacement root. Missing/changed/unsafe evidence fails closed.
+
+This step trades repeated historical snapshot storage for reconstruction work:
+historical reads replay their prefix, every append verifies the full journal
+prefix, and cached operations check O(committed-reference-count) metadata. The
+fast path relies on coherent local single-writer filesystem metadata, not protection
+against a malicious operating system. Compaction, orphan cleanup, paged public
+session projections, and complete LLM recording remain future work.
 
 **Legacy prototype guards, pending coordinated migration:** 100 retained sessions,
-500 events/session, 512 KB/record, 64 MB total
-journals, 8 runs/session, 8 planner attempts/run, 4 active operations globally,
+500 events/session, 512 KB per new entry plus its new JSON payload bytes, 64 MB total
+journal/JSON-payload bytes (including safe orphans), 8 runs/session, 8 planner
+attempts/run, 4 active operations globally,
 1 active operation/session, 3 steps/calls/plan, 30-second planning deadline, and
 approved execution deadline at most 60 seconds. Request/feedback/objective/step
 description strings are capped at 8,000 characters. Session/event/disk caps stop
 new work without deleting history. Store limits, clock and session ID generator
 are injectable. Archive retains history; no expiry/permanent deletion exists.
+Fetched TXT evidence retains its separate accounting. The storage migration does
+not remove quotas, reservations, schema limits, or overall operation deadlines.
 
 Before accepting any planning/revision/execution operation, the store reserves
 **12 event slots and `12 × record_bytes` bytes** for its bounded slice and
@@ -361,6 +400,10 @@ recovery. Backend-generated public fixtures also exercise fetched evidence and
 continuation through the actual Angular decoder. Regeneration instructions are in
 `tests/test_agent_contract.py`; format the generated fixture with the workspace
 Prettier from `ui/` afterward. Semantic fixture comparison ignores JSON whitespace.
+Storage tests additionally cover literal legacy/mixed journals, payload references,
+exact historical replay, Unicode byte compatibility, failure/publication ordering,
+root replacement, corruption, lock-free Stop, and paused-iterator shutdown.
+This storage increment requires no public fixture regeneration or frontend changes.
 Broad release checklist items for all four tools,
 clarification, provider audit/continuation, synthesis and full UI integration
 remain incomplete.

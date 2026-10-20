@@ -212,12 +212,17 @@ Example layout:
 bff/sessions/
   20261015T153000123456Z-a7q2/
     events.jsonl          # authoritative ordered journal
-    session.json          # atomically replaced, rebuildable projection
-    plans/
-      <run-id>-r1.json     # immutable validated plan
+    payloads/
+      <payload-id>.json    # immutable request/plan/result/answer/audit bodies
     artifacts/
-      <artifact-id>.json   # bounded LLM/tool payloads referenced by journal
+      <artifact-id>.txt    # complete extracted web evidence, read through pages
 ```
+
+Persisted entries may differ from public event projections. Use private versioned journal headers and fixed session/run/result changes with typed payload references; reconstruct public schema-version-1 snapshots on demand. Read legacy full-snapshot entries in place and append new records without rewriting old bytes, changing approval/command digests, or introducing a migration approval/event. Retain one current projection and compact indexes rather than every historical full snapshot. A future on-disk projection cache is optional and never an independent authority.
+
+Payload references carry server-owned identity, SHA-256, and byte length. Reuse unchanged bodies without reserializing/hashing them; preserve explicit null clearing, run/result order, and multi-run archive/recovery changes. Keep committed claim/attempt/operation indexes available without replay; Stop's initial conflict check must remain lock-free and I/O-free. Verify committed payloads, including superseded and audit-only bodies, before trusting cached state or replay. Anchor live reads to the pinned storage root, never a replacement at the same pathname. History iterators must not retain the store lock while a consumer is paused.
+
+The current integrity strategy verifies the full journal prefix at commit, checks all committed payload metadata on cached operations, and replays prefixes for historical views. These are known scaling costs, not hidden product quotas. Quota removal, paged public projections, full LLM instrumentation, and future compaction remain separately tracked in the checklist.
 
 Generate names on the server using a UTC timestamp and four cryptographically random lowercase alphanumeric characters. Create directories exclusively and retry collisions. A short suffix is not a security token. Never use a client title/path as a directory name; validate session IDs before resolving existing folders. Use restrictive file/directory permissions and reject symlinked storage/artifact paths.
 

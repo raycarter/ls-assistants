@@ -8,6 +8,9 @@ journal-backed sessions, injected tool-free planning, exact-plan approval, bound
 fixture-tested file reads and public-page fetching, durable paged web evidence,
 progress, rejection, cancellation and restart recovery.
 Its production planner is unavailable by default; this is not a full Agent release.
+Agent storage writes incremental private journal records and immutable JSON payloads,
+while reading existing journals unchanged. The public Agent API/SSE contract stays
+the same; prototype quotas and complete LLM auditing remain pending.
 
 ## Setup
 
