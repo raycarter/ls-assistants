@@ -4,28 +4,38 @@ Local POSIX filesystem only. A process lock excludes other BFF workers. No netwo
 filesystem/power-loss guarantees; fsync commits precede observable publication.
 """
 
+import codecs
 import fcntl
+import hashlib
 import os
 import re
 import secrets
 import stat
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol
+from uuid import uuid4
+
+from pydantic import Field
 
 from app.agent_files import AgentFault, canonical_digest, open_directory
 from app.agent_schemas import (
     AgentError,
     AgentEvent,
     AgentSession,
+    ArtifactId,
+    ArtifactPage,
     Claim,
     CreateSession,
     JournalRecord,
+    Strict,
 )
 
 SESSION_ID = re.compile(r"^[0-9]{8}T[0-9]{12}Z-[a-z0-9]{4}$")
+ARTIFACT_FILE = re.compile(r"^[a-f0-9]{32}\.txt$")
 SETTLEMENT_MARGIN = 5000
 # Nine execution events at most, plus Stop, archive settlement and crash recovery.
 OPERATION_EVENTS = 12
@@ -48,6 +58,20 @@ class StoreLimits:
     disk_bytes: int = 64_000_000
 
 
+class ArtifactReceipt(Strict):
+    artifact_id: ArtifactId
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    bytes: int = Field(ge=0)
+    total_chars: int = Field(ge=0)
+
+
+class TextDocument(Protocol):
+    @property
+    def text_length(self) -> int: ...
+
+    def iter_text(self) -> Iterator[str]: ...
+
+
 class SessionStore:
     def __init__(
         self,
@@ -64,6 +88,9 @@ class SessionStore:
         self.lease: int | None = None
         self.poisoned = False
         self.used = 0
+        # Existing journal budgets remain journal budgets. Evidence has no body quota.
+        self.artifact_bytes = 0
+        self.artifacts: dict[str, dict[str, ArtifactReceipt]] = {}
         self.records: dict[str, list[JournalRecord]] = {}
         self.creations: dict[str, tuple[str, str]] = {}
         self.reservations: dict[str, tuple[str, int]] = {}
@@ -176,6 +203,263 @@ class SessionStore:
                 raise AgentFault("invalid_session_id", "Invalid Agent session ID.", 422)
             return os.open(sid, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
 
+    @staticmethod
+    def _artifact_id(artifact_id: str):
+        if not re.fullmatch(r"[a-f0-9]{32}", artifact_id):
+            raise AgentFault("invalid_artifact_id", "Invalid Agent artifact ID.", 422)
+
+    @staticmethod
+    def _page_bounds(offset: int, limit: int):
+        if (
+            type(offset) is not int
+            or type(limit) is not int
+            or offset < 0
+            or not 1 <= limit <= 16000
+        ):
+            raise AgentFault("invalid_artifact_page", "Invalid Agent artifact page.", 422)
+
+    @staticmethod
+    def _regular(fd: int):
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError("unsafe evidence file")
+        return info
+
+    def _evidence_failure(self):
+        self.poisoned = True
+        return AgentFault("storage_unavailable", "Agent evidence is unavailable.", 503)
+
+    def _artifact_directory(self, directory: int, *, create=False) -> int:
+        if create:
+            try:
+                os.mkdir("artifacts", mode=0o700, dir_fd=directory)
+            except FileExistsError:
+                pass
+        fd = os.open("artifacts", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+        try:
+            os.fchmod(fd, 0o700)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def write_artifact(
+        self, sid: str, document: TextDocument, offset: int = 0, limit: int = 12000
+    ) -> tuple[ArtifactPage, dict]:
+        """Durable full UTF-8 evidence, before any journal reference is permitted.
+
+        A failed or stopped operation may leave an unreferenced file. It is never
+        exposed by the public reader and never causes recovery to replay a tool.
+        The caller owns the source and closes it only after this worker settles.
+        """
+        with self.lock:
+            self._opened()
+            self.get(sid)
+            self._page_bounds(offset, limit)
+            text_length = document.text_length
+            if offset > text_length:
+                raise AgentFault("invalid_offset", "Offset is past the end of the artifact.", 422)
+            directory = artifacts = fd = None
+            try:
+                directory = self._directory(sid)
+                artifacts = self._artifact_directory(directory, create=True)
+                for _ in range(10):
+                    artifact_id = uuid4().hex
+                    self._artifact_id(artifact_id)
+                    try:
+                        fd = os.open(
+                            artifact_id + ".txt",
+                            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK,
+                            0o600,
+                            dir_fd=artifacts,
+                        )
+                        break
+                    except FileExistsError:
+                        continue
+                else:
+                    raise OSError("artifact identity unavailable")
+                self._regular(fd)
+                os.fchmod(fd, 0o600)
+                digest = hashlib.sha256()
+                size = chars = 0
+                selected = []
+                for text in document.iter_text():
+                    # Only the requested page is retained in memory, across arbitrary
+                    # chunk boundaries. Encode/hash/write each bounded source chunk.
+                    start, end = max(0, offset - chars), min(len(text), offset + limit - chars)
+                    if start < end:
+                        selected.append(text[start:end])
+                    chars += len(text)
+                    raw = text.encode("utf-8")
+                    digest.update(raw)
+                    size += len(raw)
+                    remaining = memoryview(raw)
+                    while remaining:
+                        count = os.write(fd, remaining)
+                        if count <= 0:
+                            raise OSError("short evidence write")
+                        self.artifact_bytes += count
+                        remaining = remaining[count:]
+                if chars != text_length:
+                    raise ValueError("evidence character count changed")
+                os.fsync(fd)
+                os.fsync(artifacts)
+                os.fsync(directory)
+                receipt = ArtifactReceipt(
+                    artifact_id=artifact_id,
+                    sha256=digest.hexdigest(),
+                    bytes=size,
+                    total_chars=chars,
+                )
+                content = "".join(selected)
+                return self._page(receipt, content, offset), receipt.model_dump()
+            except OSError, ValueError:
+                raise self._evidence_failure() from None
+            finally:
+                for opened in (fd, artifacts, directory):
+                    if opened is not None:
+                        os.close(opened)
+
+    @staticmethod
+    def _page(receipt: ArtifactReceipt, content: str, offset: int) -> ArtifactPage:
+        end = offset + len(content)
+        return ArtifactPage(
+            artifact_id=receipt.artifact_id,
+            content=content,
+            offset=offset,
+            returned_chars=len(content),
+            total_chars=receipt.total_chars,
+            next_offset=end if end < receipt.total_chars else None,
+        )
+
+    def _read_artifact(
+        self, sid: str, receipt: ArtifactReceipt, offset: int, limit: int
+    ) -> ArtifactPage:
+        directory = artifacts = fd = None
+        try:
+            directory = self._directory(sid)
+            artifacts = self._artifact_directory(directory)
+            fd = os.open(
+                receipt.artifact_id + ".txt",
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=artifacts,
+            )
+            info = self._regular(fd)
+            if info.st_size != receipt.bytes:
+                raise ValueError("evidence size changed")
+            digest = hashlib.sha256()
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            chars = size = 0
+            selected = []
+            while raw := os.read(fd, 65536):
+                size += len(raw)
+                digest.update(raw)
+                text = decoder.decode(raw)
+                start, end = max(0, offset - chars), min(len(text), offset + limit - chars)
+                if start < end:
+                    selected.append(text[start:end])
+                chars += len(text)
+            decoder.decode(b"", final=True)
+            if (
+                size != receipt.bytes
+                or chars != receipt.total_chars
+                or digest.hexdigest() != receipt.sha256
+            ):
+                raise ValueError("evidence changed")
+            return self._page(receipt, "".join(selected), offset)
+        except OSError, ValueError:
+            raise self._evidence_failure() from None
+        finally:
+            for opened in (fd, artifacts, directory):
+                if opened is not None:
+                    os.close(opened)
+
+    @staticmethod
+    def _index_artifacts(record: JournalRecord, current: dict) -> dict[str, ArtifactReceipt]:
+        index = dict(current)
+        proof = record.audit.get("artifact")
+        if proof is not None:
+            receipt = ArtifactReceipt.model_validate(proof)
+            if record.event.type != "tool.result" or receipt.artifact_id in index:
+                raise ValueError("invalid evidence commit")
+            matches = [
+                result
+                for run in record.event.session.runs
+                if run.id == record.event.run_id
+                for result in run.results
+                if result.step_id == record.audit.get("step_id")
+                and result.status == "completed"
+                and result.fetch is not None
+                and result.fetch.artifact_id == receipt.artifact_id
+            ]
+            if len(matches) != 1:
+                raise ValueError("unbound evidence commit")
+            index[receipt.artifact_id] = receipt
+        for run in record.event.session.runs:
+            for result in run.results:
+                if result.fetch is not None:
+                    receipt = index.get(result.fetch.artifact_id)
+                    if (
+                        result.status != "completed"
+                        or receipt is None
+                        or receipt.total_chars != result.fetch.total_chars
+                    ):
+                        raise ValueError("uncommitted evidence reference")
+        return index
+
+    def _verify_artifacts(self, sid: str, index: dict, snapshot: AgentSession):
+        unchecked = set(index)
+        for run in snapshot.runs:
+            for result in run.results:
+                if result.fetch is None:
+                    continue
+                metadata = result.fetch
+                receipt = index[metadata.artifact_id]
+                page = self._read_artifact(
+                    sid, receipt, metadata.offset, max(1, metadata.returned_chars)
+                )
+                if (
+                    page.content != result.content
+                    or page.returned_chars != metadata.returned_chars
+                    or page.next_offset != metadata.next_offset
+                    or metadata.offset > receipt.total_chars
+                    or metadata.returned_chars > 16000
+                ):
+                    raise self._evidence_failure()
+                unchecked.discard(metadata.artifact_id)
+        for artifact_id in unchecked:
+            self._read_artifact(sid, index[artifact_id], 0, 1)
+
+    def read_artifact(
+        self, sid: str, artifact_id: str, offset: int = 0, limit: int = 12000
+    ) -> ArtifactPage:
+        with self.lock:
+            self._opened()
+            self._artifact_id(artifact_id)
+            self._page_bounds(offset, limit)
+            self.get(sid)
+            receipt = self.artifacts.get(sid, {}).get(artifact_id)
+            if receipt is None:
+                raise AgentFault("artifact_not_found", "Agent artifact not found.", 404)
+            if offset > receipt.total_chars:
+                raise AgentFault("invalid_offset", "Offset is past the end of the artifact.", 422)
+            return self._read_artifact(sid, receipt, offset, limit)
+
+    def _recover_artifact_files(self, directory: int):
+        artifacts = self._artifact_directory(directory)
+        try:
+            for name in os.listdir(artifacts):
+                if not ARTIFACT_FILE.fullmatch(name):
+                    raise ValueError("unexpected artifact file")
+                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=artifacts)
+                try:
+                    self.artifact_bytes += self._regular(fd).st_size
+                    os.fchmod(fd, 0o600)
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(artifacts)
+
     def _recover(self):
         root_fd = self._opened()
         entries = os.listdir(root_fd)
@@ -191,16 +475,22 @@ class SessionStore:
                 try:
                     for name in os.listdir(orphan):
                         info = os.stat(name, dir_fd=orphan, follow_symlinks=False)
-                        if name != "events.jsonl" or not stat.S_ISREG(info.st_mode):
+                        if name == "artifacts" and stat.S_ISDIR(info.st_mode):
+                            self._recover_artifact_files(orphan)
+                        elif name != "events.jsonl" or not stat.S_ISREG(info.st_mode):
                             raise ValueError("unsafe orphan contents")
-                        self.used += info.st_size
+                        else:
+                            self.used += info.st_size
                 finally:
                     os.close(orphan)
                 continue
             directory = self._directory(sid)
             try:
-                if any(name != "events.jsonl" for name in os.listdir(directory)):
+                names = os.listdir(directory)
+                if any(name not in {"events.jsonl", "artifacts"} for name in names):
                     raise ValueError("unexpected storage file")
+                if "artifacts" in names:
+                    self._recover_artifact_files(directory)
                 try:
                     journal = os.open(
                         "events.jsonl", os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
@@ -208,6 +498,7 @@ class SessionStore:
                 except FileNotFoundError:
                     journal = None
                 records = []
+                artifact_index = {}
                 if journal is not None:
                     try:
                         info = os.fstat(journal)
@@ -248,6 +539,7 @@ class SessionStore:
                                 or len(records) >= self.limits.events + int(emergency)
                             ):
                                 raise ValueError("invalid journal sequence")
+                            artifact_index = self._index_artifacts(record, artifact_index)
                             records.append(record)
                     finally:
                         os.close(journal)
@@ -262,6 +554,7 @@ class SessionStore:
                     raise ValueError("duplicate creation")
                 self.creations[first.claim.request_id] = (first.claim.digest, sid)
                 self.records[sid] = records
+                self.artifacts[sid] = artifact_index
             finally:
                 os.close(directory)
         if len(self.records) > self.limits.sessions or self.used > self.recovery_disk_limit:
@@ -305,7 +598,9 @@ class SessionStore:
                 raise AgentFault("invalid_session_id", "Invalid Agent session ID.", 422)
             if sid not in self.records:
                 raise AgentFault("session_not_found", "Agent session not found.", 404)
-            return self.records[sid][-1].event.session.model_copy(deep=True)
+            snapshot = self.records[sid][-1].event.session
+            self._verify_artifacts(sid, self.artifacts.get(sid, {}), snapshot)
+            return snapshot.model_copy(deep=True)
 
     def claim(self, sid: str, request_id: str, digest: str) -> bool:
         with self.lock:
@@ -467,6 +762,8 @@ class SessionStore:
             fd = None
             try:
                 directory = self._directory(snapshot.id)
+                artifact_index = self._index_artifacts(record, self.artifacts.get(snapshot.id, {}))
+                self._verify_artifacts(snapshot.id, artifact_index, snapshot)
                 fd = os.open(
                     "events.jsonl",
                     os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
@@ -484,7 +781,7 @@ class SessionStore:
                     remaining = remaining[count:]
                 os.fsync(fd)
                 os.fsync(directory)
-            except OSError:
+            except OSError, ValueError:
                 self.poisoned = True
                 raise AgentFault(
                     "storage_unavailable",
@@ -498,6 +795,7 @@ class SessionStore:
                     os.close(directory)
             self.used += len(raw)
             self.records.setdefault(snapshot.id, []).append(record)
+            self.artifacts[snapshot.id] = artifact_index
 
     def events(self, sid: str, after: int, limit: int = 50) -> list[AgentEvent]:
         with self.lock:

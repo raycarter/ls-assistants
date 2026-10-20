@@ -1,10 +1,13 @@
-# Agent: first mocked vertical slice
+# Agent: approval-bound tool slice
 
 This backend implements request → injected tool-free plan → exact-version approval
-→ one to three approved `read_file` steps → persisted results → reload/history.
-Tests supply a planner and temporary file fixtures. No default mock planner, real
-planner/search adapter, paid provider call, shell, framework, or autonomous LLM
-tool loop is included. Chat's schemas, API and credential selection are unchanged.
+→ one to three approved `read_file`/`web_fetch` steps → persisted results →
+reload/history. Tests supply a planner, temporary fixtures, and mocked network
+connections. The public-web fetch implementation is real, but no live verification
+has been performed. No default mock planner, production planner/search adapter,
+shell, framework, or autonomous LLM tool loop is included. Chat's schemas, API and
+credential selection are unchanged. The prototype caps below remain implementation
+debt, not the target no-quota product policy.
 
 ## Composition and defaults
 
@@ -15,19 +18,20 @@ receiving the existing `Settings`. It returns `AgentService`, for example:
 AgentService(
     SessionStore(explicit_storage_path),
     planner=my_async_planner,
-    files=FilePolicy({"project": explicitly_allowed_path}),
+    files=FilePolicy(),  # File access stays disabled until approved-root wiring lands.
     models=settings.available_models,
 )
 ```
 
 An injected planner implements `async plan(context: PlanningInput) -> Proposal`.
 The immutable context contains request, frozen model/effort, workspace **IDs**,
-optional feedback, versioned BFF instructions and attempt count. It receives no
-tool interface. The coordinator journals its bounded logical input/attempt before
+optional feedback, versioned BFF instructions, attempt count, and available tool
+descriptions. It receives no tool interface. The coordinator journals its bounded logical input/attempt before
 calling it, validates its structured result, journals that result, and assigns
 plan/step identities and a canonical SHA-256 digest. Injected adapters must perform
 one attempt per call, without hidden retries or tools. No SDK is called by this
-slice. Provider usage/cost is unknown, not a currency ceiling.
+slice. This is not yet the complete per-attempt provider audit required by the
+design. Provider usage/cost is unknown, not a currency ceiling.
 
 The default planner is absent and planning returns HTTP `503` JSON with
 `agent_not_configured` before accepting a run. Allowed file roots default to none;
@@ -38,11 +42,21 @@ explicitly injected store is recovered during lifespan startup. Tests always inj
 temporary paths. The service settles owned operations before the shared Chat
 client and credential close.
 
+`fetcher=WebFetcher(...)` is an optional injection seam; the default is the safe
+public-network implementation. It opens connections only during approved execution.
+`/tmp/ls-assistants` is the approved filesystem scope, but its sole-root/platform-alias
+wiring is still pending; default file roots remain empty. Do not infer that this
+fetch increment enables filesystem access.
+
 The coordinator binds the actual `SessionStore.root` into the supplied file
 policy, including custom storage directory names. That exclusion is part of the
 plan's effective-policy digest. A plan made with an older/different policy cannot
 execute unchanged: obtain a newly reviewed revision/run and fresh approval rather
-than silently retaining access.
+than silently retaining access. New plans also bind the fixed registry's enabled
+tools and network-policy version. A legacy read-only approval can retain its
+unchanged original digest only when its filesystem policy still matches; it cannot
+authorize a new network tool. All four tool names are recognized; only `read_file`
+and `web_fetch` are enabled. Search/grep are explicitly rejected, not stubbed successes.
 
 ## HTTP contract
 
@@ -64,6 +78,7 @@ effort is `low | medium | high | xhigh`.
 | `POST /{sid}/runs/{rid}/cancel` | `{request_id, operation_id}` → session; `202` while settling |
 | `POST /{sid}/archive` | `{request_id}` → session; `202` with `archive_pending:true` until settled |
 | `GET /{sid}/events?after=N` | `{events: AgentEvent[], has_more:boolean}`, at most 50 committed public events |
+| `GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Retained text page; no network/tool execution |
 
 `AgentSession` has `id,title,model,reasoning_effort,created_at,updated_at,archived,
 sequence,runs`, plus `archive_pending`. Runs have the shared
@@ -73,13 +88,24 @@ clarification` fields. `clarification` is always null in this slice.
 Plans contain `id,revision,digest,objective,assumptions,model,reasoning_effort,
 limits,steps` plus `access_policy` (workspace IDs and configuration/rules hashes,
 not absolute server paths). Each step contains `id,title,description,tool,
-arguments`. Only `tool:"read_file"` with exact `{workspace_id,path,offset,limit}`
-is supported. No reasoning-only/null-tool steps are advertised.
+arguments`. Supported tools have matching strict arguments:
+
+- `tool:"read_file"`: `{workspace_id,path,offset,limit}`; one-based line offset.
+- `tool:"web_fetch"`: `{url,offset,limit}`; zero-based Unicode-character offset,
+  default `0`, and page size `1..16000`, default `12000`.
+
+No reasoning-only/null-tool steps are advertised yet. Planning validates URL syntax
+without DNS, HTTP, or any tool invocation.
 
 Results contain `step_id,status,content,time,error` plus
-`path,offset,returned_lines,truncated`. Content is numbered UTF-8 text. The final
-answer is a deterministic completion receipt pointing to recorded excerpts, not
-an LLM synthesis or a fabricated substantive answer.
+`path,offset,returned_lines,truncated,fetch`. File content is numbered UTF-8 text.
+For a successful fetch, content is a page of extracted text and `fetch` contains
+`artifact_id,requested_url,final_url,title,status_code,content_type,fetched_at,
+redirects,total_chars,offset,returned_chars,next_offset`. `title` and `next_offset`
+may be null. `fetched_at` is UTC; redirects list followed destinations, including
+the final destination. File results have null/absent fetch metadata.
+The final answer is a deterministic completion receipt pointing to recorded
+evidence, not an LLM synthesis or a fabricated substantive answer.
 
 Normal flow: `planning → awaiting_approval → approved → executing → completed`.
 Feedback creates an immutable next revision; rejection releases the session.
@@ -103,6 +129,48 @@ Search, grep, null-tool steps, real model continuation and autonomous execution
 are unavailable. Session listing is bounded by the 100-session store cap rather
 than paginated; event replay is paginated. Other shared required fields and URLs
 are preserved.
+
+## Public web fetching and retained evidence
+
+- HTTP(S) GET only, with static HTML/XHTML readable/main-text or plain-text
+  extraction. No JavaScript/browser execution, authentication, attachments, or
+  arbitrary binary downloads. Search is not required to fetch a supplied URL.
+- URL validation rejects credentials, unsupported schemes, ambiguous hosts, and
+  local/internal/metadata destinations. Every DNS answer must be public; the
+  connection uses a pinned numeric address and verifies the actual peer. Host and
+  verified TLS/SNI retain the original origin. Every redirect is revalidated.
+- Each call owns a dedicated HTTPX/HTTPcore client with environment proxies and
+  authentication disabled. Requests do not forward or accumulate cookies, bearer
+  tokens, or preceding response headers. Current connection selection uses the
+  first validated address, without address failover.
+- Default operational guards are a 30-second fetch-request timeout, 10 redirects,
+  and redirect-loop rejection. These are not cumulative tool/run quotas. The
+  separate legacy overall Agent deadlines below still need migration.
+- Responses request `Accept-Encoding: identity`; nonidentity/compressed responses
+  are rejected before body processing. Supported bodies are incrementally decoded
+  and parsed in bounded workers into disk-spooled text, not buffered in full.
+  Pathological markup tokens, nesting, and title metadata fail explicitly rather
+  than grow parser memory without bound. Static extraction is heuristic; blocked,
+  empty, unsupported, and JavaScript-only pages return safe errors.
+- Full extracted text is copied incrementally to `artifacts/<uuid32>.txt` in its
+  session, with an internal SHA-256/byte/character receipt. Evidence and directories
+  are fsynced before the successful journal reference/public result. Only the
+  selected page enters snapshots. No new full-document-size or cumulative fetch
+  allowance is imposed; physical I/O failure stops recording/dispatch.
+
+The artifact GET returns `{artifact_id,content,offset,returned_chars,total_chars,
+next_offset}`. Its page bounds match fetch arguments; an offset past the retained
+text is `422`. IDs are server-owned 32-character lowercase hex. Only evidence
+referenced by a committed successful result in that session is readable; unknown,
+uncommitted, and cross-session IDs return `404`. Malformed IDs/pages return `422`.
+Reading pages never fetches the URL again and requires no new execution approval.
+Integrity is verified on reads/recovery; missing, replaced, or corrupt committed
+evidence fails closed as storage unavailable.
+
+Fetched content is untrusted source data, never instructions or approval. The UI
+shows requested/final URL and retrieval time, renders fetched text literally, and
+uses GET-only continuation with result-local errors/loading and stale-response
+guards. A search snippet alone is never presented as a fetched page.
 
 ## SSE, cancellation and transport ownership
 
@@ -133,12 +201,16 @@ signaling. A signal can precede its command acknowledgement, including when a
 concurrent command/key race or exhausted unreserved capacity prevents that
 acknowledgement; this only revokes work, never authorizes new work. The operation
 remains owned and capacity remains occupied until the planner coroutine or actual
-read thread settles. Disconnect interrupts **its** operation. An independent
+read/parser/storage worker or async fetch settles. Disconnect interrupts **its** operation. An independent
 deadline task signals Stop even if the worker or journal is blocked; timeout
 settles as `failed/timeout` once the worker returns. Retained tasks only settle
 work and never continue plan progression. Planning cancels and drains its injected
 async call. File reads are offloaded with cooperative stop/deadline checks. Cancelling
 an await is not presented as killing a thread or rolling back external work.
+Fetch checks Stop and recording health inside its dispatch task immediately before
+starting external work. Cancellation closes and drains the owned client and parser
+workers; spooled evidence is closed after its artifact worker settles. A queued
+Stop/recording failure cannot start a newly scheduled fetch.
 
 The entire ASGI transport, including waiting for the next SSE frame, is bounded by
 the operation's absolute deadline. Disconnect cleanup signals Stop immediately,
@@ -181,8 +253,9 @@ The suffix is not an authentication token.
 
 `events.jsonl` is authoritative. Each bounded record contains the validated public
 event/full snapshot, optional command claim and bounded internal audit data.
-Historical plans remain immutable in earlier append-only records. There are no
-separate artifacts or snapshot files in this slice. Append/write/fsync of the
+Historical plans remain immutable in earlier append-only records. Successful fetch
+text lives in separate artifact files; complete LLM artifacts, incremental journals,
+and separate rebuildable snapshot files remain pending. Append/write/fsync of the
 journal and directory precede in-memory publication/acknowledgement; root/parent
 directory changes are fsynced too. Creation keys/digests are rebuilt from the
 first committed event, so a lost creation acknowledgement remains retryable.
@@ -201,8 +274,12 @@ publication, signals cooperative stop, and retains ownership until settlement.
 A failed disk cannot promise a final event; the last durable intent remains the
 recovery authority. Local filesystem/fsync behavior is assumed, not universal
 hardware/power-loss or network-filesystem durability.
+Recovery accepts legacy journal-only sessions and expected no-follow, regular
+artifact files. Safe uncommitted artifact files may remain after interruption but
+are not exposed. Committed evidence is verified before recovered success is served.
 
-Defaults: 100 retained sessions, 500 events/session, 512 KB/record, 64 MB total
+**Legacy prototype guards, pending coordinated migration:** 100 retained sessions,
+500 events/session, 512 KB/record, 64 MB total
 journals, 8 runs/session, 8 planner attempts/run, 4 active operations globally,
 1 active operation/session, 3 steps/calls/plan, 30-second planning deadline, and
 approved execution deadline at most 60 seconds. Request/feedback/objective/step
@@ -266,9 +343,10 @@ secret-content detection and cannot detect hardlink aliases of permitted files.
 
 Retained content includes bounded user requests/feedback, logical planner inputs
 and valid outputs, reviewed plans, approval/rejection, allowed file excerpts and
-results/errors. No headers, bearer tokens, credential/settings dumps, raw provider
+results/errors, complete supported fetched text, and fetch provenance. No headers,
+bearer tokens, credential/settings dumps, raw provider
 error bodies or hidden chain-of-thought are captured. Do not treat arbitrary
-permitted user/file text as scrubbed of secrets. File/tool content is evidence,
+permitted user/file/web text as scrubbed of secrets. File/tool content is evidence,
 never a source of execution permissions.
 
 ## Verification
@@ -277,6 +355,12 @@ From `bff`: `uv run pytest`, `uv run ruff check .`,
 `uv run ruff format --check .`, `uv lock --check`. Agent tests use temporary stores,
 mock planners and file fixtures under the existing no-network/no-real-subprocess
 fixtures. The module implements independently written application code, with no
-OpenCode source/runtime reuse. Broad release checklist items for all three tools,
+OpenCode source/runtime reuse. Fetch tests exercise fake resolvers, connectors,
+peers, TLS streams, hostile HTML, spooling, cancellation, artifact integrity, and
+recovery. Backend-generated public fixtures also exercise fetched evidence and
+continuation through the actual Angular decoder. Regeneration instructions are in
+`tests/test_agent_contract.py`; format the generated fixture with the workspace
+Prettier from `ui/` afterward. Semantic fixture comparison ignores JSON whitespace.
+Broad release checklist items for all four tools,
 clarification, provider audit/continuation, synthesis and full UI integration
 remain incomplete.

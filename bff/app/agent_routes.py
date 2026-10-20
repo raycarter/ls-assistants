@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, Request, Response
 from app.agent import AgentService, Operation
 from app.agent_files import AgentFault
 from app.agent_schemas import (
+    ArtifactPage,
     Cancel,
     ClarificationReply,
     Command,
@@ -68,6 +69,17 @@ async def patch(sid: str, body: PatchSession, request: Request):
 @router.get("/{sid}/events")
 async def events(sid: str, request: Request, after: int = Query(default=0, ge=0)):
     return await service(request).history(sid, after)
+
+
+@router.get("/{sid}/artifacts/{artifact_id}", response_model=ArtifactPage)
+async def artifact(
+    sid: str,
+    artifact_id: str,
+    request: Request,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=12000, ge=1, le=16000),
+):
+    return await service(request).artifact(sid, artifact_id, offset, limit)
 
 
 @router.post("/{sid}/runs")

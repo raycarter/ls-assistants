@@ -147,7 +147,7 @@ Storage is local to this browser profile and origin, unencrypted, and not synchr
 or devices. Avoid storing secrets; multiple open tabs can overwrite each other's changes. Removing
 only `ls-assistants.chat-state` from browser storage resets this application's data on the next reload.
 
-## Agent mode: first mocked vertical slice
+## Agent mode: approval-bound tool slice
 
 The header has a native Chat/Agent radio group (arrow-key navigation follows the browser's native
 radio behavior). Both coordinators are root-scoped: switching views preserves pending replies,
@@ -165,10 +165,10 @@ prompt propagation, send, retry or deletion through Chat routes.
 
 ### Implemented interaction
 
-Request → tool-free plan → structured scope review → **Approve and run** → bounded `read_file`
-result → answer → GET-based history after reload. The component integration test drives the actual
-Agent transport through an HTTP/SSE double with a numbered public-text fixture. It does not establish
-backend durability, access-policy enforcement or provider compatibility.
+Request → tool-free plan → structured scope review → **Approve and run** → `read_file` or
+`web_fetch` result → completion receipt → GET-based history after reload. Tests drive the actual
+Agent transport through HTTP/SSE doubles and backend-generated wire fixtures. These do not establish
+live provider/site compatibility or replace the backend durability and access-policy tests.
 
 The plan displays unverified assumptions, workspace/path and exact arguments, model/effort, limits,
 revision/digest and any recorded search policy. Approval, rejection and plan feedback bind the current
@@ -178,6 +178,16 @@ history does not auto-scroll, so updates do not pull a user away from review.
 File results retain the BFF's path, offset, returned-line count and truncation flag. Live and reloaded
 result cards show the recorded excerpt range/count and explicitly disclose omitted content or clipped
 long lines when `truncated` is true; an excerpt is not presented as evidence of the complete file.
+
+Fetch review displays the exact public URL and zero-based character-page arguments. Successful fetch
+cards distinguish actual retrieved text from file excerpts, showing title, requested/final URL,
+retrieval time, content type/status, and page counts. Source text and titles are escaped literal text,
+not executable HTML or interpreted Markdown. Links allow credential-free HTTP(S) only.
+The full extracted text is retained by the BFF. Read retained pages with the result card's paging
+controls; these issue only GET requests to the evidence endpoint, never fetch the URL again or approve
+another execution. Loading/errors are result-local; session changes and component destruction abort
+or suppress stale results. Reload restores the execution preview and access to retained pages, not
+the prior inspector position.
 
 Stop sends the captured operation ID. **Stopping…** is nonterminal and keeps preferences locked.
 Archive retains the session in reviewable history; pending archive stays locked even after a run settles,
@@ -196,6 +206,11 @@ PATCH, `/{sid}/runs`, `/{sid}/runs/{rid}/execute`, `/revise`, `/reject`, `/cance
 and `digest`; Stop sends `operation_id`. The transport understands question-identified clarification
 rejection, but the current BFF returns HTTP 501 for the deferred clarification flow.
 HTTP JSON failures are shown with status and API detail, including missing planner configuration.
+`GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` reads committed same-session evidence and
+returns `{artifact_id,content,offset,returned_chars,total_chars,next_offset}`. Offsets/counts use
+Unicode characters, not UTF-16 code units. Page size is at most 16000; retained totals and continuation
+must agree with the execution metadata. The decoder rejects unsafe provenance and malformed or
+inconsistent pages without replacing the original preview.
 
 Agent SSE uses event `agent` and decimal committed sequence IDs, with schema version 1 and a full
 session snapshot per envelope. Its independent decoder validates timestamps, snapshot shapes,
@@ -221,9 +236,13 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 
 - The production UI does **not** fabricate fixture/demo plans. The BFF planner is unavailable until
   explicitly injected/configured. These frontend tests make no real provider or search calls.
-- This slice supports only `read_file` and reasoning-only plan steps. Web search and folder grep are
-  unavailable. The full three-tool release, full event/audit timeline, pagination and live deployment
-  compatibility remain outside this slice.
+- The BFF supports approved `read_file` and `web_fetch` steps through an injected planner. Web search,
+  folder grep, and no-tool steps remain unavailable. The full four-tool release, full event/audit
+  timeline, paged session history, and live deployment compatibility remain outside this increment.
+- Fetch handles public static HTML/plain text only, not authenticated/internal pages or browser/JS
+  rendering. The BFF requests identity encoding and rejects compressed responses; static extraction
+  can report unsupported/empty pages. Existing prototype plan/run/history caps remain pending backend
+  migration and are displayed honestly, not represented as the target product policy.
 - Plan feedback is supported. Clarification handling, including replies and rejection, is deferred in
   the current BFF, which produces no clarification states. Compatibility question records are rendered
   read-only without offering unsupported commands; use a new session or await server-side resolution.
@@ -232,7 +251,7 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 - The UI discloses retention before use: user requests, reviewed plans, approved source excerpts,
   tool results and logical model input/output are retained by the BFF. Archive preserves records;
   there is no automatic expiry. Permitted content may contain sensitive text; there is no guarantee
-  of secret-content scrubbing. Future search queries would leave the BFF. Resource limits are not a
+  of secret-content scrubbing. Approved fetch URLs leave the BFF; future search queries would too. Resource limits are not a
   guaranteed currency ceiling; cost is displayed as unknown.
 - Mocked approval/Stop tests verify UI command ownership only. Durable approval, tool authorization,
   request-id idempotency and cancellation settlement remain BFF responsibilities.

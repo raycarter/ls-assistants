@@ -1,5 +1,6 @@
 """Bounded public contracts for the mocked Agent vertical slice."""
 
+from datetime import datetime, timedelta
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -85,6 +86,12 @@ class ReadArguments(Strict):
     limit: Annotated[int, Field(ge=1, le=200)] = 200
 
 
+class FetchArguments(Strict):
+    url: str
+    offset: Annotated[int, Field(ge=0)] = 0
+    limit: Annotated[int, Field(ge=1, le=16000)] = 12000
+
+
 class PlanLimits(Strict):
     max_steps: Annotated[int, Field(ge=1, le=3)] = 3
     max_tool_calls: Annotated[int, Field(ge=1, le=3)] = 3
@@ -94,8 +101,15 @@ class PlanLimits(Strict):
 class ProposedStep(Strict):
     title: Annotated[str, Field(min_length=1, max_length=200)]
     description: Text
-    tool: Literal["read_file"]
-    arguments: ReadArguments
+    tool: Literal["read_file", "web_fetch"]
+    arguments: ReadArguments | FetchArguments
+
+    @model_validator(mode="after")
+    def matching_arguments(self) -> Self:
+        expected = ReadArguments if self.tool == "read_file" else FetchArguments
+        if not isinstance(self.arguments, expected):
+            raise ValueError("Tool and arguments do not match")
+        return self
 
 
 class Proposal(Strict):
@@ -133,6 +147,44 @@ class AgentError(Strict):
     message: str
 
 
+ArtifactId = Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")]
+Nonnegative = Annotated[int, Field(ge=0)]
+
+
+class ArtifactPage(Strict):
+    artifact_id: ArtifactId
+    content: str
+    offset: Nonnegative
+    returned_chars: Nonnegative
+    total_chars: Nonnegative
+    next_offset: Nonnegative | None
+
+
+class FetchMetadata(Strict):
+    artifact_id: ArtifactId
+    requested_url: str
+    final_url: str
+    title: str | None
+    status_code: int
+    content_type: str
+    fetched_at: str
+    redirects: list[str]
+    total_chars: Nonnegative
+    offset: Nonnegative
+    returned_chars: Nonnegative
+    next_offset: Nonnegative | None
+
+    @model_validator(mode="after")
+    def utc_timestamp(self) -> Self:
+        try:
+            stamp = datetime.fromisoformat(self.fetched_at)
+        except ValueError:
+            raise ValueError("Expected a UTC timestamp") from None
+        if stamp.utcoffset() != timedelta(0):
+            raise ValueError("Expected a UTC timestamp")
+        return self
+
+
 class StepResult(Strict):
     step_id: Key
     status: Literal["running", "completed", "failed"]
@@ -143,6 +195,7 @@ class StepResult(Strict):
     offset: int | None = None
     returned_lines: int | None = None
     truncated: bool = False
+    fetch: FetchMetadata | None = None
 
 
 class AgentRun(Strict):

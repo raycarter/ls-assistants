@@ -1,6 +1,6 @@
 # Agent mode: research and design plan
 
-Research date: 2026-10-15. Implementation update: 2026-10-16. Policy clarification: 2026-10-19. Status: the first mocked vertical slice is implemented and independently reviewed; the full Agent release is not complete.
+Research date: 2026-10-15. Implementation update: 2026-10-20. Policy clarification: 2026-10-19. Status: the injected-planner slice supports approved file reads and public-page fetching; the full Agent release is not complete.
 
 Implementation progress is tracked only in [AGENT_MODE_CHECKLIST.md](AGENT_MODE_CHECKLIST.md). This document owns the design and contract decisions, not a second completion ledger.
 
@@ -28,9 +28,11 @@ Out of scope initially: file writes, shell execution, browser/JavaScript automat
 
 These rules replace the earlier exact-query approval and run-budget proposals. The current prototype still contains quotas and abbreviated recording; removing those restrictions and completing the audit trail are implementation tasks, not changes already made by editing this plan.
 
-**MVP scope addition (2026-10-19):** `web_fetch` is required alongside search. Search finds candidate sources; fetch reads an actual public page, including a URL supplied directly by the user without a preceding search. Both are task-dependent and covered by the plan's single approval. This addition is a requirement, not a claim that the runtime tool already exists.
+**MVP scope addition (2026-10-19):** `web_fetch` is required alongside search. Search finds candidate sources; fetch reads an actual public page, including a URL supplied directly by the user without a preceding search. Both are task-dependent and covered by the plan's single approval. Completion and verification evidence belong in the checklist.
 
-### Current increment — 2026-10-16
+### Historical first increment — 2026-10-16
+
+This snapshot records the first slice, not current capabilities. Later increments supersede it; see the checklist's latest verification record and the current backend API document.
 
 - Implemented Chat/Agent navigation, independent histories/drafts/preferences, read-only legacy Agent preservation, and Agent-mode Settings catalogue management without Chat prompt selection.
 - Implemented durable BFF sessions, injected tool-free planning, immutable revision-bound approval/rejection/feedback, committed-sequence progress events, targeted Stop/settlement, and one to three approved bounded `read_file` steps.
@@ -59,7 +61,9 @@ Provider selection verified on 2026-10-19: the inspected V2 implementation suppo
 
 **Important distinction:** OpenCode Plan mode can still permit research tools; this application's first release deliberately runs **no tools before approval**, including read-only tools. The planner receives tool descriptions and configured scope metadata, not permission to execute them.
 
-## 3. Current application: reuse and integration points
+## 3. Research baseline: reuse and integration points
+
+These notes describe the pre-Agent application inspected on 2026-10-15. They are historical integration context, not a current feature or completion list.
 
 ### Frontend
 
@@ -194,7 +198,7 @@ Web-search policy:
 
 Web-fetch policy:
 
-- Use the existing HTTPX stack for public HTTP(S) GET and static HTML/plain-text extraction. Do not add a browser runtime, execute page scripts, or use Tavily search as a substitute for the page body. Report blocked/unsupported/JavaScript-only pages honestly rather than fabricate extracted content.
+- Use the existing HTTPX stack for public HTTP(S) GET and static HTML/plain-text extraction. Do not add a browser runtime, execute page scripts, or use Tavily search as a substitute for the page body. Report blocked/unsupported/JavaScript-only pages honestly rather than fabricate extracted content. Request identity encoding and reject unsupported compressed responses before body processing; stream supported text into disk-spooled extraction and durable evidence rather than materialize the entire body. Explicit parser/protocol guards must not become total document-size or cumulative task quotas.
 - Prevent SSRF: reject unsupported schemes, URL credentials, localhost, private/loopback/link-local/reserved destinations, and metadata services. Apply the policy to parsed URLs, DNS results, the actual connection target, and every redirect; protect against DNS rebinding rather than relying on a one-time hostname check. Keep TLS verification on and fail closed when the target cannot be verified.
 - Do not forward browser cookies, provider bearer tokens, authorization headers, or ambient credentials. Fetched HTML is untrusted data and must not grant instructions or permissions. Validate/render extracted content safely.
 - Record requested/final URL, redirect/provenance metadata, timestamp, status, and extracted result/error against the current plan/step before feeding it to the LLM. Complete subsequent LLM prompts/responses remain covered by the session audit requirement.
@@ -256,6 +260,7 @@ Keep existing `/api/chat`, `/api/models`, and `/health` contracts unchanged. Pro
 | `POST /api/agent/sessions/{sid}/runs/{rid}/execute` | Validate submitted plan ID/revision/digest, durably approve, then stream sequential execution. |
 | `POST /api/agent/sessions/{sid}/runs/{rid}/cancel` | Request Stop for the supplied `operation_id`; return `202` while cancelling or its known settled outcome, never target a newer operation. |
 | `GET /api/agent/sessions/{sid}/events?after={sequence}` | Paginated durable event replay for recovery and history review. |
+| `GET /api/agent/sessions/{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Read a character page of committed, same-session extracted-text evidence without fetching again or executing tools. |
 | `POST /api/agent/sessions/{sid}/archive` | Record archive intent, request targeted cancellation if needed, and archive after settlement; `202` while pending. |
 
 Mutation requests use a client request ID/idempotency key bound to the request payload; reusing a key with different content is a conflict. Persist accepted commands and outcomes. Use a per-session operation lock and an explicit single-BFF-worker constraint initially; multiple workers require inter-process coordination, not just an asyncio lock.

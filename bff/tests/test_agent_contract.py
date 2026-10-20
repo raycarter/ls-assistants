@@ -21,11 +21,13 @@ import httpx
 import pytest
 
 import app.agent as agent_module
+import app.sessions as sessions_module
 from app.agent import AgentService
 from app.agent_files import FilePolicy, canonical_digest
 from app.agent_schemas import AgentEvent, Proposal
 from app.main import create_app
 from app.sessions import SessionStore
+from app.tools import FetchDocument, WebFetcher
 
 FIXTURE = Path(__file__).resolve().parents[2] / "ui/src/app/agent-contract.fixture.json"
 BASE = "/api/agent/sessions"
@@ -61,6 +63,7 @@ def proposal():
 def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
     ids = itertools.count(1)
     monkeypatch.setattr(agent_module, "uuid4", lambda: UUID(int=next(ids)))
+    monkeypatch.setattr(sessions_module, "uuid4", lambda: UUID(int=next(ids)))
     real_projection = FilePolicy.projection
 
     def stable_projection(policy):
@@ -75,7 +78,7 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
     monkeypatch.setattr(FilePolicy, "projection", stable_projection)
 
     @asynccontextmanager
-    async def opened(suffix, *, blocked=False, backwards=False, enabled=True):
+    async def opened(suffix, *, blocked=False, backwards=False, enabled=True, fetched=False):
         directory = tmp_path / suffix
         workspace = directory / "workspace"
         workspace.mkdir(parents=True)
@@ -85,6 +88,25 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
         async def plan(context):
             if backwards:
                 clock.value = EARLIER
+            if fetched:
+                return Proposal.model_validate(
+                    {
+                        "objective": "Read the supplied public URL",
+                        "assumptions": [],
+                        "steps": [
+                            {
+                                "title": "Fetch public evidence",
+                                "description": "Preserve full text; return the first page.",
+                                "tool": "web_fetch",
+                                "arguments": {
+                                    "url": "https://example.com/public",
+                                    "offset": 0,
+                                    "limit": 18,
+                                },
+                            }
+                        ],
+                    }
+                )
             return proposal()
 
         planner = SimpleNamespace(plan=AsyncMock(side_effect=plan))
@@ -105,7 +127,26 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
             id_factory=lambda: f"20261016T090000123456Z-{suffix}",
         )
         owner = AgentService(
-            store, planner=planner if enabled else None, files=files, models=("deployment-a",)
+            store,
+            planner=planner if enabled else None,
+            files=files,
+            models=("deployment-a",),
+            fetcher=SimpleNamespace(
+                policy_version=WebFetcher.policy_version,
+                validate_url=WebFetcher().validate_url,
+                fetch=AsyncMock(
+                    return_value=FetchDocument(
+                        requested_url="https://example.com/public",
+                        final_url="https://example.com/public-text",
+                        title="Public evidence",
+                        status_code=200,
+                        content_type="text/html",
+                        fetched_at=NOW,
+                        redirects=("https://example.com/public-text",),
+                        text="Public evidence 🌱\nContinuation from durable storage.",
+                    )
+                ),
+            ),
         )
         application = create_app(
             settings_factory(),
@@ -351,6 +392,38 @@ async def generate_contract(opened):
         errors.append({**case, "status": response.status_code, "body": response.json()})
         setup.planner.plan.assert_not_awaited()
 
+    async with opened("ct06", fetched=True) as setup:
+        planning = await stream(
+            setup.client,
+            "setup",
+            await create(setup.client),
+            "plan",
+            {"action": "runs", "content": "Read https://example.com/public"},
+        )
+        setup.owner.fetcher.fetch.assert_not_awaited()
+        case = await stream(
+            setup.client,
+            "fetch_execution",
+            planning["terminal"],
+            "execute",
+            {"action": "execute", **identity(planning["terminal"])},
+        )
+        metadata = case["terminal"]["runs"][0]["results"][0]["fetch"]
+        url = (
+            f"{BASE}/{case['baseline']['id']}/artifacts/{metadata['artifact_id']}"
+            f"?offset={metadata['next_offset']}&limit=12000"
+        )
+        response = await setup.client.get(url)
+        assert response.status_code == 200
+        case["artifact_page"] = {
+            "http": {"method": "GET", "url": url},
+            "status": response.status_code,
+            "body": response.json(),
+        }
+        streams.append(case)
+        setup.owner.fetcher.fetch.assert_awaited_once_with("https://example.com/public")
+        setup.files.read.assert_not_called()
+
     return {"version": 1, "streams": streams, "errors": errors}
 
 
@@ -403,6 +476,15 @@ def assert_representative(contract):
     backwards = events(cases["backwards_clock"]["sse"])
     assert backwards[2]["data"]["time"] < backwards[1]["data"]["time"]
     assert cases["revision"]["terminal"]["runs"][0]["plan"]["revision"] == 2
+    fetched = cases["fetch_execution"]
+    assert [frame["data"]["type"] for frame in events(fetched["sse"])] == execution_types
+    result = fetched["terminal"]["runs"][0]["results"][0]
+    continuation = fetched["artifact_page"]["body"]
+    assert result["fetch"]["returned_chars"] == 18
+    assert continuation["offset"] == result["fetch"]["next_offset"] == 18
+    assert result["content"] + continuation["content"] == (
+        "Public evidence 🌱\nContinuation from durable storage."
+    )
 
 
 def semantic(contract):
@@ -417,7 +499,7 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
     generated = await generate_contract(contract_setup)
     assert_representative(generated)
     serialized = json.dumps(generated, ensure_ascii=False, indent=2) + "\n"
-    assert len(serialized.encode()) < 120_000, "Keep this representative fixture small"
+    assert len(serialized.encode()) < 150_000, "Keep this representative fixture small"
     assert str(tmp_path) not in serialized
     assert "audit" not in serialized
     if os.environ.get("UPDATE_AGENT_CONTRACT_FIXTURE") == "1":

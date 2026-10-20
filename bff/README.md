@@ -5,7 +5,8 @@ conversation history and sends it explicitly on every turn. The backend keeps no
 Chat conversation state and calls the provider with `store=False`. The separate
 Agent API has a **first mocked vertical slice**, described in [AGENT_API.md](AGENT_API.md):
 journal-backed sessions, injected tool-free planning, exact-plan approval, bounded
-fixture-tested file reads, progress, rejection, cancellation and restart recovery.
+fixture-tested file reads and public-page fetching, durable paged web evidence,
+progress, rejection, cancellation and restart recovery.
 Its production planner is unavailable by default; this is not a full Agent release.
 
 ## Setup

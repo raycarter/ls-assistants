@@ -72,6 +72,21 @@ pre {
 .digest {
   word-break: break-all;
 }
+.fetch-provenance a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+.source-text {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border-left: 3px solid #64748b;
+  background: white;
+  font-family: monospace;
+}
+.evidence-page {
+  border-top: 1px solid #64748b;
+  margin-top: 1rem;
+}
 button {
   padding: 0.6rem 0.9rem;
   border: 1px solid #64748b;
@@ -87,6 +102,7 @@ button:disabled {
   cursor: default;
 }
 button:focus-visible,
+a:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
   outline: 2px solid #60a5fa;

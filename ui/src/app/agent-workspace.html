@@ -2,14 +2,17 @@
   <aside class="disclosure" aria-label="Agent capabilities and retained content">
     <strong>First Agent slice · review before execution</strong>
     <p>
-      Only configured, approved read_file steps are supported. Search and folder search are
-      unavailable. Planning runs no tools. A planner must be explicitly configured in the BFF.
+      The injected-planner path supports approved read_file and web_fetch steps. Search and grep are
+      unavailable. Planning runs no tools. A planner must be explicitly configured in the BFF; a
+      production planner is not provided by this slice.
     </p>
     <p>
       User requests, reviewed plans, approved source excerpts, tool results and logical model
-      inputs/outputs are retained by the BFF. Archive preserves this history; there is no automatic
-      expiry. Permitted source text may contain sensitive content; this is not guaranteed
-      secret-content scrubbing. Search queries would leave the BFF when search becomes available.
+      inputs/outputs recorded by this path are retained by the BFF, including fetched text for
+      read-only inspection. This is not a complete LLM audit. Archive preserves this history; there
+      is no automatic expiry. Permitted source text may contain sensitive content; this is not
+      guaranteed secret-content scrubbing. Approved web_fetch requests contact the supplied URL and
+      its redirects. Inspecting retained pages reads BFF storage without fetching again.
     </p>
   </aside>
   @if (state.globalError()) {
@@ -96,17 +99,27 @@
                 <li>
                   <h3>{{ step.title }}</h3>
                   <p>{{ step.description }}</p>
-                  <p>Tool: {{ step.tool ?? 'None (reasoning only)' }}</p>
-                  @if (step.arguments; as args) {
+                  <p>Tool: {{ step.tool }}</p>
+                  @if (step.tool === 'read_file') {
                     <p>
-                      Workspace: {{ args.workspace_id }} · Path: <code>{{ args.path }}</code> ·
-                      Lines {{ args.offset }}–{{ args.offset + args.limit - 1 }}
+                      Workspace: {{ step.arguments.workspace_id }} · Path:
+                      <code>{{ step.arguments.path }}</code> · Lines {{ step.arguments.offset }}–{{
+                        step.arguments.offset + step.arguments.limit - 1
+                      }}
                     </p>
-                    <details>
-                      <summary>Exact tool arguments</summary>
-                      <pre>{{ args | json }}</pre>
-                    </details>
+                  } @else if (step.tool === 'web_fetch') {
+                    <p>
+                      Fetch URL: <code>{{ step.arguments.url }}</code>
+                    </p>
+                    <p>
+                      Character page: offset {{ step.arguments.offset }} (zero-based) · limit
+                      {{ step.arguments.limit }} characters
+                    </p>
                   }
+                  <details>
+                    <summary>Exact tool arguments</summary>
+                    <pre>{{ step.arguments | json }}</pre>
+                  </details>
                   <p>Step: {{ step.id }} · {{ stepStatus(run, step.id) }}</p>
                 </li>
               }
@@ -175,34 +188,131 @@
               {{ result.step_id }} · {{ result.status }}
               <time [attr.datetime]="result.time">{{ result.time | messageTime }}</time>
             </h2>
-            @if (result.path != null || result.offset != null || result.returned_lines != null) {
-              <p>
-                Recorded file excerpt
-                @if (result.path != null) {
-                  · <code>{{ result.path }}</code>
+            @if (result.fetch; as fetch) {
+              <div class="fetch-provenance" aria-label="Fetched page provenance">
+                <h3>Fetched page</h3>
+                @if (fetch.title !== null) {
+                  <h4>{{ fetch.title }}</h4>
                 }
-              </p>
-              @if (result.offset != null) {
                 <p>
-                  Read range:
-                  @if (result.returned_lines != null && result.returned_lines! > 0) {
-                    lines {{ result.offset }}–{{ result.offset + result.returned_lines! - 1 }}
+                  Requested URL:
+                  @if (safeHttpUrl(fetch.requested_url)) {
+                    <a [href]="fetch.requested_url" target="_blank" rel="noopener noreferrer">{{
+                      fetch.requested_url
+                    }}</a>
                   } @else {
-                    starting at line {{ result.offset }}
+                    {{ fetch.requested_url }}
                   }
                 </p>
-              }
-              @if (result.returned_lines != null) {
-                <p>Returned lines: {{ result.returned_lines }}</p>
-              }
-            }
-            @if (result.truncated) {
-              <p role="note">
-                Partial/truncated excerpt: source content or long lines were omitted. Do not treat
-                this as the complete file.
+                <p>
+                  Final URL:
+                  @if (safeHttpUrl(fetch.final_url)) {
+                    <a [href]="fetch.final_url" target="_blank" rel="noopener noreferrer">{{
+                      fetch.final_url
+                    }}</a>
+                  } @else {
+                    {{ fetch.final_url }}
+                  }
+                </p>
+                <p>
+                  Fetched at <time [attr.datetime]="fetch.fetched_at">{{ fetch.fetched_at }}</time>
+                </p>
+                <p>HTTP {{ fetch.status_code }} · {{ fetch.content_type }}</p>
+                @if (fetch.redirects.length) {
+                  <details>
+                    <summary>Recorded redirects</summary>
+                    <ol>
+                      @for (url of fetch.redirects; track $index) {
+                        <li>{{ url }}</li>
+                      }
+                    </ol>
+                  </details>
+                }
+                <p>
+                  Artifact: <code>{{ fetch.artifact_id }}</code>
+                </p>
+              </div>
+              <p role="note">Untrusted extracted source text · displayed as plain text.</p>
+              <p class="preview-range">
+                Execution preview: offset {{ fetch.offset }} (zero-based) · returned
+                {{ fetch.returned_chars }} of {{ fetch.total_chars }} retained characters.
+                @if (fetch.offset > 0 || fetch.next_offset !== null) {
+                  This preview is only part of the retained text.
+                }
               </p>
+              <pre class="source-text" aria-label="Fetched source preview">{{
+                result.content
+              }}</pre>
+              @let evidence = evidenceView(session.id, run.id, result);
+              @if (evidence?.page; as page) {
+                <section aria-label="Retained evidence page" class="evidence-page">
+                  <h3>Retained evidence · read-only</h3>
+                  <p>
+                    Character offset {{ page.offset }} (zero-based) · returned
+                    {{ page.returned_chars }} of {{ page.total_chars }} retained characters
+                  </p>
+                  <pre class="source-text">{{ page.content }}</pre>
+                  @if (page.next_offset === null) {
+                    <p>End of retained text.</p>
+                  }
+                </section>
+              }
+              @if (evidence?.loading) {
+                <p role="status">Loading retained evidence…</p>
+              }
+              @if (evidence?.error) {
+                <p role="alert" class="error">{{ evidence?.error }}</p>
+              }
+              <div class="actions" [attr.aria-busy]="evidence?.loading ?? false">
+                @if (nextOffset(session.id, run.id, result); as next) {
+                  <button
+                    type="button"
+                    [disabled]="evidence?.loading"
+                    (click)="readEvidence(session.id, run.id, result, next)"
+                  >
+                    Next retained page
+                  </button>
+                }
+                @if (fetch.offset > 0 || evidence?.page) {
+                  <button
+                    type="button"
+                    [disabled]="evidence?.loading"
+                    (click)="readEvidence(session.id, run.id, result, 0)"
+                  >
+                    Inspect retained text from start
+                  </button>
+                }
+              </div>
+            } @else {
+              @if (result.path != null || result.offset != null || result.returned_lines != null) {
+                <p>
+                  Recorded file excerpt
+                  @if (result.path != null) {
+                    · <code>{{ result.path }}</code>
+                  }
+                </p>
+                @if (result.offset != null) {
+                  <p>
+                    Read range:
+                    @if (result.returned_lines != null && result.returned_lines! > 0) {
+                      lines {{ result.offset }}–{{ result.offset + result.returned_lines! - 1 }}
+                    } @else {
+                      starting at line {{ result.offset }}
+                    }
+                  </p>
+                }
+                @if (result.returned_lines != null) {
+                  <p>Returned lines: {{ result.returned_lines }}</p>
+                }
+              }
+              @if (result.truncated) {
+                <p role="note">
+                  Partial/truncated excerpt: source content or long lines were omitted. Do not treat
+                  this as the complete file.
+                </p>
+              }
+              <div class="message-markdown" [innerHTML]="result.content | markdown"></div>
             }
-            <div class="message-markdown" [innerHTML]="result.content | markdown"></div>
             @if (result.error) {
               <p class="error">{{ result.error.code }}: {{ result.error.message }}</p>
             }

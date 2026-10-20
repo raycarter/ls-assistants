@@ -3,15 +3,18 @@ import { FETCH } from './chat-api';
 import { SseDecoder, type SseEvent } from './sse-decoder';
 import {
   AgentApiError,
+  artifactId,
   id,
   invalidAgent,
   object,
+  parseArtifactPage,
   parseAgentSession,
   settled,
   time,
   type AgentCommand,
   type AgentEvent,
   type AgentSession,
+  type ArtifactPage,
   type ReviewIdentity,
 } from './agent.models';
 import type { ReasoningEffort } from './chat.models';
@@ -181,6 +184,38 @@ export class AgentApi {
   }
   async get(sid: string, signal: AbortSignal): Promise<AgentSession> {
     return this.session(sid, await this.json(this.path(sid), signal));
+  }
+  /** Reads retained evidence only; never dispatches or replays a tool. */
+  async artifactPage(
+    sid: string,
+    artifact_id: string,
+    offset: number,
+    limit: number,
+    signal: AbortSignal,
+  ): Promise<ArtifactPage> {
+    if (
+      !artifactId(artifact_id) ||
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 16000
+    )
+      return invalidAgent();
+    const page = parseArtifactPage(
+      await this.json(
+        `${this.path(sid)}/artifacts/${artifact_id}?offset=${offset}&limit=${limit}`,
+        signal,
+      ),
+    );
+    signal.throwIfAborted();
+    if (
+      page.artifact_id !== artifact_id ||
+      page.offset !== offset ||
+      page.returned_chars !== Math.min(limit, page.total_chars - offset)
+    )
+      return invalidAgent();
+    return page;
   }
   async create(
     request_id: string,

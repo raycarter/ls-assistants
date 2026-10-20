@@ -14,6 +14,41 @@ export const RUN_STATUSES = [
   'interrupted',
 ] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
+export interface ReadArguments {
+  workspace_id: string;
+  path: string;
+  offset: number;
+  limit: number;
+}
+export interface FetchArguments {
+  url: string;
+  offset: number;
+  limit: number;
+}
+export type AgentStep = {
+  id: string;
+  title: string;
+  description: string;
+} & (
+  { tool: 'read_file'; arguments: ReadArguments } | { tool: 'web_fetch'; arguments: FetchArguments }
+);
+export interface ArtifactPage {
+  artifact_id: string;
+  content: string;
+  offset: number;
+  returned_chars: number;
+  total_chars: number;
+  next_offset: number | null;
+}
+export interface FetchMetadata extends Omit<ArtifactPage, 'content'> {
+  requested_url: string;
+  final_url: string;
+  title: string | null;
+  status_code: number;
+  content_type: string;
+  fetched_at: string;
+  redirects: string[];
+}
 export interface AgentPlan {
   id: string;
   revision: number;
@@ -23,13 +58,7 @@ export interface AgentPlan {
   model: string;
   reasoning_effort: ReasoningEffort;
   limits: { max_steps: number; max_tool_calls: number; timeout_seconds: number };
-  steps: {
-    id: string;
-    title: string;
-    description: string;
-    tool: 'read_file' | null;
-    arguments: { workspace_id: string; path: string; offset: number; limit: number } | null;
-  }[];
+  steps: AgentStep[];
   search_policy?: unknown;
 }
 export interface StepResult {
@@ -42,6 +71,7 @@ export interface StepResult {
   offset?: number | null;
   returned_lines?: number | null;
   truncated?: boolean;
+  fetch?: FetchMetadata | null;
 }
 export interface AgentRun {
   id: string;
@@ -141,6 +171,99 @@ export function time(value: unknown): value is string {
 function integer(value: unknown, min = 0): value is number {
   return Number.isSafeInteger(value) && (value as number) >= min;
 }
+function onlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+export function artifactId(value: unknown): value is string {
+  return text(value) && /^[a-f0-9]{32}$/.test(value);
+}
+/** Link safety only. Public-network/DNS authorization remains the BFF's responsibility. */
+export function safeHttpUrl(value: unknown): value is string {
+  if (!text(value) || /[\s\u0000-\u001f\u007f\\]/u.test(value)) return false;
+  const authority = /^https?:\/\/([^/?#]+)/i.exec(value)?.[1];
+  if (!authority || /[@%]/.test(authority) || authority.endsWith(':')) return false;
+  try {
+    const url = new URL(value);
+    return (
+      ['http:', 'https:'].includes(url.protocol) &&
+      !!url.hostname &&
+      !url.username &&
+      !url.password &&
+      url.port !== '0'
+    );
+  } catch {
+    return false;
+  }
+}
+function validPage(value: Record<string, unknown>, content: string): boolean {
+  if (
+    !artifactId(value['artifact_id']) ||
+    !integer(value['offset']) ||
+    !integer(value['total_chars']) ||
+    !integer(value['returned_chars']) ||
+    value['returned_chars'] > 16000 ||
+    value['returned_chars'] !== Array.from(content).length
+  )
+    return false;
+  const end = value['offset'] + value['returned_chars'];
+  return (
+    Number.isSafeInteger(end) &&
+    end <= value['total_chars'] &&
+    (end < value['total_chars']
+      ? value['returned_chars'] > 0 && value['next_offset'] === end
+      : value['next_offset'] === null)
+  );
+}
+export function parseArtifactPage(value: unknown): ArtifactPage {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'artifact_id',
+      'content',
+      'offset',
+      'returned_chars',
+      'total_chars',
+      'next_offset',
+    ]) ||
+    !text(value['content']) ||
+    !validPage(value, value['content'])
+  )
+    return invalidAgent();
+  return value as unknown as ArtifactPage;
+}
+function validFetch(value: unknown, content: string): value is FetchMetadata {
+  return (
+    object(value) &&
+    onlyKeys(value, [
+      'artifact_id',
+      'requested_url',
+      'final_url',
+      'title',
+      'status_code',
+      'content_type',
+      'fetched_at',
+      'redirects',
+      'offset',
+      'returned_chars',
+      'total_chars',
+      'next_offset',
+    ]) &&
+    validPage(value, content) &&
+    safeHttpUrl(value['requested_url']) &&
+    safeHttpUrl(value['final_url']) &&
+    (value['title'] === null || text(value['title'])) &&
+    integer(value['status_code'], 100) &&
+    value['status_code'] <= 599 &&
+    id(value['content_type']) &&
+    time(value['fetched_at']) &&
+    /(?:Z|\+00:00)$/.test(value['fetched_at']) &&
+    Array.isArray(value['redirects']) &&
+    value['redirects'].every(safeHttpUrl) &&
+    (value['redirects'].length
+      ? value['redirects'].at(-1) === value['final_url']
+      : value['requested_url'] === value['final_url'])
+  );
+}
 function strings(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(text);
 }
@@ -179,14 +302,23 @@ function validPlan(value: unknown): value is AgentPlan {
       if (!object(step) || !id(step['id']) || !text(step['title']) || !text(step['description']))
         return false;
       const args = step['arguments'];
-      return step['tool'] === null
-        ? args === null
-        : step['tool'] === 'read_file' &&
-            object(args) &&
-            id(args['workspace_id']) &&
-            id(args['path']) &&
-            integer(args['offset'], 1) &&
-            integer(args['limit'], 1);
+      if (!object(args)) return false;
+      if (step['tool'] === 'read_file')
+        return (
+          onlyKeys(args, ['workspace_id', 'path', 'offset', 'limit']) &&
+          id(args['workspace_id']) &&
+          id(args['path']) &&
+          integer(args['offset'], 1) &&
+          integer(args['limit'], 1)
+        );
+      return (
+        step['tool'] === 'web_fetch' &&
+        onlyKeys(args, ['url', 'offset', 'limit']) &&
+        safeHttpUrl(args['url']) &&
+        integer(args['offset']) &&
+        integer(args['limit'], 1) &&
+        args['limit'] <= 16000
+      );
     })
   );
 }
@@ -221,6 +353,9 @@ function validRun(value: unknown): value is AgentRun {
           result['returned_lines'] === null ||
           integer(result['returned_lines'])) &&
         (result['truncated'] === undefined || typeof result['truncated'] === 'boolean') &&
+        (result['fetch'] === undefined ||
+          result['fetch'] === null ||
+          validFetch(result['fetch'], result['content'])) &&
         plan !== null &&
         validPlan(plan) &&
         plan.steps.some((step) => step.id === result['step_id']),
@@ -237,6 +372,32 @@ function validRun(value: unknown): value is AgentRun {
     return false;
   const status = value['status'] as RunStatus;
   const checkedResults = results as StepResult[];
+  if (plan !== null && validPlan(plan)) {
+    for (const result of checkedResults) {
+      const step = plan.steps.find((entry) => entry.id === result.step_id)!;
+      if (step.tool === 'read_file') {
+        if (result.fetch != null) return false;
+      } else {
+        if (
+          result.path != null ||
+          result.offset != null ||
+          result.returned_lines != null ||
+          result.truncated === true ||
+          (result.status === 'completed' && !result.fetch)
+        )
+          return false;
+        if (
+          result.fetch &&
+          (result.status !== 'completed' ||
+            result.fetch.requested_url !== step.arguments.url ||
+            result.fetch.offset !== step.arguments.offset ||
+            result.fetch.returned_chars !==
+              Math.min(step.arguments.limit, result.fetch.total_chars - result.fetch.offset))
+        )
+          return false;
+      }
+    }
+  }
   if (['awaiting_approval', 'approved', 'executing', 'completed'].includes(status) && plan === null)
     return false;
   if (value['status'] === 'awaiting_clarification' && !clarification) return false;
