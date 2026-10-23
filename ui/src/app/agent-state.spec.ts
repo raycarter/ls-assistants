@@ -5,20 +5,55 @@ import { AgentState, AGENT_UI_STORAGE_KEY } from './agent-state';
 import { CHAT_STORAGE } from './chat-state';
 import {
   FakeAgentApi,
-  fixtureEvent,
-  FIXTURE_DIGEST,
+  fixtureList,
+  fixturePlan,
   fixtureRun,
   fixtureSession,
+  fixtureStepEvents,
   memoryAgentStorage,
+  normalizeRun,
 } from './agent-api.testing';
+import {
+  controlOf,
+  type AgentRun,
+  type AgentSession,
+  type ResultsPage,
+  type RunsPage,
+} from './agent.models';
 
-describe('AgentState ownership, concurrency and UI storage', () => {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+function manyResults(status: 'executing' | 'completed' = 'executing'): AgentRun {
+  const run = fixtureRun(status);
+  run.plan!.steps = Array.from({ length: 50 }, (_, index) => ({
+    ...fixturePlan().steps[0],
+    id: `step-${index}`,
+  }));
+  run.results = Array.from({ length: 20 }, (_, index) => ({
+    step_id: `step-${index + 30}`,
+    status: 'completed',
+    content: `Result ${index + 30}`,
+    time: run.updated_at,
+  }));
+  run.result_count = 50;
+  run.completed_steps = 50;
+  run.results_before = 30;
+  run.answer = status === 'completed' ? 'Complete' : null;
+  return run;
+}
+
+describe('v2 AgentState paged ownership and recovery', () => {
   let api: FakeAgentApi;
   let storage: ReturnType<typeof memoryAgentStorage>;
   let state: AgentState;
-  beforeEach(() => {
-    api = new FakeAgentApi();
-    storage = memoryAgentStorage();
+  function setup() {
     TestBed.configureTestingModule({
       providers: [
         { provide: AgentApi, useValue: api },
@@ -26,113 +61,141 @@ describe('AgentState ownership, concurrency and UI storage', () => {
       ],
     });
     state = TestBed.inject(AgentState);
+  }
+  beforeEach(() => {
+    api = new FakeAgentApi();
+    storage = memoryAgentStorage();
+    setup();
   });
   afterEach(() => {
     TestBed.resetTestingModule();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
-  async function ready(): Promise<void> {
-    await state.load();
-  }
-  async function flush(): Promise<void> {
+  async function flush() {
     await Promise.resolve();
     await Promise.resolve();
     TestBed.tick();
   }
-  function review(): void {
-    state.sessions.set([fixtureSession(1, [fixtureRun()])]);
-    state.selectedId.set('agent-1');
+  async function load(run?: AgentRun, sequence = 1) {
+    const session = fixtureSession(sequence, run ? [run] : []);
+    api.list.mockResolvedValueOnce(fixtureList([session]));
+    api.get.mockResolvedValue(session);
+    await state.load();
+    return session;
   }
-  it('does not fetch Agent history on initial Chat startup', () => {
+  it('does no Agent IO at Chat startup; mode drafts and UI-only persistence remain independent', async () => {
     TestBed.tick();
     expect(api.list).not.toHaveBeenCalled();
     expect(api.get).not.toHaveBeenCalled();
-    expect(state.mode()).toBe('chat');
-  });
-  it('keeps drafts and selection independent, persists only UI metadata, and normalizes a missing server selection', async () => {
-    await ready();
-    state.updateDraft(' unsent 🌱 ');
-    state.sessions.update((sessions) => [...sessions, fixtureSession(0, [], 'agent-2')]);
+    await load();
+    state.updateDraft('First draft');
     state.select('agent-2');
-    state.updateDraft('second draft');
     await flush();
-    state.setMode('agent');
+    state.updateDraft('Second draft');
+    state.setMode('chat');
     TestBed.tick();
-    const saved = JSON.parse(storage.records.get(AGENT_UI_STORAGE_KEY)!);
-    expect(saved).toEqual({
+    const raw = storage.records.get(AGENT_UI_STORAGE_KEY)!;
+    expect(JSON.parse(raw)).toEqual({
       version: 1,
-      mode: 'agent',
+      mode: 'chat',
       selectedId: 'agent-2',
       legacyId: null,
-      drafts: { 'agent-1': ' unsent 🌱 ', 'agent-2': 'second draft' },
+      drafts: { 'agent-1': 'First draft', 'agent-2': 'Second draft' },
     });
-    expect(storage.records.get(AGENT_UI_STORAGE_KEY)).not.toContain('runs');
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      providers: [
-        { provide: AgentApi, useValue: api },
-        { provide: CHAT_STORAGE, useValue: storage },
-      ],
-    });
-    state = TestBed.inject(AgentState);
-    expect(state.mode()).toBe('agent');
-    expect(state.draft()).toBe('second draft');
-    await state.load();
-    expect(state.selectedId()).toBe('agent-1');
-    expect(state.draft()).toBe(' unsent 🌱 ');
-    expect(api.calls).toHaveLength(0);
+    expect(raw).not.toContain('plan');
+    expect(raw).not.toContain('results');
   });
   it.each([
-    '{not-json',
-    '{"version":99,"private":"keep-me"}',
+    '{bad-json',
+    '{"version":99,"private":"keep"}',
     '{"version":1,"mode":"agent","selectedId":null,"drafts":[]}',
-  ])('leaves invalid storage untouched and warns without content', (raw) => {
+  ])('protects unrecognized browser records: %s', (raw) => {
     TestBed.resetTestingModule();
     storage.records.set(AGENT_UI_STORAGE_KEY, raw);
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    TestBed.configureTestingModule({
-      providers: [
-        { provide: AgentApi, useValue: api },
-        { provide: CHAT_STORAGE, useValue: storage },
-      ],
-    });
-    state = TestBed.inject(AgentState);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    setup();
     state.updateDraft('private draft');
     TestBed.tick();
     expect(storage.records.get(AGENT_UI_STORAGE_KEY)).toBe(raw);
-    expect(warning).toHaveBeenCalledOnce();
-    expect(JSON.stringify(warning.mock.calls)).not.toContain('private');
+    expect(warn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private');
   });
-  it('keeps drafts in memory on quota errors without logging exception content', () => {
+  it('keeps drafts in memory on storage failure without logging exception content', () => {
     storage.setItem.mockImplementation(() => {
-      throw new Error('private exception');
+      throw new Error('private');
     });
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    state.updateDraft('draft');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    state.updateDraft('one');
     TestBed.tick();
-    state.updateDraft('changed');
+    state.updateDraft('two');
     TestBed.tick();
-    expect(state.draft()).toBe('changed');
-    expect(warning).toHaveBeenCalledOnce();
-    expect(JSON.stringify(warning.mock.calls)).not.toContain('private exception');
+    expect(state.draft()).toBe('two');
+    expect(warn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private');
   });
-  it('guards duplicate approval, stale revision objects, and preference changes while waiting', async () => {
-    review();
-    await state.preferences({ model: 'model-b' });
-    expect(api.patch).not.toHaveBeenCalled();
-    state.approve({ ...state.activeRun()!, plan: { ...state.activeRun()!.plan!, revision: 0 } });
-    expect(api.calls).toHaveLength(0);
-    const run = state.activeRun()!;
-    state.approve(run);
-    state.approve(run);
-    expect(api.calls).toHaveLength(1);
-    expect(api.calls[0].request.command).toEqual({
-      action: 'execute',
-      run_id: run.id,
-      plan_id: 'plan-1',
-      revision: 1,
-      digest: FIXTURE_DIGEST,
-    });
+  it('retains a selected archived session outside page one by direct GET and pins it in the sidebar', async () => {
+    TestBed.resetTestingModule();
+    storage.records.set(
+      AGENT_UI_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        mode: 'agent',
+        selectedId: 'old-archived',
+        legacyId: null,
+        drafts: {},
+      }),
+    );
+    const archived = {
+      ...fixtureSession(5, [fixtureRun('rejected')], 'old-archived'),
+      archived: true,
+    };
+    api.list.mockResolvedValue(fixtureList([fixtureSession()], 'next', 100));
+    api.get.mockResolvedValue(archived);
+    setup();
+    await state.load();
+    expect(api.get).toHaveBeenCalledWith('old-archived', expect.any(AbortSignal));
+    expect(api.list).toHaveBeenCalledOnce();
+    expect(state.selectedId()).toBe('old-archived');
+    expect(state.sessions().map((session) => session.id)).toEqual(['agent-1', 'old-archived']);
+    expect(state.locked()).toBe(true);
+    expect(state.total()).toBe(100);
+    expect(state.nextCursor()).toBe('next');
+  });
+  it('falls back only after a restored selection cannot be resolved directly', async () => {
+    TestBed.resetTestingModule();
+    storage.records.set(
+      AGENT_UI_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        mode: 'agent',
+        selectedId: 'missing',
+        legacyId: null,
+        drafts: {},
+      }),
+    );
+    api.get.mockRejectedValueOnce(new Error('HTTP 404'));
+    setup();
+    await state.load();
+    expect(api.get.mock.calls.map(([sid]) => sid)).toEqual(['missing', 'agent-1']);
+    expect(state.selectedId()).toBe('agent-1');
+  });
+  it('loads one list page and only advances on an explicit guarded action', async () => {
+    api.list.mockResolvedValueOnce(fixtureList([fixtureSession()], 'page2', 100));
+    await state.load();
+    expect(api.list).toHaveBeenCalledOnce();
+    const pending = deferred<ReturnType<typeof fixtureList>>();
+    api.list.mockReturnValueOnce(pending.promise);
+    const more = state.loadMoreSessions();
+    void state.loadMoreSessions();
+    expect(api.list).toHaveBeenCalledTimes(2);
+    pending.resolve(fixtureList([fixtureSession(0, [], 'agent-2')], 'page3', 100));
+    await more;
+    expect(state.sessions()).toHaveLength(2);
+    expect(state.total()).toBe(100);
+    expect(state.nextCursor()).toBe('page3');
+    expect(api.get).toHaveBeenCalledOnce();
+    expect(api.detail).not.toHaveBeenCalled();
   });
   it.each([
     'planning',
@@ -141,111 +204,403 @@ describe('AgentState ownership, concurrency and UI storage', () => {
     'approved',
     'executing',
     'cancelling',
-  ] as const)('locks model and effort during %s', async (status) => {
-    const run = fixtureRun(status);
-    if (status === 'awaiting_clarification')
-      run.clarification = { id: 'q1', questions: ['Which file?'] };
-    state.sessions.set([fixtureSession(1, [run])]);
-    state.selectedId.set('agent-1');
-    expect(state.locked()).toBe(true);
-    await state.preferences({ reasoning_effort: 'high' });
-    expect(api.patch).not.toHaveBeenCalled();
+  ] as const)(
+    'locks preferences and new requests from %s header even when no body is loaded',
+    async (status) => {
+      const run = fixtureRun(status);
+      if (status === 'awaiting_clarification') {
+        run.plan = null;
+        run.clarification = { id: 'q', questions: ['Which?'] };
+      }
+      state.sessions.set([fixtureSession(1, [run])]);
+      state.selectedId.set('agent-1');
+      state.updateDraft('Request');
+      expect(state.currentView()).toBeNull();
+      expect(state.locked()).toBe(true);
+      expect(state.canRequest()).toBe(false);
+      await state.preferences({ model: 'other' });
+      state.request();
+      expect(api.patch).not.toHaveBeenCalled();
+      expect(api.calls).toHaveLength(0);
+    },
+  );
+  it('loads ten summaries and one current body, opening replaces the historical body with GET only', async () => {
+    const current = normalizeRun(fixtureRun(), 1);
+    const historical = Array.from({ length: 10 }, (_, index) => ({
+      ...normalizeRun(fixtureRun('rejected'), 1),
+      id: `history-${index}`,
+    }));
+    const page: RunsPage = {
+      projection_version: 2,
+      session_id: 'agent-1',
+      at_sequence: 1,
+      total: 50,
+      runs: historical.map((run) => ({ ...controlOf(run), request_preview: run.request })),
+      next_before: 40,
+    };
+    api.runs.mockResolvedValue(page);
+    api.detail.mockImplementation(async (_sid, rid) =>
+      rid === current.id ? current : historical.find((run) => run.id === rid)!,
+    );
+    const header = { ...fixtureSession(1, [current]), run_count: 50 };
+    api.list.mockResolvedValueOnce(fixtureList([header]));
+    api.get.mockResolvedValue(header);
+    await state.load();
+    expect(api.detail).toHaveBeenCalledOnce();
+    expect(api.runs).toHaveBeenCalledOnce();
+    await state.openRun('history-0');
+    await state.openRun('history-1');
+    expect(state.visibleRuns().map((run) => run.id)).toEqual(['run-1', 'history-1']);
+    expect(api.detail).toHaveBeenCalledTimes(3);
+    expect(state.summaries()).toHaveLength(10);
+    expect(api.calls).toHaveLength(0);
+    state.closeRun();
+    expect(state.visibleRuns()).toHaveLength(1);
+    await state.loadRuns(true);
+    expect(api.runs).toHaveBeenLastCalledWith('agent-1', expect.any(AbortSignal), 40);
   });
-  it('keeps an operation alive across mode/selection changes and never activates its session on completion', async () => {
-    await ready();
+  it('does not approve a header identity until the complete matching plan body is loaded', async () => {
+    const pending = deferred<AgentRun>();
+    api.detail.mockReturnValueOnce(pending.promise);
+    const loading = load(fixtureRun());
+    await flush();
+    expect(state.locked()).toBe(true);
+    expect(state.currentView()).toBeNull();
+    state.approve(normalizeRun(fixtureRun(), 1));
+    expect(api.calls).toHaveLength(0);
+    pending.resolve(normalizeRun(fixtureRun(), 1));
+    await loading;
+    const run = state.activeRun()!;
+    expect(state.canApprove(run)).toBe(true);
+    state.approve({ ...run });
+    state.approve(run);
+    state.approve(run);
+    expect(api.calls).toHaveLength(1);
+    expect(api.calls[0].request.command).toMatchObject({
+      action: 'execute',
+      run_id: 'run-1',
+      plan_id: 'plan-1',
+      revision: 1,
+      digest: fixturePlan().digest,
+    });
+  });
+  it.each(['revision', 'digest', 'model', 'effort'] as const)(
+    'rejects a full body with mismatching %s',
+    async (field) => {
+      const body = normalizeRun(fixtureRun(), 1);
+      if (field === 'revision') body.plan!.revision++;
+      if (field === 'digest') body.plan!.digest = 'a'.repeat(64);
+      if (field === 'model') body.plan!.model = 'other';
+      if (field === 'effort') body.plan!.reasoning_effort = 'high';
+      api.detail.mockResolvedValueOnce(body);
+      await load(fixtureRun());
+      expect(state.currentView()).toBeNull();
+      expect(state.pageErrors().get('current')).toContain('Invalid Agent');
+      expect(state.locked()).toBe(true);
+    },
+  );
+  it('permits many plan revisions with revision-bound feedback and no automatic execution', async () => {
+    const run = fixtureRun();
+    run.plan!.revision = 19;
+    run.plan!.steps = Array.from({ length: 9 }, (_, index) => ({
+      ...fixturePlan().steps[0],
+      id: `step-${index}`,
+    }));
+    await load(run);
+    const loaded = state.activeRun()!;
+    state.updateFeedback(loaded, 'Change scope');
+    state.setMode('chat');
+    TestBed.tick();
+    expect(state.feedback(loaded)).toBe('Change scope');
+    state.revise(loaded, 'Change scope');
+    expect(api.calls[0].request.command).toMatchObject({
+      action: 'revise',
+      revision: 19,
+      content: 'Change scope',
+    });
+    const revised = { ...run, plan: { ...run.plan!, revision: 20, digest: 'a'.repeat(64) } };
+    api.event(0, 2, { ...run, status: 'planning', operation_id: 'operation-1' });
+    api.event(0, 3, revised);
+    api.calls[0].resolve();
+    await flush();
+    expect(state.activeRun()?.plan?.revision).toBe(20);
+    expect(state.feedback(state.activeRun()!)).toBe('');
+    state.approve(loaded);
+    expect(api.calls).toHaveLength(1);
+  });
+  it('keeps background operations alive across mode and selection changes without retaining their bodies', async () => {
+    await load();
     state.updateDraft('Read the fixture');
     state.request();
     state.setMode('chat');
     state.select('agent-2');
     await flush();
-    api.event(0, 1, fixtureRun('planning'));
-    api.event(0, 2, fixtureRun());
+    api.event(0, 2, fixtureRun('planning'));
+    api.event(0, 3, fixtureRun());
     api.calls[0].resolve();
     await flush();
     expect(api.calls[0].signal.aborted).toBe(false);
-    expect(state.mode()).toBe('chat');
     expect(state.selectedId()).toBe('agent-2');
-    expect(state.sessions().find((session) => session.id === 'agent-1')!.runs[0].status).toBe(
+    expect(state.mode()).toBe('chat');
+    expect(state.sessions().find((session) => session.id === 'agent-1')?.current_run?.status).toBe(
       'awaiting_approval',
     );
+    expect(state.visibleRuns()).toEqual([]);
   });
-  it('preserves a draft edited while its planning request is in flight', async () => {
-    await ready();
+  it('preserves an edited draft when planning admission arrives', async () => {
+    await load();
     state.updateDraft('Read the fixture');
     state.request();
     state.updateDraft('Next task');
-    api.event(0, 1, fixtureRun('planning'));
+    api.event(0, 2, fixtureRun('planning'));
     expect(state.draft()).toBe('Next task');
   });
-  it('recovers interrupted streams with GET and never repeats a POST', async () => {
-    await ready();
-    state.updateDraft('Read the fixture');
-    state.request();
-    api.event(0, 1, fixtureRun('planning'));
-    api.get.mockResolvedValue(fixtureSession(2, [fixtureRun('interrupted')]));
+  it('recovers interrupted streams with header/detail GET only and never re-POSTs execution', async () => {
+    await load(fixtureRun());
+    state.approve(state.activeRun()!);
+    api.event(0, 2, fixtureRun('approved'));
+    api.get.mockResolvedValue(fixtureSession(4, [fixtureRun('interrupted')]));
     api.calls[0].resolve();
     await vi.waitFor(() => expect(state.busy().size).toBe(0));
     expect(state.error()).toContain('before settlement');
-    expect(state.activeSession()!.runs[0].status).toBe('interrupted');
+    expect(state.currentView()?.body.status).toBe('interrupted');
     expect(api.calls).toHaveLength(1);
     expect(api.get).toHaveBeenCalledTimes(2);
   });
-  it('rejects stale callbacks from injected clients, then recovers by GET', async () => {
-    await ready();
+  it('keeps a newer control locked when an older header/detail response arrives late', async () => {
+    await load();
+    const pending = deferred<AgentSession>();
+    api.get.mockReturnValueOnce(pending.promise);
+    const refreshing = state.refresh();
     state.updateDraft('Read the fixture');
     state.request();
-    const call = api.calls[0];
-    const pending = fixtureEvent(
-      { ...call.request, request_id: 'stale' },
-      1,
-      fixtureRun('planning'),
-    );
-    expect(() => call.emit(pending)).toThrow('Invalid Agent');
-    expect(state.activeSession()!.runs).toEqual([]);
-    call.reject(new Error('invalid callback'));
-    await flush();
-    expect(api.calls).toHaveLength(1);
+    api.event(0, 2, fixtureRun('planning'));
+    pending.resolve(fixtureSession(1));
+    await refreshing;
+    expect(state.activeControl()?.status).toBe('planning');
+    expect(state.locked()).toBe(true);
   });
-  it('does not let delayed GET snapshots overwrite newer stream data', async () => {
-    await ready();
-    let resolve!: (value: ReturnType<typeof fixtureSession>) => void;
-    api.get.mockImplementationOnce(
-      () =>
-        new Promise((done) => {
-          resolve = done;
-        }),
-    );
-    const refresh = state.refresh();
-    state.updateDraft('Read the fixture');
-    state.request();
-    api.event(0, 1, fixtureRun('planning'));
-    resolve(fixtureSession());
-    await refresh;
-    expect(state.activeRun()!.status).toBe('planning');
+  it('ignores late review detail after a newer planning control and never unlocks approval', async () => {
+    await load(fixtureRun());
+    const old = state.activeRun()!;
+    const pending = deferred<AgentRun>();
+    api.detail.mockReturnValueOnce(pending.promise);
+    const opening = state.openRun('run-1', true);
+    state.revise(old, 'Change');
+    api.event(0, 2, { ...old, status: 'planning', operation_id: 'operation-1' });
+    pending.resolve(old);
+    await opening;
+    expect(state.activeControl()?.status).toBe('planning');
+    expect(state.canApprove(old)).toBe(false);
   });
-  it('aborts superseded reads and all request owners on root destruction, guarding late callbacks', async () => {
-    await ready();
-    const signals: AbortSignal[] = [];
-    api.get.mockImplementation((_sid, signal) => {
-      signals.push(signal);
-      return new Promise(() => {});
+  it.each(['selection', 'sequence'] as const)(
+    'ignores a late run-summary page after %s changes',
+    async (change) => {
+      await load();
+      const pending = deferred<RunsPage>();
+      api.runs.mockReturnValueOnce(pending.promise);
+      const work = state.loadRuns();
+      if (change === 'selection') state.select('agent-2');
+      else {
+        state.updateDraft('Read the fixture');
+        state.request();
+        api.event(0, 2, fixtureRun('planning'));
+      }
+      pending.resolve({
+        projection_version: 2,
+        session_id: 'agent-1',
+        at_sequence: 1,
+        total: 1,
+        runs: [
+          { ...controlOf(normalizeRun(fixtureRun('rejected'), 1)), request_preview: 'Obsolete' },
+        ],
+        next_before: null,
+      });
+      await work;
+      expect(state.summaries().some((entry) => entry.request_preview === 'Obsolete')).toBe(false);
+    },
+  );
+  it('replaces result windows, keeps completed progress accurate, and makes Show recent GET-only', async () => {
+    await load(manyResults('completed'));
+    const recent = state.currentView()!.body;
+    const older: ResultsPage = {
+      projection_version: 2,
+      session_id: 'agent-1',
+      run_id: recent.id,
+      at_sequence: 1,
+      total: 50,
+      completed_steps: 50,
+      results: Array.from({ length: 20 }, (_, index) => ({
+        ...recent.results[0],
+        step_id: `step-${index + 10}`,
+      })),
+      next_before: 10,
+    };
+    api.results.mockResolvedValueOnce(older);
+    await state.loadResults(recent);
+    expect(state.currentView()?.window.kind).toBe('older');
+    expect(state.currentView()?.body.results).toHaveLength(20);
+    expect(state.currentView()?.body.results[0].step_id).toBe('step-10');
+    expect(state.currentView()?.body.completed_steps).toBe(50);
+    api.results.mockResolvedValueOnce({ ...older, results: recent.results, next_before: 30 });
+    await state.loadResults(state.currentView()!.body, true);
+    expect(state.currentView()?.window.kind).toBe('recent');
+    expect(state.currentView()?.body.results[0].step_id).toBe('step-30');
+    expect(api.calls).toHaveLength(0);
+    expect(api.results.mock.calls.map(([, , , before]) => before)).toEqual([30, undefined]);
+  });
+  it('does not replace a recent live window with an older page that arrives after a current event', async () => {
+    const executing = manyResults();
+    executing.completed_steps = 49;
+    executing.results[19].status = 'running';
+    await load(executing);
+    const run = state.currentView()!.body;
+    const pending = deferred<ResultsPage>();
+    api.results.mockReturnValueOnce(pending.promise);
+    const loading = state.loadResults(run);
+    // This read-only reload observes a newer authoritative execution state.
+    const newer = manyResults();
+    api.get.mockResolvedValueOnce(fixtureSession(2, [newer]));
+    await state.refresh();
+    pending.resolve({
+      projection_version: 2,
+      session_id: 'agent-1',
+      run_id: run.id,
+      at_sequence: 1,
+      total: 50,
+      completed_steps: 49,
+      results: [],
+      next_before: null,
     });
-    state.select('agent-1');
-    state.select('agent-1');
-    expect(signals[0].aborted).toBe(true);
-    state.updateDraft('Read the fixture');
-    state.request();
-    TestBed.resetTestingModule();
-    expect(signals[1].aborted).toBe(true);
-    expect(api.calls[0].signal.aborted).toBe(true);
-    api.event(0, 1, fixtureRun('planning'));
-    expect(state.activeSession()!.runs).toEqual([]);
+    await loading;
+    expect(state.currentView()?.body.version_sequence).toBe(2);
+    expect(state.currentView()?.window.kind).toBe('recent');
   });
-  it('targets Stop at the captured operation and keeps cancelling nonterminal', async () => {
+  it('bounds live recent results at twenty and preserves an explicitly inspected older page', async () => {
+    const plan = manyResults().plan!;
+    await load({ ...fixtureRun(), plan });
+    state.approve(state.activeRun()!);
+    api.event(0, 2, { ...fixtureRun('approved'), plan });
+    api.event(0, 3, { ...fixtureRun('executing'), plan });
+    let sequence = 4;
+    for (let index = 0; index < 30; index++) {
+      const run = {
+        ...fixtureRun('executing'),
+        plan,
+        result_count: index + 1,
+        completed_steps: index + 1,
+      };
+      const result = {
+        step_id: `step-${index}`,
+        status: 'completed' as const,
+        content: `R${index}`,
+        time: run.updated_at,
+      };
+      for (const event of fixtureStepEvents(api.calls[0].request, sequence, run, result))
+        api.calls[0].emit(event);
+      sequence += 2;
+    }
+    expect(state.currentView()?.body.results).toHaveLength(20);
+    expect(state.currentView()?.body.results_before).toBe(10);
+    const run = state.currentView()!.body;
+    api.results.mockResolvedValueOnce({
+      projection_version: 2,
+      session_id: 'agent-1',
+      run_id: run.id,
+      at_sequence: sequence - 1,
+      total: 30,
+      completed_steps: 30,
+      results: Array.from({ length: 10 }, (_, index) => ({
+        ...run.results[0],
+        step_id: `step-${index}`,
+      })),
+      next_before: null,
+    });
+    await state.loadResults(run);
+    const inspected = state.currentView()!.body.results;
+    for (const event of fixtureStepEvents(
+      api.calls[0].request,
+      sequence,
+      { ...fixtureRun('executing'), plan },
+      { ...inspected[0], step_id: 'step-30' },
+    ))
+      api.calls[0].emit(event);
+    expect(state.currentView()?.window.kind).toBe('older');
+    expect(state.currentView()?.body.results).toBe(inspected);
+    expect(state.currentView()?.body.completed_steps).toBe(31);
+  });
+  it('guards double-click detail/results GETs and scopes failures without clearing controls', async () => {
+    await load(manyResults());
+    const run = state.currentView()!.body;
+    const pending = deferred<ResultsPage>();
+    api.results.mockReturnValueOnce(pending.promise);
+    const first = state.loadResults(run);
+    void state.loadResults(run);
+    expect(api.results).toHaveBeenCalledOnce();
+    pending.reject(new Error('Older results unavailable'));
+    await first;
+    expect(state.pageErrors().get('results:current')).toBe('Older results unavailable');
+    expect(state.sessionError()).toBeNull();
+    expect(state.locked()).toBe(true);
+    const detail = deferred<AgentRun>();
+    api.detail.mockReturnValueOnce(detail.promise);
+    const open = state.openRun(run.id, true);
+    void state.openRun(run.id, true);
+    expect(api.detail).toHaveBeenCalledTimes(2);
+    detail.resolve(run);
+    await open;
+  });
+  it('discards a late older-results page after a live current event without evicting the new recent window', async () => {
+    const plan = manyResults().plan!;
+    await load({ ...fixtureRun(), plan });
+    state.approve(state.activeRun()!);
+    api.event(0, 2, { ...fixtureRun('approved'), plan });
+    api.event(0, 3, { ...fixtureRun('executing'), plan });
+    const emitResult = (index: number) => {
+      const run = {
+        ...fixtureRun('executing'),
+        plan,
+        result_count: index + 1,
+        completed_steps: index + 1,
+      };
+      const result = {
+        step_id: `step-${index}`,
+        status: 'completed' as const,
+        content: `R${index}`,
+        time: fixtureRun().updated_at,
+      };
+      for (const event of fixtureStepEvents(api.calls[0].request, index * 2 + 4, run, result))
+        api.calls[0].emit(event);
+    };
+    for (let index = 0; index < 25; index++) emitResult(index);
+    const pending = deferred<ResultsPage>();
+    api.results.mockReturnValueOnce(pending.promise);
+    const older = state.loadResults(state.currentView()!.body);
+    emitResult(25);
+    pending.resolve({
+      projection_version: 2,
+      session_id: 'agent-1',
+      run_id: 'run-1',
+      at_sequence: 53,
+      total: 25,
+      completed_steps: 25,
+      results: [],
+      next_before: null,
+    });
+    await older;
+    expect(state.currentView()?.window.kind).toBe('recent');
+    expect(state.currentView()?.body.result_count).toBe(26);
+    expect(state.currentView()?.body.results).toHaveLength(20);
+    expect(state.currentView()?.body.results.at(-1)?.step_id).toBe('step-25');
+    expect(state.pageErrors().size).toBe(0);
+  });
+  it('targets Stop from authoritative control even without loaded detail and has no run timeout', async () => {
+    vi.useFakeTimers();
     state.sessions.set([fixtureSession(1, [fixtureRun('executing')])]);
     state.selectedId.set('agent-1');
-    const old = state.activeRun()!;
-    await state.stop(old);
+    const control = state.activeControl()!;
+    await vi.advanceTimersByTimeAsync(86400000);
+    await state.stop(control);
     expect(api.cancel).toHaveBeenCalledWith(
       'agent-1',
       'run-1',
@@ -253,346 +608,92 @@ describe('AgentState ownership, concurrency and UI storage', () => {
       'operation-1',
       expect.any(AbortSignal),
     );
-    expect(state.activeRun()!.status).toBe('cancelling');
+    expect(state.activeControl()?.status).toBe('cancelling');
     expect(state.locked()).toBe(true);
-    state.sessions.set([
-      fixtureSession(3, [{ ...fixtureRun('executing'), operation_id: 'operation-2' }]),
-    ]);
-    await state.stop(old);
+    await state.stop(control);
     expect(api.cancel).toHaveBeenCalledOnce();
   });
-  it('rejects a waiting plan or clarification without execution', async () => {
-    review();
-    await state.reject(state.activeRun()!);
-    expect(api.reject).toHaveBeenCalledWith(
-      'agent-1',
-      'run-1',
-      expect.any(String),
-      { kind: 'plan', plan_id: 'plan-1', revision: 1, digest: FIXTURE_DIGEST },
-      expect.any(AbortSignal),
-    );
-    expect(state.activeRun()).toBeNull();
-    const run = {
-      ...fixtureRun('awaiting_clarification'),
-      plan: null,
-      clarification: { id: 'q1', questions: ['Which workspace?'] },
-    };
-    state.sessions.set([fixtureSession(1, [run])]);
-    await state.reject(run);
-    expect(api.reject).toHaveBeenLastCalledWith(
-      'agent-1',
-      'run-1',
-      expect.any(String),
-      { kind: 'clarification', clarification_id: 'q1' },
-      expect.any(AbortSignal),
-    );
-    expect(api.calls).toHaveLength(0);
-  });
-  it('binds plan feedback to the current revision and never executes it', () => {
-    review();
-    state.revise(state.activeRun()!, 'Use fewer lines');
-    expect(api.calls[0].request.command).toEqual({
-      action: 'revise',
-      run_id: 'run-1',
-      kind: 'feedback',
-      content: 'Use fewer lines',
-      plan_id: 'plan-1',
-      revision: 1,
-      digest: FIXTURE_DIGEST,
-    });
-  });
-  it('retains pending archive history and only marks archived after a server acknowledgement', async () => {
-    state.sessions.set([fixtureSession(1, [fixtureRun('executing')])]);
-    state.selectedId.set('agent-1');
-    api.archive.mockResolvedValueOnce({
-      ...fixtureSession(2, [fixtureRun('cancelling')]),
-      archive_pending: true,
-    });
-    await state.archive('agent-1');
+  it('keeps in-flight archive ownership across older reads and stream completion, then preserves 202 pending', async () => {
+    await load(fixtureRun());
+    state.approve(state.activeRun()!);
+    api.event(0, 2, fixtureRun('approved'));
+    const pending = deferred<AgentSession>();
+    api.archive.mockReturnValueOnce(pending.promise);
+    const archiving = state.archive('agent-1');
+    api.event(0, 3, fixtureRun('cancelled'));
+    api.calls[0].resolve();
+    await flush();
     expect(state.archivePending().has('agent-1')).toBe(true);
-    expect(state.activeSession()!.archived).toBe(false);
-    expect(state.sessions()).toHaveLength(1);
-    api.get.mockResolvedValue({ ...fixtureSession(3, [fixtureRun('cancelled')]), archived: true });
-    await state.refresh();
-    expect(state.activeSession()!.archived).toBe(true);
-    expect(state.archivePending().size).toBe(0);
-    expect(state.sessions()).toHaveLength(1);
-  });
-  it('surfaces unavailable BFF errors with no fabricated history', async () => {
-    api.list.mockRejectedValue(new Error('Agent is unavailable; configure the BFF.'));
-    await state.load();
-    expect(state.sessions()).toEqual([]);
-    expect(state.error()).toContain('configure the BFF');
-  });
-  it('aborts superseded lists and does not let a late creation change a newer selection', async () => {
-    const signals: AbortSignal[] = [];
-    let finishList!: (sessions: ReturnType<typeof fixtureSession>[]) => void;
-    api.list.mockImplementationOnce((signal) => {
-      signals.push(signal);
-      return new Promise((resolve) => {
-        finishList = resolve;
-      });
+    expect(state.locked()).toBe(true);
+    pending.resolve({ ...fixtureSession(4, [fixtureRun('cancelled')]), archive_pending: true });
+    await archiving;
+    expect(state.archivePending().has('agent-1')).toBe(true);
+    api.get.mockResolvedValueOnce({
+      ...fixtureSession(5, [fixtureRun('cancelled')]),
+      archived: true,
     });
-    const oldList = state.load();
-    await state.load();
-    expect(signals[0].aborted).toBe(true);
-    finishList([fixtureSession(0, [], 'obsolete')]);
-    await oldList;
-    expect(state.sessions().some((session) => session.id === 'obsolete')).toBe(false);
-    let finishCreate!: (session: ReturnType<typeof fixtureSession>) => void;
-    api.create.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishCreate = resolve;
-        }),
-    );
-    const creating = state.create('model-a');
-    state.select('agent-1');
-    finishCreate(fixtureSession(0, [], 'created-later'));
-    await creating;
-    expect(state.selectedId()).toBe('agent-1');
-    expect(state.sessions().some((session) => session.id === 'created-later')).toBe(true);
+    await state.refresh();
+    expect(state.activeSession()?.archived).toBe(true);
+    expect(state.archivePending().size).toBe(0);
   });
-  it('persists revision-bound feedback and does not carry it into a different plan', () => {
-    review();
-    const run = state.activeRun()!;
-    state.updateFeedback(run, 'Only one line, please');
-    state.setMode('chat');
-    TestBed.tick();
-    expect(state.feedback(run)).toBe('Only one line, please');
-    expect(storage.records.get(AGENT_UI_STORAGE_KEY)).toContain('Only one line, please');
-    const revised = { ...run, plan: { ...run.plan!, revision: 2, digest: 'r2' } };
-    state.sessions.set([fixtureSession(2, [revised])]);
-    expect(state.feedback(revised)).toBe('');
-    state.approve(run);
-    expect(api.calls).toHaveLength(0);
-  });
-  it('keeps failed archive acknowledgement uncertain until authoritative state clears it', async () => {
-    state.sessions.set([fixtureSession(1, [fixtureRun('cancelling')])]);
-    state.selectedId.set('agent-1');
+  it('keeps failed archive acknowledgement uncertain until an authoritative GET clears it', async () => {
+    await load();
     api.archive.mockRejectedValueOnce(new Error('Archive unavailable'));
     await state.archive('agent-1');
     expect(state.archivePending().has('agent-1')).toBe(true);
-    expect(state.activeSession()!.archived).toBe(false);
-    expect(state.error()).toBe('Archive unavailable');
-    api.get.mockResolvedValueOnce({
-      ...fixtureSession(2, [fixtureRun('cancelling')]),
-      archive_pending: false,
-    });
+    expect(state.sessionError()).toBe('Archive unavailable');
+    api.get.mockResolvedValueOnce(fixtureSession(2));
     await state.refresh();
     expect(state.archivePending().size).toBe(0);
   });
-  it.each([undefined, true])(
-    'keeps a settled run locked until pending archive is acknowledged (flag=%s)',
-    async (archive_pending) => {
-      state.sessions.set([fixtureSession(1, [fixtureRun('executing')])]);
-      state.selectedId.set('agent-1');
-      state.updateDraft('Keep this unsent draft');
-      api.archive.mockResolvedValueOnce({
-        ...fixtureSession(2, [fixtureRun('cancelling')]),
-        archive_pending: true,
-      });
-      await state.archive('agent-1');
-      const session = fixtureSession(3, [fixtureRun('cancelled')]);
-      if (archive_pending === undefined) delete session.archive_pending;
-      else session.archive_pending = archive_pending;
-      api.get.mockResolvedValueOnce(session);
-      await state.refresh();
-      expect(state.activeRun()).toBeNull();
-      expect(state.archivePending().has('agent-1')).toBe(true);
-      expect(state.locked()).toBe(true);
-      expect(state.canRequest()).toBe(false);
-      state.updateDraft('Must not replace the pending-archive draft');
-      await state.preferences({ model: 'model-b', reasoning_effort: 'high' });
-      state.request();
-      expect(state.draft()).toBe('Keep this unsent draft');
-      expect(api.patch).not.toHaveBeenCalled();
-      expect(api.calls).toHaveLength(0);
-      api.get.mockResolvedValueOnce({
-        ...fixtureSession(4, [fixtureRun('cancelled')]),
-        archived: true,
-        archive_pending: false,
-      });
-      await state.refresh();
-      expect(state.archivePending().size).toBe(0);
-      expect(state.activeSession()!.archived).toBe(true);
-    },
-  );
-  it('restores the server pending-archive marker and blocks review mutations', async () => {
-    const session = { ...fixtureSession(1, [fixtureRun()]), archive_pending: true };
-    api.list.mockResolvedValueOnce([session]);
-    api.get.mockResolvedValueOnce(session);
-    await ready();
-    const run = state.activeRun()!;
-    state.approve(run);
-    state.revise(run, 'Must not revise');
-    state.updateFeedback(run, 'Must not edit');
-    await state.reject(run);
-    expect(state.archivePending().has(session.id)).toBe(true);
-    expect(api.calls).toHaveLength(0);
-    expect(api.reject).not.toHaveBeenCalled();
-    expect(state.feedback(run)).toBe('');
-  });
-  it.each(['wrong content', 'historical run'])(
-    'does not apply a %s planning acknowledgement or clear its draft',
-    async (kind) => {
-      const initial = fixtureSession(0, kind === 'historical run' ? [fixtureRun('rejected')] : []);
-      api.list.mockResolvedValueOnce([initial]);
-      api.get.mockResolvedValue(initial);
-      await ready();
-      state.updateDraft('Read the fixture');
-      state.request();
-      const acknowledgement = { ...initial, sequence: 1 };
-      api.calls[0].emit({
-        ...fixtureEvent(api.calls[0].request, 1, fixtureRun('planning')),
-        run_id: null,
-        operation_id: null,
-        type: 'session.updated',
-        session: acknowledgement,
-      });
-      expect(state.draft()).toBe('Read the fixture');
-      const badRun = fixtureRun('planning');
-      if (kind === 'wrong content') badRun.request = 'Some unrelated request';
-      expect(() => api.event(0, 2, badRun)).toThrow('Invalid Agent');
-      expect(state.activeSession()).toEqual(acknowledgement);
-      expect(state.draft()).toBe('Read the fixture');
-      api.calls[0].reject(new Error('Invalid planning acknowledgement'));
-      await vi.waitFor(() => expect(state.busy().size).toBe(0));
-      expect(state.activeSession()).toEqual(acknowledgement);
-      expect(state.draft()).toBe('Read the fixture');
-      expect(api.calls).toHaveLength(1);
-    },
-  );
-  it('keeps background operation failures with their session and preserves newer foreground/global errors', async () => {
-    await ready();
+  it('keeps background failures scoped and does not overwrite newer command errors with old read errors', async () => {
+    await load();
+    const pending = deferred<AgentSession>();
+    api.get.mockReturnValueOnce(pending.promise);
+    const refreshing = state.refresh();
+    api.patch.mockRejectedValueOnce(new Error('New preference error'));
+    await state.preferences({ model: 'other' });
+    pending.reject(new Error('Old read error'));
+    await refreshing;
+    expect(state.sessionError()).toBe('New preference error');
     state.updateDraft('Read the fixture');
     state.request();
+    api.get.mockImplementation(async (sid) => fixtureSession(1, [], sid));
     state.select('agent-2');
     await flush();
+    api.calls[0].reject(new Error('Background failure'));
+    await vi.waitFor(() => expect(state.busy().size).toBe(0));
+    expect(state.sessionErrors().get('agent-1')).toBe('Background failure');
+    expect(state.sessionError()).toBeNull();
+  });
+  it('retains command error ownership and recovery failure guidance without repeating commands', async () => {
+    await load();
     state.updateDraft('Read the fixture');
     state.request();
-    api.calls[1].reject(new Error('B foreground failure'));
-    await vi.waitFor(() => expect(state.sessionError()).toBe('B foreground failure'));
-    api.calls[0].reject(new Error('A background failure'));
-    await vi.waitFor(() =>
-      expect(state.sessionErrors().get('agent-1')).toBe('A background failure'),
-    );
-    expect(state.error()).toBe('B foreground failure');
+    api.event(0, 2, fixtureRun('planning'));
+    api.get.mockRejectedValueOnce(new Error('Recovery unavailable'));
+    api.calls[0].reject(new Error('Planning failed'));
+    await vi.waitFor(() => expect(state.busy().size).toBe(0));
+    expect(state.sessionError()).toContain('Planning failed');
+    expect(state.sessionError()).toContain('History recovery failed: Recovery unavailable');
+    expect(api.calls).toHaveLength(1);
+  });
+  it('does not let a late creation change a newer selection and aborts all request owners on destruction', async () => {
+    await load();
+    const created = deferred<AgentSession>();
+    api.create.mockReturnValueOnce(created.promise);
+    const creating = state.create('model-a');
+    api.get.mockImplementation(async (sid) => fixtureSession(1, [], sid));
+    state.select('agent-2');
+    created.resolve(fixtureSession(0, [], 'new'));
+    await creating;
     expect(state.selectedId()).toBe('agent-2');
-    api.list.mockRejectedValueOnce(new Error('Global list failure'));
-    await state.load();
-    expect(state.globalError()).toBe('Global list failure');
-    expect(state.sessionError()).toBe('B foreground failure');
-    api.create.mockRejectedValueOnce(new Error('Global creation failure'));
-    await state.create('model-a');
-    expect(state.globalError()).toBe('Global creation failure');
-    expect(state.sessionError()).toBe('B foreground failure');
-    state.select('agent-1');
     await flush();
-    expect(state.sessionError()).toBe('A background failure');
-  });
-  it('does not let an older read failure overwrite a newer operation error in the same session', async () => {
-    await ready();
-    let rejectRead!: (error: Error) => void;
-    api.get.mockImplementationOnce(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectRead = reject;
-        }),
-    );
-    const reading = state.refresh();
-    api.patch.mockRejectedValueOnce(new Error('Newer preference failure'));
-    await state.preferences({ model: 'model-b' });
-    rejectRead(new Error('Obsolete read failure'));
-    await reading;
-    expect(state.sessionError()).toBe('Newer preference failure');
-    expect(state.globalError()).toBeNull();
-  });
-  it('keeps an in-flight archive locked when an older GET and terminal stream snapshot say not pending', async () => {
-    review();
-    state.updateDraft('Next task');
-    state.approve(state.activeRun()!);
-    api.event(0, 2, fixtureRun('approved'));
-    api.event(0, 3, fixtureRun('executing'));
-    let finishRead!: (session: ReturnType<typeof fixtureSession>) => void;
-    api.get.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishRead = resolve;
-        }),
-    );
-    const reading = state.refresh();
-    let finishArchive!: (session: ReturnType<typeof fixtureSession>) => void;
-    api.archive.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishArchive = resolve;
-        }),
-    );
-    const archiving = state.archive('agent-1');
-    const completed = {
-      ...fixtureRun('completed'),
-      answer: 'Read excerpt.',
-      results: [
-        {
-          step_id: 'step-1',
-          status: 'completed' as const,
-          content: 'Excerpt',
-          time: fixtureRun().updated_at,
-        },
-      ],
-    };
-    api.event(0, 4, completed);
-    api.calls[0].resolve();
-    await vi.waitFor(() => expect(state.busy().size).toBe(0));
-    finishRead(fixtureSession(3, [fixtureRun('executing')]));
-    await reading;
-    expect(state.activeSession()?.archive_pending).toBe(false);
-    expect(state.activeRun()).toBeNull();
-    expect(state.archivePending().has('agent-1')).toBe(true);
-    expect(state.locked()).toBe(true);
-    state.request();
-    await state.preferences({ model: 'model-b', reasoning_effort: 'high' });
-    state.updateDraft('Must not change while archiving');
-    expect(api.calls).toHaveLength(1);
-    expect(api.patch).not.toHaveBeenCalled();
-    expect(state.draft()).toBe('Next task');
-    finishArchive({ ...fixtureSession(5, [completed]), archived: true });
-    await archiving;
-    expect(state.archivePending().size).toBe(0);
-    expect(state.activeSession()?.archived).toBe(true);
-  });
-  it('retains active command error ownership across a successful refresh and a failed recovery GET', async () => {
-    await ready();
     state.updateDraft('Read the fixture');
     state.request();
+    TestBed.resetTestingModule();
+    expect(api.calls[0].signal.aborted).toBe(true);
     api.event(0, 1, fixtureRun('planning'));
-    api.get.mockResolvedValueOnce(fixtureSession(1, [fixtureRun('planning')]));
-    await state.refresh();
-    api.get.mockRejectedValueOnce(new Error('BFF recovery unavailable'));
-    api.calls[0].reject(new Error('Planning transport failed'));
-    await vi.waitFor(() => expect(state.busy().size).toBe(0));
-    expect(state.sessionError()).toContain('Planning transport failed');
-    expect(state.sessionError()).toContain('History recovery failed: BFF recovery unavailable');
-    expect(state.sessionError()).toContain('Reload Agent history');
-    expect(api.calls).toHaveLength(1);
-    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(state.activeControl()).toBeNull();
   });
-  it.each(['plan-less execution', 'archived active run'])(
-    'preserves state and drafts when an injected API returns %s',
-    async (kind) => {
-      await ready();
-      const initial = state.activeSession();
-      state.updateDraft('Preserve this draft');
-      const invalid = fixtureSession(1, [fixtureRun('executing')]);
-      if (kind === 'plan-less execution') invalid.runs[0].plan = null;
-      else invalid.archived = true;
-      api.get.mockResolvedValueOnce(invalid);
-      await state.refresh();
-      expect(state.activeSession()).toBe(initial);
-      expect(state.draft()).toBe('Preserve this draft');
-      expect(state.sessionError()).toContain('Invalid Agent response');
-      expect(api.calls).toHaveLength(0);
-    },
-  );
 });

@@ -1,8 +1,10 @@
 """Descriptor-relative, no-follow, bounded text reads; no shell or provider access."""
 
+import codecs
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 import threading
@@ -11,6 +13,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.agent_schemas import ReadArguments
+
+READ_CHUNK_BYTES = 8192
+PAGE_BYTES = 16000
+LINE_CHARS = 1000
+PAGE_LINES = 200
+TEXT_CONTROLS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 class AgentFault(Exception):
@@ -44,8 +52,76 @@ def open_directory(path: Path, *, check: Callable[[int], None] | None = None) ->
         raise
 
 
+def _text_page(fd: int, args: ReadArguments, check: Callable[[], None]) -> dict:
+    """Validate through real EOF; retain only a page and the current line's display prefix."""
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    selected = []
+    number, used = 1, 0
+    prefix = ""
+    line_present = line_clipped = clipped = page_full = skip_lf = False
+
+    def finish_line():
+        nonlocal number, used, prefix, line_present, line_clipped, clipped, page_full
+        if args.offset <= number < args.offset + args.limit and not page_full:
+            rendered = f"{number}: {prefix}"
+            # Count the joining newline too, so the complete content fits the byte bound.
+            size = len(rendered.encode("utf-8")) + bool(selected)
+            if used + size > PAGE_BYTES:
+                page_full = True
+            else:
+                selected.append(rendered)
+                used += size
+                clipped |= line_clipped
+        number += 1
+        prefix = ""
+        line_present = line_clipped = False
+
+    while True:
+        check()
+        block = os.read(fd, READ_CHUNK_BYTES)
+        check()
+        text = decoder.decode(block, final=not block)
+        if TEXT_CONTROLS.search(text):
+            raise ValueError("binary")
+        # splitlines preserves the old Unicode separator semantics. Only CRLF can
+        # straddle decoded chunks; finish CR immediately and swallow its following LF.
+        if text:
+            if skip_lf and text.startswith("\n"):
+                text = text[1:]
+            skip_lf = text.endswith("\r")
+        for fragment in text.splitlines(keepends=True):
+            ended = fragment[-1] in "\n\r\x85\u2028\u2029"
+            if ended:
+                fragment = fragment[:-2] if fragment.endswith("\r\n") else fragment[:-1]
+            line_present |= bool(fragment)
+            if args.offset <= number < args.offset + args.limit and not page_full:
+                remaining = LINE_CHARS - len(prefix)
+                line_clipped |= len(fragment) > remaining
+                prefix += fragment[:remaining]
+            if ended:
+                finish_line()
+        check()
+        if not block:
+            break
+    if line_present:
+        finish_line()
+    total_lines = number - 1
+    if args.offset > max(1, total_lines):
+        raise AgentFault("invalid_offset", "Offset is past the end of the file.", 422)
+    return {
+        "content": "\n".join(selected),
+        "path": args.path,
+        "offset": args.offset,
+        "returned_lines": len(selected),
+        "truncated": clipped or args.offset - 1 + len(selected) < total_lines,
+    }
+
+
 class FilePolicy:
-    VERSION = "read-text-v3"
+    VERSION = "read-text-v4"
+    # Exact released v3 rules, never recomputed from potentially changed current rules.
+    LEGACY_VERSION = "read-text-v3"
+    LEGACY_RULES_DIGEST = "060b1c1ed619a9dd292d85d30250c3e6387a0e9c67684652209cdb9fa298a20a"
     DENIED = {
         ".git",
         "node_modules",
@@ -152,12 +228,21 @@ class FilePolicy:
                 {
                     "denied_components": sorted(self.DENIED),
                     "path_rules": "shared-exclusions-storage-identity-ancestors-v3",
-                    "file_bytes": 256000,
-                    "page_bytes": 16000,
-                    "line_chars": 1000,
-                    "page_lines": 200,
+                    "text_rules": "streaming-utf8-controls-splitlines-eof-v1",
+                    "page_bytes": PAGE_BYTES,
+                    "line_chars": LINE_CHARS,
+                    "page_lines": PAGE_LINES,
                 }
             ),
+        }
+
+    def matches(self, projection: dict[str, str]) -> bool:
+        """Accept current policy or only its known size-quota predecessor at identical scope."""
+        current = self.projection()
+        return projection == current or projection == {
+            **current,
+            "version": self.LEGACY_VERSION,
+            "rules_digest": self.LEGACY_RULES_DIGEST,
         }
 
     def validate(self, args: ReadArguments) -> list[str]:
@@ -175,11 +260,14 @@ class FilePolicy:
         return parts
 
     def read(self, args: ReadArguments, stop: threading.Event, deadline: float) -> dict:
+        """deadline is a fresh per-request monotonic deadline supplied by the caller."""
         parts = self.validate(args)
 
         def check():
-            if stop.is_set() or time.monotonic() >= deadline:
+            if stop.is_set():
                 raise AgentFault("operation_stopped", "The read operation stopped.")
+            if time.monotonic() >= deadline:
+                raise AgentFault("file_timeout", "The file read exceeded its request timeout.")
 
         check()
         fd = None
@@ -208,48 +296,20 @@ class FilePolicy:
             exclude_storage(directory)
             fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
             info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode) or info.st_size > 256_000:
-                raise AgentFault("file_unsupported", "Read requires a text file of at most 256 KB.")
-            chunks = []
-            size = 0
-            while True:
-                check()
-                block = os.read(fd, min(8192, 256_001 - size))
-                if not block:
-                    break
-                chunks.append(block)
-                size += len(block)
-                if size > 256_000:
-                    raise AgentFault("file_unsupported", "The file exceeds the read size limit.")
-            raw = b"".join(chunks)
-            if b"\x00" in raw:
-                raise ValueError("binary")
-            text = raw.decode("utf-8")
-            if any(ord(c) < 32 and c not in "\n\r\t" for c in text):
-                raise ValueError("binary")
-            lines = text.splitlines()
-            if args.offset > max(1, len(lines)):
-                raise AgentFault("invalid_offset", "Offset is past the end of the file.", 422)
-            selected = []
-            used = 0
-            clipped = False
-            for number, line in enumerate(
-                lines[args.offset - 1 : args.offset - 1 + args.limit], args.offset
+            if not stat.S_ISREG(info.st_mode):
+                raise AgentFault("file_unsupported", "Read requires a regular text file.")
+            result = _text_page(fd, args, check)
+            after = os.fstat(fd)
+            check()
+            # The fd pins the opened file across path replacement. Fail closed on
+            # observed mutation rather than returning a mixed or falsely complete page.
+            if (info.st_size, info.st_mtime_ns, info.st_ctime_ns) != (
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_ctime_ns,
             ):
-                check()
-                clipped |= len(line) > 1000
-                rendered = f"{number}: {line[:1000]}"
-                if used + len(rendered.encode()) > 16000:
-                    break
-                selected.append(rendered)
-                used += len(rendered.encode())
-            return {
-                "content": "\n".join(selected),
-                "path": args.path,
-                "offset": args.offset,
-                "returned_lines": len(selected),
-                "truncated": clipped or args.offset - 1 + len(selected) < len(lines),
-            }
+                raise ValueError("file changed during read")
+            return result
         except (OSError, ValueError) as exc:
             raise AgentFault(
                 "file_unavailable", "The file is unavailable or is not UTF-8 text."

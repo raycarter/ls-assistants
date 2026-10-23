@@ -14,13 +14,20 @@ router = APIRouter()
 
 
 class ClosingStreamingResponse(StreamingResponse):
-    def __init__(self, content: AsyncIterator[str], *, deadline: float) -> None:
+    def __init__(
+        self,
+        content: AsyncIterator[str],
+        *,
+        deadline: float | None = None,
+        send_timeout_seconds: float = 30,
+    ) -> None:
         super().__init__(
             content,
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
         )
         self.deadline = deadline
+        self.send_timeout_seconds = send_timeout_seconds
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         disconnected_send = False
@@ -46,15 +53,18 @@ class ClosingStreamingResponse(StreamingResponse):
 
     async def stream_response(self, send: Send) -> None:
         async def send_before_deadline(message: Message) -> None:
-            # Reuse the provider's absolute deadline, including headers and terminal sends.
-            # An expired deadline permits only a write that completes without suspending.
-            async with asyncio.timeout_at(self.deadline):
+            # Chat retains its provider deadline. Agent gives each ASGI send its
+            # own timeout; waiting for another frame consumes no transport lifetime.
+            deadline = self.deadline
+            if deadline is None:
+                deadline = asyncio.get_running_loop().time() + self.send_timeout_seconds
+            async with asyncio.timeout_at(deadline):
                 await send(message)
 
         try:
             await super().stream_response(send_before_deadline)
         except TimeoutError:
-            # The transport cannot accept a frame within the budget. Do not attempt
+            # The transport cannot accept this send before its timeout. Do not attempt
             # another error/end frame on it; returning lets the ASGI server end the response.
             return
         finally:

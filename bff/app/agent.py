@@ -1,6 +1,8 @@
 """Backend-owned request/approval/settlement coordinator; no autonomous LLM loop."""
 
 import asyncio
+import json
+import math
 import threading
 import time
 from collections.abc import AsyncIterator
@@ -50,7 +52,6 @@ class PlanningInput:
     feedback: str | None = None
     instructions: str = INSTRUCTIONS
     attempt: int = 1
-    max_attempts: int = 8
     available_tools: tuple[str, ...] = ()
 
 
@@ -65,14 +66,12 @@ class Operation:
     rid: str
     request_id: str
     after: int
-    deadline: float
     context: PlanningInput | None
     gate: asyncio.Event = field(default_factory=asyncio.Event)
     stop: threading.Event = field(default_factory=threading.Event)
     signal: asyncio.Event = field(default_factory=asyncio.Event)
     reason: str = "cancelled"
     task: asyncio.Task | None = None
-    timer: asyncio.Task | None = None
     stopping: asyncio.Task | None = None
 
 
@@ -86,7 +85,25 @@ class AgentService:
         fetcher: WebFetcher | None = None,
         models: tuple[str, ...] = (),
         eager: bool = True,
+        planner_timeout_seconds: float = 120,
+        file_timeout_seconds: float = 30,
+        send_timeout_seconds: float = 30,
     ):
+        for name, value in (
+            ("planner_timeout_seconds", planner_timeout_seconds),
+            ("file_timeout_seconds", file_timeout_seconds),
+            ("send_timeout_seconds", send_timeout_seconds),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be positive and finite")
+        self.planner_timeout_seconds = planner_timeout_seconds
+        self.file_timeout_seconds = file_timeout_seconds
+        self.send_timeout_seconds = send_timeout_seconds
         self.store = store or SessionStore()
         self.planner, self.files, self.models = planner, files or FilePolicy(), models
         self.fetcher = fetcher if fetcher is not None else WebFetcher()
@@ -187,6 +204,38 @@ class AgentService:
             snapshot = await self.io(self.store.get, sid)
             return {"events": events, "has_more": after + len(events) < snapshot.sequence}
 
+    async def public_session(self, sid: str):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_session, sid)
+
+    async def public_list(self, include_archived: bool, limit: int = 25, cursor: str | None = None):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_list, include_archived, limit, cursor)
+
+    async def public_runs(self, sid: str, limit: int = 10, before: int | None = None):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_runs, sid, limit, before)
+
+    async def public_run(self, sid: str, rid: str, limit: int = 20, before: int | None = None):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_run, sid, rid, limit, before)
+
+    async def public_results(self, sid: str, rid: str, limit: int = 20, before: int | None = None):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_results, sid, rid, limit, before)
+
+    async def public_events(
+        self, sid: str, after: int, limit: int = 50, through: int | None = None
+    ):
+        async with self.lock:
+            await self.ready()
+            return await self.io(self.store.public_events, sid, after, limit, through)
+
     async def artifact(self, sid: str, artifact_id: str, offset: int, limit: int):
         async with self.lock:
             await self.ready()
@@ -251,8 +300,6 @@ class AgentService:
     async def prepare(self, sid: str, body, *, rid: str | None = None, action="plan") -> Operation:
         if self.closing:
             raise AgentFault("service_closing", "Agent service is shutting down.", 503)
-        if len(self.admissions) >= 4:
-            raise AgentFault("capacity_exceeded", "Agent admission capacity is occupied.", 429)
         abandoned = asyncio.Event()
 
         async def admitted():
@@ -293,19 +340,15 @@ class AgentService:
                     )
                 if snapshot.archived or snapshot.archive_pending:
                     raise AgentFault("session_archived", "Archived sessions are read-only.")
-                if len(self.active) >= 4:
-                    raise AgentFault(
-                        "capacity_exceeded", "Agent operation capacity is occupied.", 429
-                    )
                 if any(op.sid == sid for op in self.active.values()):
                     raise AgentFault(
                         "operation_active", "Wait for the current operation to settle."
                     )
                 context = None
                 if action == "plan":
-                    if self.waiting(snapshot) or len(snapshot.runs) >= 8:
+                    if self.waiting(snapshot):
                         raise AgentFault(
-                            "run_conflict", "The session is waiting or has reached its run limit."
+                            "run_conflict", "The session is waiting for its current run."
                         )
                     now = self.store.clock()
                     run = AgentRun(
@@ -337,10 +380,6 @@ class AgentService:
                     run.status = "approved"
                 else:
                     attempts = self.store.attempt_count(sid, run.id)
-                    if attempts >= 8:
-                        raise AgentFault(
-                            "attempt_limit", "Planning attempt allowance is exhausted."
-                        )
                     context = PlanningInput(
                         request=run.request,
                         model=snapshot.model,
@@ -357,31 +396,20 @@ class AgentService:
                     rid=run.id,
                     request_id=body.request_id,
                     after=snapshot.sequence,
-                    deadline=time.monotonic()
-                    + (run.plan.limits.timeout_seconds if action == "execute" else 30),
                     context=context,
                 )
                 run.operation_id = op.id
-                await self.io(self.store.reserve, snapshot, op.id, executing=action == "execute")
-                try:
-                    await self.commit(
-                        snapshot,
-                        "run.approved" if action == "execute" else "run.planning",
-                        body.request_id,
-                        run_id=run.id,
-                        operation_id=op.id,
-                        claim=claim,
-                        reservation=op.id,
-                        audit={"feedback": context.feedback}
-                        if context and context.feedback
-                        else {},
-                    )
-                except BaseException:
-                    await self.io(self.store.release, op.id)
-                    raise
+                await self.commit(
+                    snapshot,
+                    "run.approved" if action == "execute" else "run.planning",
+                    body.request_id,
+                    run_id=run.id,
+                    operation_id=op.id,
+                    claim=claim,
+                    audit={"feedback": context.feedback} if context and context.feedback else {},
+                )
                 self.active[op.id] = op
                 op.task = asyncio.create_task(self.drive(op))
-                op.timer = asyncio.create_task(self.deadline(op))
                 return op
 
     async def transition(self, op: Operation, kind: str, mutate=None, audit=None):
@@ -398,19 +426,12 @@ class AgentService:
                 op.request_id,
                 run_id=op.rid,
                 operation_id=op.id,
-                reservation=op.id,
                 audit=audit,
             )
 
     def check_stop(self, op: Operation):
         if op.stop.is_set():
-            if op.reason == "failed":
-                raise AgentFault("timeout", "Agent operation exceeded its deadline.")
             raise AgentFault("operation_stopped", "Operation stopped.")
-        if time.monotonic() >= op.deadline:
-            op.stop.set()
-            op.reason = "failed"
-            raise AgentFault("timeout", "Agent operation exceeded its deadline.")
 
     async def planning(self, op: Operation):
         self.check_stop(op)
@@ -429,16 +450,18 @@ class AgentService:
         try:
             done, _ = await asyncio.wait(
                 {call, stop},
-                timeout=max(0, op.deadline - time.monotonic()),
+                timeout=self.planner_timeout_seconds,
                 return_when=asyncio.FIRST_COMPLETED,
             )
             if call not in done or op.stop.is_set():
-                call.cancel()
-                await asyncio.gather(call, return_exceptions=True)
                 self.check_stop(op)
-                raise AgentFault("timeout", "Agent planning exceeded its deadline.")
+                raise AgentFault("planner_timeout", "The planner request timed out; no tools ran.")
             try:
                 proposal = call.result()
+            except TimeoutError:
+                raise AgentFault(
+                    "planner_timeout", "The planner request timed out; no tools ran."
+                ) from None
             except Exception:
                 raise AgentFault(
                     "planner_unavailable", "Planner failed to return a valid plan; no tools ran."
@@ -453,7 +476,7 @@ class AgentService:
             snapshot = await self.get(op.sid)
             prior = self.run(snapshot, op.rid).plan
             material = {
-                **proposal.model_dump(),
+                **proposal.model_dump(exclude={"limits"}),
                 "id": prior.id if prior else uuid4().hex,
                 "revision": prior.revision + 1 if prior else 1,
                 "model": snapshot.model,
@@ -491,8 +514,10 @@ class AgentService:
 
             await self.transition(op, "run.awaiting_approval", reviewed)
         finally:
+            if not call.done():
+                call.cancel()
             stop.cancel()
-            await asyncio.gather(stop, return_exceptions=True)
+            await asyncio.gather(call, stop, return_exceptions=True)
 
     async def fetch_document(self, op: Operation, url: str):
         """Network exceptions are not storage faults. Own cancellation through cleanup."""
@@ -510,12 +535,10 @@ class AgentService:
         try:
             done, _ = await asyncio.wait(
                 {call, stop},
-                timeout=max(0, op.deadline - time.monotonic()),
                 return_when=asyncio.FIRST_COMPLETED,
             )
             if call not in done or op.stop.is_set():
                 self.check_stop(op)
-                raise AgentFault("timeout", "Agent operation exceeded its deadline.")
             try:
                 document = call.result()
             except AgentFault:
@@ -593,7 +616,7 @@ class AgentService:
         plan = self.run(await self.get(op.sid), op.rid).plan
         for step in plan.steps:
             self.check_stop(op)
-            # Exact frozen arguments, one bounded call per step, no model/tool re-interpretation.
+            # Exact frozen arguments, one call per step, no model/tool re-interpretation.
             self.registry.validate(step)
 
             def running(snapshot, run, step=step):
@@ -628,7 +651,18 @@ class AgentService:
             audit = {"step_id": step.id, "status": "completed"}
             if step.tool == "read_file":
                 # A read thread is cooperatively stopped and owned until it returns.
-                result = await self.io(self.files.read, step.arguments, op.stop, op.deadline)
+                reader = asyncio.create_task(
+                    self.io(
+                        self.files.read,
+                        step.arguments,
+                        op.stop,
+                        time.monotonic() + self.file_timeout_seconds,
+                    )
+                )
+                try:
+                    result = await asyncio.shield(reader)
+                finally:
+                    await asyncio.shield(asyncio.gather(reader, return_exceptions=True))
             else:
                 result, receipt = await self.fetch_result(op, step.arguments)
                 audit["artifact"] = receipt
@@ -674,8 +708,6 @@ class AgentService:
                     "Agent operation failed; no additional work was dispatched.",
                 )
             )
-            if op.stop.is_set() and op.reason == "failed":
-                fault = AgentFault("timeout", "Agent operation exceeded its deadline.")
             status = op.reason if op.stop.is_set() else "failed"
 
             def failed(snapshot, run):
@@ -701,15 +733,10 @@ class AgentService:
                     snapshot = await self.io(self.store.get, op.sid)
                     if snapshot.archive_pending:
                         snapshot.archived, snapshot.archive_pending = True, False
-                        await self.commit(
-                            snapshot, "session.archived", op.request_id, reservation=op.id
-                        )
+                        await self.commit(snapshot, "session.archived", op.request_id)
                 except AgentFault:
                     pass
                 self.active.pop(op.id, None)
-                if op.timer is not None:
-                    op.timer.cancel()
-                await self.io(self.store.release, op.id)
 
     def signal_stop(self, op: Operation, reason: str):
         # No service/store lock or filesystem operation may delay the worker's
@@ -737,10 +764,6 @@ class AgentService:
                 except AgentFault:
                     pass
 
-    async def deadline(self, op: Operation):
-        await asyncio.sleep(max(0, op.deadline - time.monotonic()))
-        self.request_stop(op, "failed")
-
     async def stop_locked(self, op: Operation, reason: str):
         self.signal_stop(op, reason)
         snapshot = await self.io(self.store.get, op.sid)
@@ -753,12 +776,10 @@ class AgentService:
                 op.request_id,
                 run_id=op.rid,
                 operation_id=op.id,
-                reservation=op.id,
             )
 
     async def disconnect(self, op: Operation):
-        reason = "failed" if time.monotonic() >= op.deadline else "interrupted"
-        task = self.request_stop(op, reason)
+        task = self.request_stop(op, "interrupted")
         if task is not None:
             # Wait briefly for the ordinary fast commit. If storage/locks stall,
             # the retained control task owns that commit beyond HTTP cleanup.
@@ -846,11 +867,12 @@ class AgentService:
         after = op.after
         try:
             while True:
-                events = await self.io(self.store.events, op.sid, after)
-                for event in events:
-                    after = event.sequence
-                    yield f"id: {event.sequence}\nevent: agent\ndata: {event.model_dump_json()}\n\n"
-                    if event.operation_id == op.id and event.type in {
+                page = await self.io(self.store.public_events, op.sid, after)
+                for event in page["events"]:
+                    after = event["sequence"]
+                    data = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                    yield f"id: {after}\nevent: agent\ndata: {data}\n\n"
+                    if event["operation_id"] == op.id and event["type"] in {
                         "run.awaiting_approval",
                         "run.completed",
                         "run.failed",
@@ -859,7 +881,7 @@ class AgentService:
                     }:
                         return
                 if op.task.done():
-                    if not events:
+                    if not page["events"]:
                         break
                 else:
                     await asyncio.sleep(0.01)

@@ -12,11 +12,14 @@ import {
   FIXTURE_DIGEST,
   fixtureRun,
   fixtureSession,
+  fixtureStepEvents,
+  fixtureList,
+  normalizeRun,
   memoryAgentStorage,
   READ_FILE_FIXTURE,
   sseResponse,
 } from './agent-api.testing';
-import type { AgentSession } from './agent.models';
+import { controlOf, type AgentSession, type AgentRun } from './agent.models';
 import type { AgentStreamRequest } from './agent-api';
 import { SettingsDialog } from './settings-dialog';
 import { By } from '@angular/platform-browser';
@@ -69,6 +72,8 @@ describe('Agent shell and mocked vertical slice', () => {
     });
     fixture = TestBed.createComponent(App);
     await settle();
+    await vi.waitFor(() => expect(TestBed.inject(AgentState).loading()).toBe(false));
+    await settle();
   }
   function root(): HTMLElement {
     return fixture.nativeElement;
@@ -86,6 +91,10 @@ describe('Agent shell and mocked vertical slice', () => {
   async function mode(value: 'chat' | 'agent'): Promise<void> {
     element<HTMLInputElement>(`input[name="interactive-mode"][value="${value}"]`).click();
     await settle();
+    if (value === 'agent') {
+      await vi.waitFor(() => expect(TestBed.inject(AgentState).loading()).toBe(false));
+      await settle();
+    }
   }
   async function button(label: string): Promise<void> {
     const button = [...root().querySelectorAll('button')].find(
@@ -103,18 +112,30 @@ describe('Agent shell and mocked vertical slice', () => {
   }
   it('runs request → review → exact approval → fixture read result → reload through the real AgentApi and HTTP doubles', async () => {
     let stored: AgentSession | null = null;
+    let storedRun: AgentRun | null = null;
     let readCalls = 0;
     const fetchDouble = vi.fn<typeof fetch>(async (input, options) => {
       const url = String(input);
       const body = options?.body ? JSON.parse(String(options.body)) : {};
-      if (url === '/api/agent/sessions?include_archived=true')
-        return Response.json({ sessions: stored ? [stored] : [] });
+      if (url === '/api/agent/sessions?include_archived=true&limit=25')
+        return Response.json(fixtureList(stored ? [stored] : []));
       if (url === '/api/agent/sessions' && options?.method === 'POST') {
         stored = fixtureSession();
         return Response.json(stored);
       }
       if (url === '/api/agent/sessions/agent-1' && options?.method === 'GET')
         return Response.json(stored);
+      if (url === '/api/agent/sessions/agent-1/runs?limit=10')
+        return Response.json({
+          projection_version: 2,
+          session_id: 'agent-1',
+          at_sequence: stored!.sequence,
+          total: storedRun ? 1 : 0,
+          runs: storedRun ? [{ ...controlOf(storedRun), request_preview: storedRun.request }] : [],
+          next_before: null,
+        });
+      if (url === '/api/agent/sessions/agent-1/runs/run-1?limit=20')
+        return Response.json(storedRun);
       if (url === '/api/agent/sessions/agent-1/runs') {
         expect(readCalls).toBe(0);
         const request: AgentStreamRequest = {
@@ -126,6 +147,7 @@ describe('Agent shell and mocked vertical slice', () => {
         const review = fixtureRun();
         review.plan!.search_policy = { kind: 'exact_queries', queries: [], enabled: false };
         stored = fixtureSession(2, [review]);
+        storedRun = normalizeRun(review, 2);
         return sseResponse([
           fixtureEvent(request, 1, fixtureRun('planning')),
           fixtureEvent(request, 2, review),
@@ -152,7 +174,7 @@ describe('Agent shell and mocked vertical slice', () => {
           },
         };
         const executing = {
-          ...stored!.runs[0],
+          ...storedRun!,
           status: 'executing' as const,
           operation_id: 'operation-1',
         };
@@ -170,10 +192,13 @@ describe('Agent shell and mocked vertical slice', () => {
           ],
           answer: '**Fixture verified.** <img src=x onerror="alert(1)">',
         };
-        stored = fixtureSession(4, [completed]);
+        stored = fixtureSession(7, [completed]);
+        storedRun = normalizeRun(completed, 7);
         return sseResponse([
-          fixtureEvent(request, 3, executing),
-          fixtureEvent(request, 4, completed),
+          fixtureEvent(request, 3, { ...executing, status: 'approved' }),
+          fixtureEvent(request, 4, executing),
+          ...fixtureStepEvents(request, 5, executing, completed.results[0]),
+          fixtureEvent(request, 7, completed),
         ]);
       }
       throw new Error(`Unexpected mocked URL ${url}`);
@@ -201,7 +226,6 @@ describe('Agent shell and mocked vertical slice', () => {
       'read_file',
       'model-a',
       'medium',
-      '30 seconds',
       'exact_queries',
       FIXTURE_DIGEST,
       'Revision 1',
@@ -213,7 +237,7 @@ describe('Agent shell and mocked vertical slice', () => {
     history.scrollTop = 42;
     await button('Approve and run');
     await vi.waitFor(() =>
-      expect(TestBed.inject(AgentState).activeSession()?.runs[0].status).toBe('completed'),
+      expect(TestBed.inject(AgentState).currentView()?.body.status).toBe('completed'),
     );
     await settle();
     expect(history.scrollTop).toBe(42);
@@ -230,7 +254,7 @@ describe('Agent shell and mocked vertical slice', () => {
     TestBed.resetTestingModule();
     await render(fetchDouble);
     await vi.waitFor(() =>
-      expect(TestBed.inject(AgentState).activeSession()?.runs[0].status).toBe('completed'),
+      expect(TestBed.inject(AgentState).currentView()?.body.status).toBe('completed'),
     );
     await settle();
     expect(root().textContent).toContain('A bounded, approved example.');
@@ -265,6 +289,33 @@ describe('Agent shell and mocked vertical slice', () => {
     expect(root().textContent).toContain('background answer');
     await mode('agent');
     expect(element<HTMLTextAreaElement>('#agent-request').value).toBe('Agent draft');
+  });
+  it('pins a restored archived selection outside page one and exposes explicit sidebar pagination with accurate counts', async () => {
+    storage.records.set(
+      AGENT_UI_STORAGE_KEY,
+      JSON.stringify({ version: 1, mode: 'agent', selectedId: 'old', legacyId: null, drafts: {} }),
+    );
+    const archived = fixtureSession(1, [fixtureRun('rejected')], 'old');
+    archived.archived = true;
+    archived.title = 'Pinned archive';
+    api.list.mockResolvedValueOnce(fixtureList([fixtureSession()], 'page2', 80));
+    api.get.mockResolvedValue(archived);
+    await render();
+    expect(TestBed.inject(AgentState).selectedId()).toBe('old');
+    const sidebar = element('[aria-label="Agent session history"]');
+    expect(sidebar.textContent).toContain('2 loaded');
+    expect(sidebar.textContent).toContain('80 total');
+    expect(sidebar.querySelector('[aria-current="true"]')?.textContent).toContain('Pinned archive');
+    expect(api.list).toHaveBeenCalledOnce();
+    expect(api.get.mock.calls[0][0]).toBe('old');
+    expect(root().querySelector('#agent-request')).toBeNull();
+    api.list.mockResolvedValueOnce(
+      fixtureList([fixtureSession(0, [], 'page2-session')], 'page3', 80),
+    );
+    await button('Load more sessions');
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(TestBed.inject(AgentState).selectedId()).toBe('old');
+    expect(sidebar.textContent).toContain('3 loaded');
   });
   it('persists a background Chat title without leaking its conversation or reply controls into Agent mode', async () => {
     await render();
@@ -395,7 +446,7 @@ describe('Agent shell and mocked vertical slice', () => {
     expect(TestBed.inject(AgentState).activeSession()).not.toHaveProperty('prompt');
   });
   it('shows truthful Stopping and pending archive states, retaining the history', async () => {
-    api.list.mockResolvedValue([fixtureSession(1, [fixtureRun('executing')])]);
+    api.list.mockResolvedValue(fixtureList([fixtureSession(1, [fixtureRun('executing')])]));
     api.get.mockResolvedValue(fixtureSession(1, [fixtureRun('executing')]));
     await render();
     await mode('agent');
@@ -425,7 +476,7 @@ describe('Agent shell and mocked vertical slice', () => {
     expect(api.calls).toHaveLength(1);
   });
   it('rejects review without execution and preserves feedback across mode switches', async () => {
-    api.list.mockResolvedValue([fixtureSession(1, [fixtureRun()])]);
+    api.list.mockResolvedValue(fixtureList([fixtureSession(1, [fixtureRun()])]));
     api.get.mockResolvedValue(fixtureSession(1, [fixtureRun()]));
     await render();
     await mode('agent');
@@ -434,6 +485,10 @@ describe('Agent shell and mocked vertical slice', () => {
     await mode('agent');
     expect(element<HTMLTextAreaElement>('#feedback-run-1').value).toBe('Read just one line');
     await button('Reject');
+    await vi.waitFor(() =>
+      expect(TestBed.inject(AgentState).currentView()?.body.status).toBe('rejected'),
+    );
+    await settle();
     expect(root().textContent).not.toContain('Approve and run');
     await fill('#agent-request', 'A new request');
     expect(TestBed.inject(AgentState).canRequest()).toBe(true);
@@ -641,7 +696,8 @@ describe('Agent shell and mocked vertical slice', () => {
       truncated: true,
     };
     const result = { ...executing, results: [clipped] };
-    api.calls[1].emit({ ...fixtureEvent(api.calls[1].request, 5, result), type: 'tool.result' });
+    for (const event of fixtureStepEvents(api.calls[1].request, 5, result, clipped))
+      api.calls[1].emit(event);
     await settle();
     const assertExcerpt = () => {
       const card = element('[aria-label="Step result"]');
@@ -661,11 +717,11 @@ describe('Agent shell and mocked vertical slice', () => {
       operation_id: null,
       answer: 'Only the clipped excerpt was read.',
     };
-    api.event(1, 6, completed);
+    api.event(1, 7, completed);
     api.calls[1].resolve();
     await settle();
-    const stored = fixtureSession(6, [completed]);
-    api.list.mockResolvedValue([stored]);
+    const stored = fixtureSession(7, [completed]);
+    api.list.mockResolvedValue(fixtureList([stored]));
     api.get.mockResolvedValue(stored);
     TestBed.resetTestingModule();
     await render();
@@ -677,7 +733,7 @@ describe('Agent shell and mocked vertical slice', () => {
       AGENT_UI_STORAGE_KEY,
       JSON.stringify({ version: 1, mode: 'agent', selectedId: null, legacyId: null, drafts: {} }),
     );
-    api.list.mockResolvedValueOnce([]);
+    api.list.mockResolvedValueOnce(fixtureList([]));
     const models = vi
       .spyOn(chat, 'models')
       .mockRejectedValueOnce(new Error('Model catalogue unavailable'));
@@ -713,7 +769,7 @@ describe('Agent shell and mocked vertical slice', () => {
           archived: true,
           title: 'Archived readable',
         };
-        api.list.mockResolvedValueOnce([fixtureSession(), archived]);
+        api.list.mockResolvedValueOnce(fixtureList([fixtureSession(), archived]));
         api.get.mockImplementation(async (sid) =>
           sid === archived.id ? archived : fixtureSession(),
         );
@@ -781,7 +837,7 @@ describe('Agent shell and mocked vertical slice', () => {
         clarification: { id: 'q1', questions: ['Which workspace?'] },
       },
     ]);
-    api.list.mockResolvedValueOnce([session]);
+    api.list.mockResolvedValueOnce(fixtureList([session]));
     api.get.mockResolvedValueOnce(session);
     await render();
     await mode('agent');

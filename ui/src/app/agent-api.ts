@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { FETCH } from './chat-api';
 import { SseDecoder, type SseEvent } from './sse-decoder';
+import { advanceResults, type ResultFrontier } from './agent-progress';
 import {
   AgentApiError,
   artifactId,
@@ -9,6 +10,15 @@ import {
   object,
   parseArtifactPage,
   parseAgentSession,
+  parseAgentEvent,
+  parseAgentRun,
+  parseSessionsPage,
+  parseRunsPage,
+  parseResultsPage,
+  parseEventsPage,
+  identityMatches,
+  sameControl,
+  isRecoveryEvent,
   settled,
   time,
   type AgentCommand,
@@ -16,6 +26,14 @@ import {
   type AgentSession,
   type ArtifactPage,
   type ReviewIdentity,
+  type AgentRun,
+  type SessionsPage,
+  type RunsPage,
+  type ResultsPage,
+  type EventsPage,
+  type ControlPlanIdentity,
+  type AgentPlan,
+  type RunControl,
 } from './agent.models';
 import type { ReasoningEffort } from './chat.models';
 
@@ -32,6 +50,8 @@ export interface AgentStreamRequest {
   sequence: number;
   command: AgentCommand;
   snapshot?: AgentSession;
+  original_request?: string;
+  reviewed_plan?: AgentPlan;
 }
 
 /** Session journal records share a sequence; only work records own the command/operation. */
@@ -42,13 +62,18 @@ export class AgentEventDecoder {
   private operationId?: string;
   private ownedStarted = false;
   private previous?: AgentSession;
-  private readonly startingRunIds: ReadonlySet<string>;
+  private readonly startingRunId: string | null;
+  private frozenPlan?: ControlPlanIdentity;
+  private ownedControl: RunControl | null = null;
+  private frontier: ResultFrontier | null = null;
   terminal = false;
 
   constructor(private readonly request: AgentStreamRequest) {
     this.sequence = request.sequence;
     this.previous = request.snapshot;
-    this.startingRunIds = new Set(request.snapshot?.runs.map((run) => run.id));
+    this.startingRunId = request.snapshot?.latest_run_id ?? null;
+    if (request.command.action === 'execute')
+      this.frozenPlan = request.snapshot?.current_run?.plan_identity ?? undefined;
     this.runId = request.command.action === 'runs' ? undefined : request.command.run_id;
   }
 
@@ -62,7 +87,7 @@ export class AgentEventDecoder {
     }
     if (
       !object(value) ||
-      value['schema_version'] !== 1 ||
+      value['schema_version'] !== 2 ||
       !/^\d+$/.test(frame.id) ||
       !Number.isSafeInteger(value['sequence']) ||
       Number(frame.id) !== value['sequence'] ||
@@ -74,12 +99,19 @@ export class AgentEventDecoder {
       !time(value['time'])
     )
       return invalidAgent();
-    const session = parseAgentSession(value['session']);
+    const event = parseAgentEvent(value);
+    const session = event.session;
     const sequence = value['sequence'] as number;
     if (session.id !== value['session_id'] || session.sequence !== sequence) return invalidAgent();
     const signature = frame.data;
     if (this.signatures.get(sequence) === signature) return null;
     if (this.terminal || sequence <= this.sequence) return invalidAgent();
+    if (isRecoveryEvent(event)) {
+      if (sequence !== this.sequence + 1) return invalidAgent();
+      this.commit(sequence, signature, session);
+      this.terminal = true;
+      return event;
+    }
     if (
       this.ownedStarted &&
       this.previous &&
@@ -92,10 +124,27 @@ export class AgentEventDecoder {
         sequence !== this.sequence + 1 ||
         value['run_id'] !== null ||
         value['operation_id'] !== null ||
-        (this.ownedStarted && !session.runs.some((run) => run.id === this.runId))
+        (this.ownedStarted &&
+          !event.invalidates_runs &&
+          (session.current_run?.id !== this.runId ||
+            (session.current_run?.operation_id !== null &&
+              session.current_run?.operation_id !== this.operationId) ||
+            (this.frozenPlan &&
+              !identityMatches(this.frozenPlan, session.current_run?.plan_identity ?? null))))
+      )
+        return invalidAgent();
+      const control = session.current_run;
+      if (
+        this.ownedControl &&
+        control &&
+        !event.invalidates_runs &&
+        (control.result_count !== this.ownedControl.result_count ||
+          control.completed_steps !== this.ownedControl.completed_steps ||
+          control.version_sequence < this.ownedControl.version_sequence)
       )
         return invalidAgent();
       this.commit(sequence, signature, session);
+      this.terminal = event.invalidates_runs;
       return value as unknown as AgentEvent;
     }
     if (
@@ -106,28 +155,41 @@ export class AgentEventDecoder {
       (this.operationId && value['operation_id'] !== this.operationId)
     )
       return invalidAgent();
-    const run = session.runs.find((entry) => entry.id === value['run_id']);
+    const run = event.run;
     if (!run || (run.operation_id !== null && run.operation_id !== value['operation_id']))
       return invalidAgent();
     const command = this.request.command;
+    if (
+      event.type === 'run.planning' &&
+      command.action === 'revise' &&
+      this.request.original_request !== undefined &&
+      event.request !== this.request.original_request
+    )
+      return invalidAgent();
     const admission =
       !this.ownedStarted &&
       (command.action === 'execute'
         ? value['type'] === 'run.approved' && run.status === 'approved'
         : value['type'] === 'run.planning' && run.status === 'planning');
+    if (!this.ownedStarted && !admission) return invalidAgent();
     // The server starts at its admission sequence, which may follow unseen metadata commits.
     if (sequence !== this.sequence + 1 && !admission) return invalidAgent();
     if (
       command.action === 'runs' &&
-      (run.request !== command.content || (!this.runId && this.startingRunIds.has(run.id)))
+      ((event.type === 'run.planning' && event.request !== command.content) ||
+        (!this.runId && this.startingRunId === run.id))
     )
       return invalidAgent();
     if (command.action === 'execute') {
       if (
-        !run.plan ||
-        run.plan.id !== command.plan_id ||
-        run.plan.revision !== command.revision ||
-        run.plan.digest !== command.digest ||
+        !this.request.reviewed_plan ||
+        !run.plan_identity ||
+        run.plan_identity.id !== command.plan_id ||
+        run.plan_identity.revision !== command.revision ||
+        run.plan_identity.digest !== command.digest ||
+        (this.request.reviewed_plan &&
+          !identityMatches(this.request.reviewed_plan, run.plan_identity)) ||
+        (this.frozenPlan && !identityMatches(this.frozenPlan, run.plan_identity)) ||
         ['planning', 'awaiting_approval', 'awaiting_clarification', 'rejected'].includes(run.status)
       )
         return invalidAgent();
@@ -135,37 +197,52 @@ export class AgentEventDecoder {
     else if (
       command.action === 'revise' &&
       run.status === 'awaiting_approval' &&
-      (!run.plan || run.plan.revision <= command.revision || run.plan.digest === command.digest)
+      (!run.plan_identity ||
+        run.plan_identity.revision <= command.revision ||
+        run.plan_identity.digest === command.digest)
     )
       return invalidAgent();
-    const previousRun = this.previous?.runs.find((entry) => entry.id === run.id);
+    const previousRun =
+      this.ownedControl ??
+      (this.previous?.current_run?.id === run.id ? this.previous.current_run : null);
     if (
       previousRun &&
-      (previousRun.request !== run.request ||
-        previousRun.created_at !== run.created_at ||
-        (previousRun.plan && run.plan && run.plan.revision < previousRun.plan.revision) ||
-        (previousRun.plan &&
-          run.plan &&
-          previousRun.plan.id === run.plan.id &&
-          previousRun.plan.revision === run.plan.revision &&
-          JSON.stringify(previousRun.plan) !== JSON.stringify(run.plan)) ||
+      (previousRun.created_at !== run.created_at ||
+        run.version_sequence < previousRun.version_sequence ||
+        (run.version_sequence === previousRun.version_sequence && !sameControl(previousRun, run)) ||
+        run.completed_steps < previousRun.completed_steps ||
+        run.result_count < previousRun.result_count ||
+        (previousRun.plan_identity &&
+          run.plan_identity &&
+          run.plan_identity.revision < previousRun.plan_identity.revision) ||
+        (previousRun.plan_identity &&
+          run.plan_identity &&
+          previousRun.plan_identity.revision === run.plan_identity.revision &&
+          !identityMatches(previousRun.plan_identity, run.plan_identity)) ||
         (previousRun.status === 'executing' && run.status === 'approved') ||
         (previousRun.status === 'cancelling' &&
           !['cancelling', 'cancelled', 'interrupted', 'failed'].includes(run.status)))
     )
       return invalidAgent();
+    if (this.request.command.action === 'execute' && this.request.reviewed_plan)
+      this.frontier = advanceResults(previousRun, event, this.request.reviewed_plan, this.frontier);
+    this.ownedControl = run;
     this.runId = run.id;
+    if (command.action === 'execute') this.frozenPlan ??= run.plan_identity ?? undefined;
     this.operationId = value['operation_id'];
     this.ownedStarted = true;
     this.commit(sequence, signature, session);
     this.terminal =
-      settled(run) || ['awaiting_approval', 'awaiting_clarification'].includes(run.status);
+      event.invalidates_runs ||
+      settled(run) ||
+      ['awaiting_approval', 'awaiting_clarification'].includes(run.status);
     return value as unknown as AgentEvent;
   }
 
   private commit(sequence: number, signature: string, session: AgentSession): void {
     this.sequence = sequence;
     this.signatures.set(sequence, signature);
+    if (this.signatures.size > 64) this.signatures.delete(this.signatures.keys().next().value!);
     this.previous = session;
   }
 }
@@ -174,16 +251,101 @@ export class AgentEventDecoder {
 export class AgentApi {
   private readonly fetch = inject(FETCH);
 
-  async list(signal: AbortSignal): Promise<AgentSession[]> {
-    const body = await this.json(`${BASE}?include_archived=true`, signal);
-    if (!object(body) || !Array.isArray(body['sessions'])) return invalidAgent();
-    const sessions = body['sessions'].map(parseAgentSession);
-    if (new Set(sessions.map((session) => session.id)).size !== sessions.length)
+  async list(signal: AbortSignal, cursor?: string): Promise<SessionsPage> {
+    const page = parseSessionsPage(
+      await this.json(
+        `${BASE}?include_archived=true&limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        signal,
+      ),
+    );
+    if (
+      page.sessions.length > 25 ||
+      (page.next_cursor !== null && (!page.sessions.length || page.next_cursor === cursor))
+    )
       return invalidAgent();
-    return sessions;
+    return page;
   }
   async get(sid: string, signal: AbortSignal): Promise<AgentSession> {
     return this.session(sid, await this.json(this.path(sid), signal));
+  }
+  async runs(sid: string, signal: AbortSignal, before?: number): Promise<RunsPage> {
+    this.before(before);
+    const page = parseRunsPage(
+      await this.json(
+        `${this.path(sid)}/runs?limit=10${before === undefined ? '' : `&before=${before}`}`,
+        signal,
+      ),
+    );
+    if (
+      page.session_id !== sid ||
+      page.runs.length > 10 ||
+      (page.next_before !== null &&
+        (!page.runs.length || (before !== undefined && page.next_before >= before)))
+    )
+      return invalidAgent();
+    return page;
+  }
+  async detail(sid: string, rid: string, signal: AbortSignal, before?: number): Promise<AgentRun> {
+    this.before(before);
+    const run = parseAgentRun(
+      await this.json(
+        `${this.path(sid)}/runs/${encodeURIComponent(rid)}?limit=20${before === undefined ? '' : `&before=${before}`}`,
+        signal,
+      ),
+    );
+    if (run.id !== rid || run.results.length > 20) return invalidAgent();
+    return run;
+  }
+  async results(
+    sid: string,
+    rid: string,
+    signal: AbortSignal,
+    before?: number,
+  ): Promise<ResultsPage> {
+    this.before(before);
+    const page = parseResultsPage(
+      await this.json(
+        `${this.path(sid)}/runs/${encodeURIComponent(rid)}/results?limit=20${before === undefined ? '' : `&before=${before}`}`,
+        signal,
+      ),
+    );
+    if (
+      page.session_id !== sid ||
+      page.run_id !== rid ||
+      page.results.length > 20 ||
+      (page.next_before !== null &&
+        (!page.results.length || (before !== undefined && page.next_before >= before)))
+    )
+      return invalidAgent();
+    return page;
+  }
+  async events(
+    sid: string,
+    after: number,
+    signal: AbortSignal,
+    through?: number,
+  ): Promise<EventsPage> {
+    this.before(after);
+    this.before(through);
+    const page = parseEventsPage(
+      await this.json(
+        `${this.path(sid)}/events?after=${after}&limit=50${through === undefined ? '' : `&through=${through}`}`,
+        signal,
+      ),
+    );
+    if (
+      page.events.length > 50 ||
+      page.events.some((event) => event.session_id !== sid) ||
+      (page.events.length && page.events[0].sequence !== after + 1) ||
+      page.next_after < after ||
+      (through !== undefined && page.through_sequence !== through) ||
+      (!page.events.length && page.has_more)
+    )
+      return invalidAgent();
+    return page;
+  }
+  private before(value?: number): void {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) invalidAgent();
   }
   /** Reads retained evidence only; never dispatches or replays a tool. */
   async artifactPage(

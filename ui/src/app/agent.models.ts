@@ -1,79 +1,94 @@
-import { REASONING_EFFORTS, type ReasoningEffort } from './chat.models';
+import type { ReasoningEffort } from './chat.models';
+import {
+  RUN_STATUSES,
+  effort,
+  errorShape,
+  id,
+  integer,
+  invalidAgent,
+  object,
+  onlyKeys,
+  settled,
+  strings,
+  text,
+  time,
+  unique,
+  validPlan,
+  validResult,
+  type AgentPlan,
+  type RunStatus,
+  type StepResult,
+} from './agent-legacy.models';
 
-export const RUN_STATUSES = [
-  'planning',
-  'awaiting_clarification',
-  'awaiting_approval',
-  'approved',
-  'executing',
-  'cancelling',
-  'completed',
-  'rejected',
-  'failed',
-  'cancelled',
-  'interrupted',
-] as const;
-export type RunStatus = (typeof RUN_STATUSES)[number];
-export interface ReadArguments {
-  workspace_id: string;
-  path: string;
-  offset: number;
-  limit: number;
+export {
+  AgentApiError,
+  RUN_STATUSES,
+  artifactId,
+  id,
+  integer,
+  invalidAgent,
+  object,
+  parseArtifactPage,
+  planIdentity,
+  safeHttpUrl,
+  settled,
+  text,
+  time,
+} from './agent-legacy.models';
+export type {
+  AgentCommand,
+  AgentPlan,
+  AgentStep,
+  ArtifactPage,
+  FetchMetadata,
+  PlanIdentity,
+  ReviewIdentity,
+  Revision,
+  RunStatus,
+  StepResult,
+} from './agent-legacy.models';
+
+export interface AgentError {
+  code: string;
+  message: string;
 }
-export interface FetchArguments {
-  url: string;
-  offset: number;
-  limit: number;
+export type ControlPlanIdentity = Pick<
+  AgentPlan,
+  'id' | 'revision' | 'digest' | 'model' | 'reasoning_effort'
+>;
+export interface RunControl {
+  id: string;
+  status: RunStatus;
+  operation_id: string | null;
+  created_at: string;
+  updated_at: string;
+  version_sequence: number;
+  plan_identity: ControlPlanIdentity | null;
+  result_count: number;
+  completed_steps: number;
+  error: AgentError | null;
 }
-export type AgentStep = {
+export interface RunSummary extends RunControl {
+  request_preview: string;
+}
+/** The production public session shape is a header, with no embedded history. */
+export interface AgentSession {
+  projection_version: 2;
   id: string;
   title: string;
-  description: string;
-} & (
-  { tool: 'read_file'; arguments: ReadArguments } | { tool: 'web_fetch'; arguments: FetchArguments }
-);
-export interface ArtifactPage {
-  artifact_id: string;
-  content: string;
-  offset: number;
-  returned_chars: number;
-  total_chars: number;
-  next_offset: number | null;
-}
-export interface FetchMetadata extends Omit<ArtifactPage, 'content'> {
-  requested_url: string;
-  final_url: string;
-  title: string | null;
-  status_code: number;
-  content_type: string;
-  fetched_at: string;
-  redirects: string[];
-}
-export interface AgentPlan {
-  id: string;
-  revision: number;
-  digest: string;
-  objective: string;
-  assumptions: string[];
   model: string;
   reasoning_effort: ReasoningEffort;
-  limits: { max_steps: number; max_tool_calls: number; timeout_seconds: number };
-  steps: AgentStep[];
-  search_policy?: unknown;
-}
-export interface StepResult {
-  step_id: string;
-  status: 'running' | 'completed' | 'failed';
-  content: string;
-  time: string;
-  error?: { code: string; message: string } | null;
-  path?: string | null;
-  offset?: number | null;
-  returned_lines?: number | null;
-  truncated?: boolean;
-  fetch?: FetchMetadata | null;
+  created_at: string;
+  updated_at: string;
+  archived: boolean;
+  archive_pending: boolean;
+  sequence: number;
+  run_count: number;
+  latest_run_id: string | null;
+  current_run: RunControl | null;
 }
 export interface AgentRun {
+  projection_version: 2;
   id: string;
   request: string;
   created_at: string;
@@ -83,23 +98,40 @@ export interface AgentRun {
   plan: AgentPlan | null;
   results: StepResult[];
   answer: string | null;
-  error: { code: string; message: string } | null;
-  clarification?: { id: string; questions: string[] } | null;
+  error: AgentError | null;
+  clarification: { id: string; questions: string[] } | null;
+  version_sequence: number;
+  result_count: number;
+  completed_steps: number;
+  results_before: number | null;
 }
-export interface AgentSession {
-  id: string;
-  title: string;
-  model: string;
-  reasoning_effort: ReasoningEffort;
-  created_at: string;
-  updated_at: string;
-  archived: boolean;
-  archive_pending?: boolean;
-  sequence: number;
-  runs: AgentRun[];
+export interface SessionsPage {
+  projection_version: 2;
+  sessions: AgentSession[];
+  next_cursor: string | null;
+  total: number;
+}
+export interface RunsPage {
+  projection_version: 2;
+  session_id: string;
+  at_sequence: number;
+  total: number;
+  runs: RunSummary[];
+  next_before: number | null;
+}
+export interface ResultsPage {
+  projection_version: 2;
+  session_id: string;
+  run_id: string;
+  at_sequence: number;
+  total: number;
+  completed_steps: number;
+  results: StepResult[];
+  next_before: number | null;
 }
 export interface AgentEvent {
-  schema_version: 1;
+  schema_version: 2;
+  invalidates_runs: boolean;
   sequence: number;
   time: string;
   session_id: string;
@@ -108,347 +140,165 @@ export interface AgentEvent {
   operation_id: string | null;
   type: string;
   session: AgentSession;
+  run: RunControl | null;
+  request: string | null;
+  plan: AgentPlan | null;
+  result: StepResult | null;
+  answer: string | null;
+  error: AgentError | null;
 }
-export type PlanIdentity = Pick<AgentPlan, 'revision' | 'digest'> & { plan_id: string };
-export type ReviewIdentity =
-  (PlanIdentity & { kind: 'plan' }) | { kind: 'clarification'; clarification_id: string };
-export type Revision = PlanIdentity & { kind: 'feedback'; content: string };
-export type AgentCommand =
-  | { action: 'runs'; content: string }
-  | ({ action: 'execute'; run_id: string } & PlanIdentity)
-  | ({ action: 'revise'; run_id: string } & Revision);
-
-export function settled(run: AgentRun): boolean {
-  return ['completed', 'rejected', 'failed', 'cancelled', 'interrupted'].includes(run.status);
+export interface EventsPage {
+  projection_version: 2;
+  events: AgentEvent[];
+  next_after: number;
+  through_sequence: number;
+  has_more: boolean;
 }
-export function planIdentity(plan: AgentPlan): PlanIdentity {
-  return { plan_id: plan.id, revision: plan.revision, digest: plan.digest };
+/** Internal rendering state: a body and its explicitly loaded result window. */
+export interface RunView {
+  body: AgentRun;
+  window: { kind: 'recent' | 'older'; before: number | null; at_sequence: number };
 }
-export class AgentApiError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-  }
+const CONTROL_KEYS = [
+  'id',
+  'status',
+  'operation_id',
+  'created_at',
+  'updated_at',
+  'version_sequence',
+  'plan_identity',
+  'result_count',
+  'completed_steps',
+  'error',
+];
+function nullableId(value: unknown): boolean {
+  return value === null || id(value);
 }
-export function invalidAgent(): never {
-  throw new AgentApiError(
-    'protocol_error',
-    'Invalid Agent response. Reload Agent history to recover; no command was retried.',
-  );
+function cursor(value: unknown): boolean {
+  return value === null || integer(value);
 }
-export function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-export function text(value: unknown): value is string {
-  return typeof value === 'string';
-}
-export function id(value: unknown): value is string {
-  return text(value) && value.trim().length > 0;
-}
-export function time(value: unknown): value is string {
-  if (!text(value)) return false;
-  const match =
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(
-      value,
-    );
-  if (!match) return false;
-  const [, year, month, day, hour, minute, second, zoneHour = '0', zoneMinute = '0'] = match;
+export function identityMatches(
+  plan: ControlPlanIdentity | null,
+  identity: ControlPlanIdentity | null,
+): boolean {
   return (
-    +month >= 1 &&
-    +month <= 12 &&
-    +day >= 1 &&
-    +day <= new Date(Date.UTC(+year, +month, 0)).getUTCDate() &&
-    +hour <= 23 &&
-    +minute <= 59 &&
-    +second <= 59 &&
-    +zoneHour <= 23 &&
-    +zoneMinute <= 59 &&
-    Number.isFinite(Date.parse(value))
+    !!plan &&
+    !!identity &&
+    ['id', 'revision', 'digest', 'model', 'reasoning_effort'].every(
+      (key) =>
+        plan[key as keyof ControlPlanIdentity] === identity[key as keyof ControlPlanIdentity],
+    )
   );
 }
-function integer(value: unknown, min = 0): value is number {
-  return Number.isSafeInteger(value) && (value as number) >= min;
+export function sameControl(a: RunControl, b: RunControl): boolean {
+  return CONTROL_KEYS.every((key) => {
+    if (key === 'plan_identity')
+      return a.plan_identity === null
+        ? b.plan_identity === null
+        : identityMatches(a.plan_identity, b.plan_identity);
+    if (key === 'error')
+      return a.error?.code === b.error?.code && a.error?.message === b.error?.message;
+    return a[key as keyof RunControl] === b[key as keyof RunControl];
+  });
 }
-function onlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  return Object.keys(value).every((key) => keys.includes(key));
+export function controlOf(run: AgentRun): RunControl {
+  const {
+    id,
+    status,
+    operation_id,
+    created_at,
+    updated_at,
+    version_sequence,
+    result_count,
+    completed_steps,
+    error,
+    plan,
+  } = run;
+  return {
+    id,
+    status,
+    operation_id,
+    created_at,
+    updated_at,
+    version_sequence,
+    result_count,
+    completed_steps,
+    error,
+    plan_identity: plan
+      ? {
+          id: plan.id,
+          revision: plan.revision,
+          digest: plan.digest,
+          model: plan.model,
+          reasoning_effort: plan.reasoning_effort,
+        }
+      : null,
+  };
 }
-export function artifactId(value: unknown): value is string {
-  return text(value) && /^[a-f0-9]{32}$/.test(value);
-}
-/** Link safety only. Public-network/DNS authorization remains the BFF's responsibility. */
-export function safeHttpUrl(value: unknown): value is string {
-  if (!text(value) || /[\s\u0000-\u001f\u007f\\]/u.test(value)) return false;
-  const authority = /^https?:\/\/([^/?#]+)/i.exec(value)?.[1];
-  if (!authority || /[@%]/.test(authority) || authority.endsWith(':')) return false;
-  try {
-    const url = new URL(value);
-    return (
-      ['http:', 'https:'].includes(url.protocol) &&
-      !!url.hostname &&
-      !url.username &&
-      !url.password &&
-      url.port !== '0'
-    );
-  } catch {
-    return false;
-  }
-}
-function validPage(value: Record<string, unknown>, content: string): boolean {
-  if (
-    !artifactId(value['artifact_id']) ||
-    !integer(value['offset']) ||
-    !integer(value['total_chars']) ||
-    !integer(value['returned_chars']) ||
-    value['returned_chars'] > 16000 ||
-    value['returned_chars'] !== Array.from(content).length
-  )
-    return false;
-  const end = value['offset'] + value['returned_chars'];
-  return (
-    Number.isSafeInteger(end) &&
-    end <= value['total_chars'] &&
-    (end < value['total_chars']
-      ? value['returned_chars'] > 0 && value['next_offset'] === end
-      : value['next_offset'] === null)
-  );
-}
-export function parseArtifactPage(value: unknown): ArtifactPage {
-  if (
-    !object(value) ||
-    !onlyKeys(value, [
-      'artifact_id',
-      'content',
-      'offset',
-      'returned_chars',
-      'total_chars',
-      'next_offset',
-    ]) ||
-    !text(value['content']) ||
-    !validPage(value, value['content'])
-  )
-    return invalidAgent();
-  return value as unknown as ArtifactPage;
-}
-function validFetch(value: unknown, content: string): value is FetchMetadata {
+function validIdentity(value: unknown): boolean {
   return (
     object(value) &&
-    onlyKeys(value, [
-      'artifact_id',
-      'requested_url',
-      'final_url',
-      'title',
-      'status_code',
-      'content_type',
-      'fetched_at',
-      'redirects',
-      'offset',
-      'returned_chars',
-      'total_chars',
-      'next_offset',
-    ]) &&
-    validPage(value, content) &&
-    safeHttpUrl(value['requested_url']) &&
-    safeHttpUrl(value['final_url']) &&
-    (value['title'] === null || text(value['title'])) &&
-    integer(value['status_code'], 100) &&
-    value['status_code'] <= 599 &&
-    id(value['content_type']) &&
-    time(value['fetched_at']) &&
-    /(?:Z|\+00:00)$/.test(value['fetched_at']) &&
-    Array.isArray(value['redirects']) &&
-    value['redirects'].every(safeHttpUrl) &&
-    (value['redirects'].length
-      ? value['redirects'].at(-1) === value['final_url']
-      : value['requested_url'] === value['final_url'])
-  );
-}
-function strings(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(text);
-}
-function errorShape(value: unknown): boolean {
-  return value === null || (object(value) && id(value['code']) && id(value['message']));
-}
-function effort(value: unknown): boolean {
-  return REASONING_EFFORTS.includes(value as ReasoningEffort);
-}
-function unique(values: unknown[], key: string): boolean {
-  return (
-    new Set(values.map((value) => (object(value) ? value[key] : undefined))).size === values.length
-  );
-}
-function validPlan(value: unknown): value is AgentPlan {
-  if (!object(value)) return false;
-  const limits = value['limits'];
-  const steps = value['steps'];
-  return (
+    onlyKeys(value, ['id', 'revision', 'digest', 'model', 'reasoning_effort']) &&
     id(value['id']) &&
     integer(value['revision'], 1) &&
-    id(value['digest']) &&
-    text(value['objective']) &&
-    strings(value['assumptions']) &&
+    text(value['digest']) &&
+    /^[a-f0-9]{64}$/.test(value['digest']) &&
     id(value['model']) &&
-    effort(value['reasoning_effort']) &&
-    object(limits) &&
-    integer(limits['max_steps'], 1) &&
-    integer(limits['max_tool_calls']) &&
-    integer(limits['timeout_seconds'], 1) &&
-    Array.isArray(steps) &&
-    steps.length > 0 &&
-    steps.length <= limits['max_steps'] &&
-    unique(steps, 'id') &&
-    steps.every((step: unknown) => {
-      if (!object(step) || !id(step['id']) || !text(step['title']) || !text(step['description']))
-        return false;
-      const args = step['arguments'];
-      if (!object(args)) return false;
-      if (step['tool'] === 'read_file')
-        return (
-          onlyKeys(args, ['workspace_id', 'path', 'offset', 'limit']) &&
-          id(args['workspace_id']) &&
-          id(args['path']) &&
-          integer(args['offset'], 1) &&
-          integer(args['limit'], 1)
-        );
-      return (
-        step['tool'] === 'web_fetch' &&
-        onlyKeys(args, ['url', 'offset', 'limit']) &&
-        safeHttpUrl(args['url']) &&
-        integer(args['offset']) &&
-        integer(args['limit'], 1) &&
-        args['limit'] <= 16000
-      );
-    })
+    effort(value['reasoning_effort'])
   );
 }
-function validRun(value: unknown): value is AgentRun {
-  if (!object(value)) return false;
-  const plan = value['plan'];
-  const results = value['results'];
-  const clarification = value['clarification'];
-  if (!(
-    id(value['id']) &&
-    text(value['request']) &&
-    time(value['created_at']) &&
-    time(value['updated_at']) &&
-    RUN_STATUSES.includes(value['status'] as RunStatus) &&
-    (value['operation_id'] === null || id(value['operation_id'])) &&
-    (plan === null || validPlan(plan)) &&
-    Array.isArray(results) &&
-    unique(results, 'step_id') &&
-    results.every(
-      (result: unknown) =>
-        object(result) &&
-        id(result['step_id']) &&
-        ['running', 'completed', 'failed'].includes(result['status'] as string) &&
-        text(result['content']) &&
-        time(result['time']) &&
-        (result['error'] === undefined || errorShape(result['error'])) &&
-        (result['path'] === undefined || result['path'] === null || id(result['path'])) &&
-        (result['offset'] === undefined ||
-          result['offset'] === null ||
-          integer(result['offset'], 1)) &&
-        (result['returned_lines'] === undefined ||
-          result['returned_lines'] === null ||
-          integer(result['returned_lines'])) &&
-        (result['truncated'] === undefined || typeof result['truncated'] === 'boolean') &&
-        (result['fetch'] === undefined ||
-          result['fetch'] === null ||
-          validFetch(result['fetch'], result['content'])) &&
-        plan !== null &&
-        validPlan(plan) &&
-        plan.steps.some((step) => step.id === result['step_id']),
+export function parseRunControl(value: unknown, summary = false): RunControl {
+  if (
+    !object(value) ||
+    !onlyKeys(value, summary ? [...CONTROL_KEYS, 'request_preview'] : CONTROL_KEYS) ||
+    !id(value['id']) ||
+    !RUN_STATUSES.includes(value['status'] as RunStatus) ||
+    !nullableId(value['operation_id']) ||
+    !time(value['created_at']) ||
+    !time(value['updated_at']) ||
+    !integer(value['version_sequence']) ||
+    !integer(value['result_count']) ||
+    !integer(value['completed_steps']) ||
+    value['completed_steps'] > value['result_count'] ||
+    !errorShape(value['error']) ||
+    !(value['plan_identity'] === null || validIdentity(value['plan_identity'])) ||
+    (summary && !text(value['request_preview']))
+  )
+    return invalidAgent();
+  const run = value as unknown as RunControl;
+  if (
+    ['planning', 'approved', 'executing', 'cancelling'].includes(run.status) !==
+      (run.operation_id !== null) ||
+    (['awaiting_approval', 'approved', 'executing', 'completed'].includes(run.status) &&
+      !run.plan_identity) ||
+    (['planning', 'awaiting_clarification', 'awaiting_approval', 'approved', 'rejected'].includes(
+      run.status,
     ) &&
-    (value['answer'] === null || text(value['answer'])) &&
-    errorShape(value['error']) &&
-    (clarification === undefined ||
-      clarification === null ||
-      (object(clarification) &&
-        id(clarification['id']) &&
-        strings(clarification['questions']) &&
-        clarification['questions'].length > 0))
-  ))
-    return false;
-  const status = value['status'] as RunStatus;
-  const checkedResults = results as StepResult[];
-  if (plan !== null && validPlan(plan)) {
-    for (const result of checkedResults) {
-      const step = plan.steps.find((entry) => entry.id === result.step_id)!;
-      if (step.tool === 'read_file') {
-        if (result.fetch != null) return false;
-      } else {
-        if (
-          result.path != null ||
-          result.offset != null ||
-          result.returned_lines != null ||
-          result.truncated === true ||
-          (result.status === 'completed' && !result.fetch)
-        )
-          return false;
-        if (
-          result.fetch &&
-          (result.status !== 'completed' ||
-            result.fetch.requested_url !== step.arguments.url ||
-            result.fetch.offset !== step.arguments.offset ||
-            result.fetch.returned_chars !==
-              Math.min(step.arguments.limit, result.fetch.total_chars - result.fetch.offset))
-        )
-          return false;
-      }
-    }
-  }
-  if (['awaiting_approval', 'approved', 'executing', 'completed'].includes(status) && plan === null)
-    return false;
-  if (value['status'] === 'awaiting_clarification' && !clarification) return false;
-  if (
-    ['planning', 'awaiting_clarification', 'awaiting_approval', 'approved', 'rejected'].includes(
-      status,
-    ) &&
-    (checkedResults.length > 0 || value['answer'] !== null)
+      run.result_count !== 0) ||
+    (run.status === 'completed' && (run.completed_steps !== run.result_count || run.error !== null))
   )
-    return false;
-  if (
-    [
-      'completed',
-      'rejected',
-      'failed',
-      'cancelled',
-      'interrupted',
-      'awaiting_approval',
-      'awaiting_clarification',
-    ].includes(status) &&
-    value['operation_id'] !== null
-  )
-    return false;
-  if (
-    ['completed', 'rejected', 'failed', 'cancelled', 'interrupted'].includes(status) &&
-    checkedResults.some((result) => result.status === 'running')
-  )
-    return false;
-  if (checkedResults.filter((result) => result.status === 'running').length > 1) return false;
-  if (checkedResults.some((result) => result.status !== 'failed' && result.error != null))
-    return false;
-  if (status === 'rejected' && plan === null && !clarification) return false;
-  if (
-    status === 'completed' &&
-    (value['answer'] === null ||
-      value['error'] !== null ||
-      !validPlan(plan) ||
-      checkedResults.length !== plan.steps.length ||
-      checkedResults.some((result) => result.status !== 'completed'))
-  )
-    return false;
-  if (
-    ['planning', 'approved', 'executing', 'cancelling'].includes(value['status'] as string) &&
-    !id(value['operation_id'])
-  )
-    return false;
-  return true;
+    return invalidAgent();
+  return run;
 }
 export function parseAgentSession(value: unknown): AgentSession {
   if (
     !object(value) ||
+    !onlyKeys(value, [
+      'projection_version',
+      'id',
+      'title',
+      'model',
+      'reasoning_effort',
+      'created_at',
+      'updated_at',
+      'archived',
+      'archive_pending',
+      'sequence',
+      'run_count',
+      'latest_run_id',
+      'current_run',
+    ]) ||
+    value['projection_version'] !== 2 ||
     !id(value['id']) ||
     !text(value['title']) ||
     !id(value['model']) ||
@@ -456,15 +306,356 @@ export function parseAgentSession(value: unknown): AgentSession {
     !time(value['created_at']) ||
     !time(value['updated_at']) ||
     typeof value['archived'] !== 'boolean' ||
-    (value['archive_pending'] !== undefined && typeof value['archive_pending'] !== 'boolean') ||
+    typeof value['archive_pending'] !== 'boolean' ||
     !integer(value['sequence']) ||
-    !Array.isArray(value['runs']) ||
-    !unique(value['runs'], 'id') ||
-    !value['runs'].every(validRun) ||
-    value['runs'].filter((run) => !settled(run)).length > 1 ||
-    (value['archived'] &&
-      (value['archive_pending'] === true || value['runs'].some((run) => !settled(run))))
+    !integer(value['run_count']) ||
+    !nullableId(value['latest_run_id'])
   )
     return invalidAgent();
-  return value as unknown as AgentSession;
+  const session = value as unknown as AgentSession;
+  const run = session.current_run === null ? null : parseRunControl(session.current_run);
+  if (
+    (session.run_count === 0) !== (session.latest_run_id === null) ||
+    (session.archived && (session.archive_pending || run !== null)) ||
+    (run &&
+      (settled(run) ||
+        session.run_count === 0 ||
+        run.version_sequence > session.sequence ||
+        (run.plan_identity &&
+          (run.plan_identity.model !== session.model ||
+            run.plan_identity.reasoning_effort !== session.reasoning_effort))))
+  )
+    return invalidAgent();
+  return session;
+}
+export function parseAgentRun(value: unknown): AgentRun {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'projection_version',
+      'id',
+      'request',
+      'created_at',
+      'updated_at',
+      'status',
+      'operation_id',
+      'plan',
+      'results',
+      'answer',
+      'error',
+      'clarification',
+      'version_sequence',
+      'result_count',
+      'completed_steps',
+      'results_before',
+    ]) ||
+    value['projection_version'] !== 2 ||
+    !text(value['request']) ||
+    !(value['plan'] === null || validPlan(value['plan'])) ||
+    !Array.isArray(value['results']) ||
+    value['results'].length > 20 ||
+    !unique(value['results'], 'step_id') ||
+    !value['results'].every((result) => validResult(result, value['plan'] as AgentPlan | null)) ||
+    !(value['answer'] === null || text(value['answer'])) ||
+    !cursor(value['results_before']) ||
+    !(
+      value['clarification'] === null ||
+      (object(value['clarification']) &&
+        id(value['clarification']['id']) &&
+        strings(value['clarification']['questions']) &&
+        value['clarification']['questions'].length > 0)
+    )
+  )
+    return invalidAgent();
+  const run = value as unknown as AgentRun;
+  parseRunControl(controlOf(run));
+  if (
+    run.results.length > run.result_count ||
+    run.completed_steps > (run.plan?.steps.length ?? 0) ||
+    (run.plan && run.result_count > run.plan.steps.length) ||
+    (run.results_before !== null &&
+      (run.results_before < 1 || run.results_before >= run.result_count)) ||
+    run.results.filter((result) => result.status === 'completed').length > run.completed_steps ||
+    (settled(run) && run.results.some((result) => result.status === 'running')) ||
+    run.results.filter((result) => result.status === 'running').length > 1 ||
+    (run.status === 'awaiting_clarification' && !run.clarification) ||
+    (run.status === 'rejected' && !run.plan && !run.clarification) ||
+    (['planning', 'awaiting_clarification', 'awaiting_approval', 'approved', 'rejected'].includes(
+      run.status,
+    ) &&
+      run.answer !== null) ||
+    (run.status === 'completed' &&
+      (!run.plan ||
+        run.answer === null ||
+        run.completed_steps !== run.plan.steps.length ||
+        run.results.some((result) => result.status !== 'completed')))
+  )
+    return invalidAgent();
+  validateResultWindow(run.results, run.plan, run.result_count, run.completed_steps);
+  return run;
+}
+export function validateResultOrder(results: StepResult[], plan: AgentPlan | null): void {
+  let previous = -1;
+  for (const result of results) {
+    if (!validResult(result, plan)) return invalidAgent();
+    const index = plan!.steps.findIndex((step) => step.id === result.step_id);
+    if (index <= previous) return invalidAgent();
+    previous = index;
+  }
+}
+/** Sequential execution has a completed prefix and at most one running/failed frontier. */
+export function validateResultWindow(
+  results: StepResult[],
+  plan: AgentPlan | null,
+  total: number,
+  completed: number,
+): void {
+  validateResultOrder(results, plan);
+  if (completed > total || total > completed + 1 || total > (plan?.steps.length ?? 0))
+    return invalidAgent();
+  for (const result of results) {
+    const index = plan!.steps.findIndex((step) => step.id === result.step_id);
+    if (
+      index >= total ||
+      (index < completed ? result.status !== 'completed' : result.status === 'completed')
+    )
+      return invalidAgent();
+  }
+}
+export function parseSessionsPage(value: unknown): SessionsPage {
+  if (
+    !object(value) ||
+    !onlyKeys(value, ['projection_version', 'sessions', 'next_cursor', 'total']) ||
+    value['projection_version'] !== 2 ||
+    !Array.isArray(value['sessions']) ||
+    value['sessions'].length > 25 ||
+    !unique(value['sessions'], 'id') ||
+    !integer(value['total']) ||
+    value['sessions'].length > value['total'] ||
+    !(value['next_cursor'] === null || id(value['next_cursor']))
+  )
+    return invalidAgent();
+  value['sessions'].forEach(parseAgentSession);
+  return value as unknown as SessionsPage;
+}
+export function parseRunsPage(value: unknown): RunsPage {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'projection_version',
+      'session_id',
+      'at_sequence',
+      'total',
+      'runs',
+      'next_before',
+    ]) ||
+    value['projection_version'] !== 2 ||
+    !id(value['session_id']) ||
+    !integer(value['at_sequence']) ||
+    !integer(value['total']) ||
+    !Array.isArray(value['runs']) ||
+    value['runs'].length > 10 ||
+    !unique(value['runs'], 'id') ||
+    value['runs'].length > value['total'] ||
+    !cursor(value['next_before'])
+  )
+    return invalidAgent();
+  for (const run of value['runs']) {
+    const control = parseRunControl(run, true);
+    if (control.version_sequence > value['at_sequence']) return invalidAgent();
+  }
+  return value as unknown as RunsPage;
+}
+export function parseResultsPage(value: unknown, plan?: AgentPlan | null): ResultsPage {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'projection_version',
+      'session_id',
+      'run_id',
+      'at_sequence',
+      'total',
+      'completed_steps',
+      'results',
+      'next_before',
+    ]) ||
+    value['projection_version'] !== 2 ||
+    !id(value['session_id']) ||
+    !id(value['run_id']) ||
+    !integer(value['at_sequence']) ||
+    !integer(value['total']) ||
+    !integer(value['completed_steps']) ||
+    value['completed_steps'] > value['total'] ||
+    value['total'] > value['completed_steps'] + 1 ||
+    !Array.isArray(value['results']) ||
+    value['results'].length > 20 ||
+    !unique(value['results'], 'step_id') ||
+    value['results'].length > value['total'] ||
+    !value['results'].every((result) => validResult(result)) ||
+    !cursor(value['next_before'])
+  )
+    return invalidAgent();
+  const page = value as unknown as ResultsPage;
+  if (plan !== undefined)
+    validateResultWindow(page.results, plan, page.total, page.completed_steps);
+  return page;
+}
+export function parseAgentEvent(value: unknown): AgentEvent {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'schema_version',
+      'invalidates_runs',
+      'sequence',
+      'time',
+      'session_id',
+      'request_id',
+      'run_id',
+      'operation_id',
+      'type',
+      'session',
+      'run',
+      'request',
+      'plan',
+      'result',
+      'answer',
+      'error',
+    ]) ||
+    value['schema_version'] !== 2 ||
+    typeof value['invalidates_runs'] !== 'boolean' ||
+    !integer(value['sequence'], 1) ||
+    !time(value['time']) ||
+    !id(value['session_id']) ||
+    !id(value['request_id']) ||
+    !nullableId(value['run_id']) ||
+    !nullableId(value['operation_id']) ||
+    !id(value['type']) ||
+    !(value['request'] === null || text(value['request'])) ||
+    !(value['plan'] === null || validPlan(value['plan'])) ||
+    !(value['result'] === null || validResult(value['result'])) ||
+    !(value['answer'] === null || text(value['answer'])) ||
+    !errorShape(value['error'])
+  )
+    return invalidAgent();
+  const event = value as unknown as AgentEvent;
+  const session = parseAgentSession(event.session);
+  const run = event.run === null ? null : parseRunControl(event.run);
+  if (
+    session.id !== event.session_id ||
+    session.sequence !== event.sequence ||
+    (event.type === 'run.planning' ? event.request === null : event.request !== null) ||
+    (event.type === 'run.awaiting_approval' ? !event.plan : event.plan !== null) ||
+    (event.type === 'run.completed' ? event.answer === null : event.answer !== null) ||
+    (event.result !== null &&
+      !['tool.intent', 'tool.result', 'run.failed', 'run.cancelled', 'run.interrupted'].includes(
+        event.type,
+      )) ||
+    (['tool.intent', 'tool.result'].includes(event.type) && event.result === null)
+  )
+    return invalidAgent();
+  if (isRecoveryEvent(event)) {
+    if (run === null) {
+      if (
+        event.result !== null ||
+        event.error !== null ||
+        event.plan !== null ||
+        event.request !== null ||
+        event.answer !== null ||
+        !session.archived ||
+        session.archive_pending
+      )
+        return invalidAgent();
+    } else if (
+      run.status !== 'interrupted' ||
+      run.operation_id !== null ||
+      run.version_sequence !== event.sequence ||
+      run.error?.code !== 'outcome_unknown' ||
+      event.error?.code !== run.error.code ||
+      event.error.message !== run.error.message ||
+      (event.result !== null &&
+        (event.result.status !== 'failed' || event.result.error?.code !== 'outcome_unknown')) ||
+      session.current_run?.id === run.id
+    )
+      return invalidAgent();
+  } else if (event.type.startsWith('session.')) {
+    if (
+      ![
+        'session.created',
+        'session.updated',
+        'session.archive_pending',
+        'session.archived',
+      ].includes(event.type) ||
+      event.run_id !== null ||
+      event.operation_id !== null ||
+      run !== null ||
+      event.error !== null ||
+      event.result !== null
+    )
+      return invalidAgent();
+  } else {
+    if (
+      !run ||
+      run.id !== event.run_id ||
+      !id(event.operation_id) ||
+      run.version_sequence > event.sequence ||
+      ((event.type.startsWith('run.') || event.type.startsWith('tool.')) &&
+        run.version_sequence !== event.sequence) ||
+      (run.operation_id !== null && run.operation_id !== event.operation_id) ||
+      (event.type.startsWith('run.') && event.type !== `run.${run.status}`) ||
+      (['planner.attempt', 'planner.repair'].includes(event.type) && run.status !== 'planning') ||
+      (event.type.startsWith('tool.') && run.status !== 'executing') ||
+      (settled(run)
+        ? session.current_run?.id === run.id
+        : !session.current_run || !sameControl(session.current_run, run)) ||
+      (event.plan &&
+        (!identityMatches(event.plan, run.plan_identity) ||
+          event.plan.model !== session.model ||
+          event.plan.reasoning_effort !== session.reasoning_effort))
+    )
+      return invalidAgent();
+  }
+  return event;
+}
+/** Only this journal envelope may name an affected run outside its null command IDs. */
+export function isRecoveryEvent(event: AgentEvent): boolean {
+  return (
+    event.invalidates_runs &&
+    event.type === 'run.interrupted' &&
+    event.request_id === 'recovery' &&
+    event.run_id === null &&
+    event.operation_id === null
+  );
+}
+export function parseEventsPage(value: unknown): EventsPage {
+  if (
+    !object(value) ||
+    !onlyKeys(value, [
+      'projection_version',
+      'events',
+      'next_after',
+      'through_sequence',
+      'has_more',
+    ]) ||
+    value['projection_version'] !== 2 ||
+    !Array.isArray(value['events']) ||
+    value['events'].length > 50 ||
+    !integer(value['next_after']) ||
+    !integer(value['through_sequence']) ||
+    value['next_after'] > value['through_sequence'] ||
+    typeof value['has_more'] !== 'boolean'
+  )
+    return invalidAgent();
+  const page = value as unknown as EventsPage;
+  let previous = page.events[0]?.sequence ?? page.next_after;
+  for (const event of page.events) {
+    parseAgentEvent(event);
+    if (event.sequence !== previous++ || event.sequence > page.through_sequence)
+      return invalidAgent();
+  }
+  if (
+    (page.events.length && page.events.at(-1)!.sequence !== page.next_after) ||
+    page.has_more !== page.next_after < page.through_sequence
+  )
+    return invalidAgent();
+  return page;
 }

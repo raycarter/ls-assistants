@@ -1,11 +1,11 @@
-"""Bounded public contracts for the mocked Agent vertical slice."""
+"""Agent commands and durable models, including legacy approval material."""
 
 from datetime import datetime, timedelta
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Text = Annotated[str, Field(min_length=1, max_length=8000)]
+Text = Annotated[str, Field(min_length=1)]
 Key = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 Effort = Literal["low", "medium", "high", "xhigh"]
 Status = Literal[
@@ -49,7 +49,7 @@ class StartRun(Command):
 
 class PlanIdentity(Command):
     plan_id: Key
-    revision: Annotated[int, Field(ge=1, le=8)]
+    revision: Annotated[int, Field(ge=1)]
     digest: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 
 
@@ -82,7 +82,7 @@ class Cancel(Command):
 class ReadArguments(Strict):
     workspace_id: Key
     path: Annotated[str, Field(min_length=1, max_length=500)]
-    offset: Annotated[int, Field(ge=1, le=10000)] = 1
+    offset: Annotated[int, Field(ge=1)] = 1
     limit: Annotated[int, Field(ge=1, le=200)] = 200
 
 
@@ -92,10 +92,15 @@ class FetchArguments(Strict):
     limit: Annotated[int, Field(ge=1, le=16000)] = 12000
 
 
-class PlanLimits(Strict):
-    max_steps: Annotated[int, Field(ge=1, le=3)] = 3
-    max_tool_calls: Annotated[int, Field(ge=1, le=3)] = 3
-    timeout_seconds: Annotated[int, Field(ge=1, le=60)] = 30
+class LegacyPlanLimits(Strict):
+    """Historical signed material only; these values no longer govern execution."""
+
+    max_steps: Annotated[int, Field(ge=1)] = 3
+    max_tool_calls: Annotated[int, Field(ge=1)] = 3
+    timeout_seconds: Annotated[int, Field(ge=1)] = 30
+
+
+PlanLimits = LegacyPlanLimits
 
 
 class ProposedStep(Strict):
@@ -114,15 +119,9 @@ class ProposedStep(Strict):
 
 class Proposal(Strict):
     objective: Text
-    assumptions: Annotated[list[Text], Field(max_length=8)]
-    limits: PlanLimits = Field(default_factory=PlanLimits)
-    steps: Annotated[list[ProposedStep], Field(min_length=1, max_length=3)]
-
-    @model_validator(mode="after")
-    def within_limits(self) -> Self:
-        if len(self.steps) > min(self.limits.max_steps, self.limits.max_tool_calls):
-            raise ValueError("Steps exceed approved limits")
-        return self
+    assumptions: list[Text]
+    limits: LegacyPlanLimits | None = Field(default=None, exclude_if=lambda value: value is None)
+    steps: Annotated[list[ProposedStep], Field(min_length=1)]
 
 
 class PlanStep(ProposedStep):
@@ -131,14 +130,14 @@ class PlanStep(ProposedStep):
 
 class AgentPlan(Strict):
     id: Key
-    revision: Annotated[int, Field(ge=1, le=8)]
+    revision: Annotated[int, Field(ge=1)]
     digest: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
     objective: Text
-    assumptions: Annotated[list[Text], Field(max_length=9)]
+    assumptions: list[Text]
     model: str
     reasoning_effort: Effort
-    limits: PlanLimits
-    steps: Annotated[list[PlanStep], Field(min_length=1, max_length=3)]
+    limits: LegacyPlanLimits | None = Field(default=None, exclude_if=lambda value: value is None)
+    steps: Annotated[list[PlanStep], Field(min_length=1)]
     access_policy: dict[str, str]
 
 
@@ -188,7 +187,7 @@ class FetchMetadata(Strict):
 class StepResult(Strict):
     step_id: Key
     status: Literal["running", "completed", "failed"]
-    content: Annotated[str, Field(max_length=24000)]
+    content: str
     time: str
     error: AgentError | None = None
     path: str | None = None
@@ -206,7 +205,7 @@ class AgentRun(Strict):
     status: Status
     operation_id: Key | None = None
     plan: AgentPlan | None = None
-    results: Annotated[list[StepResult], Field(max_length=3)] = Field(default_factory=list)
+    results: list[StepResult] = Field(default_factory=list)
     answer: str | None = None
     error: AgentError | None = None
     clarification: None = None
@@ -222,7 +221,7 @@ class AgentSession(Strict):
     archived: bool = False
     archive_pending: bool = False
     sequence: int = 0
-    runs: Annotated[list[AgentRun], Field(max_length=8)] = Field(default_factory=list)
+    runs: list[AgentRun] = Field(default_factory=list)
 
 
 class AgentEvent(Strict):

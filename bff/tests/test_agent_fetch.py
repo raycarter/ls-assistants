@@ -12,6 +12,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+import app.agent as agent_module
 from app.agent import AgentService
 from app.agent_files import AgentFault, FilePolicy, canonical_digest
 from app.agent_schemas import (
@@ -25,7 +26,16 @@ from app.main import create_app
 from app.sessions import SessionStore
 from app.tools import FetchDocument, WebFetcher
 from app.tools.registry import ToolRegistry
-from tests.test_agent import BASE, CREATE, approval, consume, decode, proposal, wait_until
+from tests.test_agent import (
+    BASE,
+    CREATE,
+    approval,
+    consume,
+    decode,
+    proposal,
+    run_detail,
+    wait_until,
+)
 from tests.test_web_fetch import FakeStream, reply
 from tests.test_web_fetch import fetcher as http_fetcher
 
@@ -131,7 +141,7 @@ async def planned_fetch(client):
             f"{BASE}/{sid}/runs", json={"request_id": "plan", "content": f"Read {URL}"}
         )
     )
-    run = frames[-1]["session"]["runs"][0]
+    run = await run_detail(client, sid, frames[-1]["run_id"])
     assert run["status"] == "awaiting_approval"
     return sid, run
 
@@ -139,8 +149,9 @@ async def planned_fetch(client):
 async def executed_fetch(client):
     sid, run = await planned_fetch(client)
     frames = decode(await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run)))
-    result = frames[-1]["session"]["runs"][0]["results"][0]
-    assert result["status"] == "completed", frames[-1]["session"]["runs"][0]["error"]
+    detail = await run_detail(client, sid, run["id"])
+    result = detail["results"][0]
+    assert result["status"] == "completed", detail["error"]
     return sid, run, result, frames
 
 
@@ -195,7 +206,7 @@ async def test_real_fetcher_no_dns_http_or_tools_before_exact_approval(fetch_set
         frames = decode(await client.post(path, json=approval(run)))
         resolver.side_effect = real_resolve
         assert frames[-1]["type"] == "run.completed"
-        result = frames[-1]["session"]["runs"][0]["results"][0]
+        result = (await run_detail(client, sid, run["id"]))["results"][0]
         assert result["content"] == "Readable evidence"
         assert "<main>" not in result["content"]
         assert len(backend.calls) == 1 and network.closed
@@ -248,7 +259,7 @@ async def test_queued_revocation_beats_fetch_task_without_any_network_entry(
         assert "tool.result" not in response.text and "run.completed" not in response.text
         if reason == "stop":
             assert fired == [(True, False)]
-            assert decode(response)[-1]["session"]["runs"][0]["status"] == "cancelled"
+            assert decode(response)[-1]["run"]["status"] == "cancelled"
         else:
             assert fired == [(reason == "recording_failure", True)]
 
@@ -348,7 +359,7 @@ async def test_document_returned_concurrently_with_stop_is_closed_not_persisted(
         fetch_setup.fetcher.fetch.side_effect = stopped_result
         response = await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
         assert fetched.closed and fetched.close_count == 1 and fetched.chunks_read == 0
-        assert decode(response)[-1]["session"]["runs"][0]["status"] == "cancelled"
+        assert decode(response)[-1]["run"]["status"] == "cancelled"
         assert not (owner.store.root / sid / "artifacts").exists()
 
 
@@ -427,7 +438,8 @@ async def test_production_spooled_document_streams_to_durable_evidence_and_close
             else:
                 assert records[-1].event.session.runs[0].status == "cancelled"
             return
-        terminal = decode(response)[-1]["session"]["runs"][0]
+        assert decode(response)[-1]["type"] == "run.completed"
+        terminal = await run_detail(client, sid, run["id"])
         assert terminal["status"] == "completed", terminal["error"]
         result = terminal["results"][0]
         assert result["content"] == text[65000:81000]
@@ -489,7 +501,7 @@ async def test_full_evidence_fsynced_before_result_and_pages_never_refetch(
             "next_offset": 12000,
         }
         assert result["content"] == TEXT[:12000]
-        assert "tool call(s)" in frames[-1]["session"]["runs"][0]["answer"]
+        assert "tool call(s)" in frames[-1]["answer"]
         rebuilt, offset = "", 0
         while True:
             response = await client.get(f"{BASE}/{sid}/artifacts/{aid}?offset={offset}&limit=16000")
@@ -539,7 +551,7 @@ async def test_policy_binding_rechecked_before_dispatch(fetch_setup, monkeypatch
             monkeypatch.setattr(owner.store, "append", append)
         response = await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
         if changed == "after_intent":
-            assert decode(response)[-1]["session"]["runs"][0]["error"]["code"] == "policy_changed"
+            assert decode(response)[-1]["error"]["code"] == "policy_changed"
         else:
             assert response.status_code == 409
             assert response.json()["error"]["code"] == "policy_changed"
@@ -562,7 +574,7 @@ async def test_known_disabled_capability_fails_before_approval(fetch_setup, name
                 f"{BASE}/{sid}/runs", json={"request_id": "plan", "content": "Try capability"}
             )
         )
-        run = frames[-1]["session"]["runs"][0]
+        run = await run_detail(client, sid, frames[-1]["run_id"])
         assert run["plan"] is None and run["error"]["code"] == "unsupported_capability"
         fetch_setup.fetcher.fetch.assert_not_awaited()
 
@@ -572,7 +584,7 @@ async def test_network_oserror_does_not_poison_storage_or_retry(fetch_setup):
     async with fetch_setup.opened() as (client, owner, _):
         sid, run = await planned_fetch(client)
         response = await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
-        terminal = decode(response)[-1]["session"]["runs"][0]
+        terminal = decode(response)[-1]["run"]
         assert terminal["status"] == "failed"
         assert terminal["error"]["code"] == "web_fetch_failed"
         assert "unsafe transport detail" not in response.text
@@ -652,7 +664,7 @@ async def test_blocked_fetch_cleanup_retains_ownership_until_settlement(fetch_se
                 closing = asyncio.create_task(owner.close())
             await asyncio.wait_for(cleaning.wait(), 3)
             assert op.id in owner.active and not op.task.done()
-            assert owner.store.reservations and owner.store.fd is not None
+            assert owner.store.fd is not None
             assert fetch_setup.fetcher.fetch.await_count == 1
             if closing:
                 assert not closing.done()
@@ -662,7 +674,7 @@ async def test_blocked_fetch_cleanup_retains_ownership_until_settlement(fetch_se
             await op.task
             if closing:
                 await closing
-        assert not owner.active and not owner.store.reservations
+        assert not owner.active
         assert fetch_setup.fetcher.fetch.await_count == 1
         status = owner.store.records[sid][-1].event.session.runs[0].status
         assert status == ("cancelled" if reason == "stop" else "interrupted")
@@ -696,6 +708,44 @@ async def test_legacy_reviewed_read_plan_keeps_exact_digest_and_cannot_authorize
             await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
         )
         assert frames[-1]["type"] == "run.completed"
-        assert frames[-1]["session"]["runs"][0]["plan"]["digest"] == legacy_digest
+        assert frames[-1]["run"]["plan_identity"]["digest"] == legacy_digest
         assert not owner.registry.matches(owner.files.projection(), fetch_proposal().steps)
         fetch_setup.fetcher.fetch.assert_not_awaited()
+
+
+async def test_async_fetch_race_has_no_overall_operation_timeout(fetch_setup, monkeypatch):
+    clock = SimpleNamespace(value=100.0)
+    monkeypatch.setattr(agent_module, "time", SimpleNamespace(monotonic=lambda: clock.value))
+    fetched = []
+
+    async def elapsed_fetch(url):
+        clock.value += 3600
+        result = ChunkDocument(("Independent public evidence",))
+        fetched.append(result)
+        return result
+
+    fetch_setup.fetcher.fetch.side_effect = elapsed_fetch
+    fetch_setup.planner.plan.return_value = fetch_proposal(steps=4)
+    async with fetch_setup.opened() as (client, owner, _):
+        sid, run = await planned_fetch(client)
+        response = await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
+        assert decode(response)[-1]["type"] == "run.completed"
+        assert (await run_detail(client, sid, run["id"]))["completed_steps"] == 4
+        assert fetch_setup.fetcher.fetch.await_count == 4 and not owner.active
+        assert all(item.closed and item.close_count == 1 for item in fetched)
+
+
+async def test_web_request_timeout_fails_honestly_and_settles_connections(fetch_setup):
+    network = FakeStream(block="read")
+    fetch, backend, resolver = http_fetcher(network, timeout=0.02)
+    fetch_setup.planner.plan.return_value = fetch_proposal(steps=4)
+    async with fetch_setup.opened(fetch=fetch) as (client, owner, _):
+        sid, run = await planned_fetch(client)
+        response = await client.post(f"{BASE}/{sid}/runs/{run['id']}/execute", json=approval(run))
+        terminal = decode(response)[-1]
+        assert terminal["type"] == "run.failed" and terminal["error"]["code"] == "web_timeout"
+        assert "budget" not in terminal["error"]["message"].lower()
+        assert terminal["result"]["status"] == "failed"
+        assert network.closed and network.settled.is_set()
+        assert len(backend.calls) == resolver.await_count == 1
+        assert not owner.active and not owner.store.poisoned

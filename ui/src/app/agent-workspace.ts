@@ -40,12 +40,12 @@ export class AgentWorkspace {
     effect(() => {
       const session = this.legacy() ? null : this.state.activeSession();
       const signatures = new Map(
-        session?.runs.flatMap((run) =>
+        (session ? this.state.visibleRuns() : []).flatMap((run) =>
           run.results
             .filter((result) => result.fetch)
             .map(
               (result) =>
-                [this.evidenceKey(session.id, run.id, result), this.signature(result)] as const,
+                [this.evidenceKey(session!.id, run.id, result), this.signature(result)] as const,
             ),
         ),
       );
@@ -127,7 +127,8 @@ export class AgentWorkspace {
   }
   private currentEvidence(sid: string, rid: string, result: StepResult): boolean {
     const session = this.state.activeSession();
-    const current = session?.runs
+    const current = this.state
+      .visibleRuns()
       .find((run) => run.id === rid)
       ?.results.find((entry) => entry.step_id === result.step_id);
     return (
@@ -140,7 +141,12 @@ export class AgentWorkspace {
   }
 
   stepStatus(run: AgentRun, stepId: string): string {
-    return run.results.find((result) => result.step_id === stepId)?.status ?? 'pending';
+    const result = run.results.find((entry) => entry.step_id === stepId);
+    if (result) return result.status;
+    const index = run.plan?.steps.findIndex((step) => step.id === stepId) ?? -1;
+    if (index >= 0 && index < run.completed_steps)
+      return 'completed · outside loaded result window';
+    return run.result_count > run.results.length ? 'outside loaded result window' : 'pending';
   }
   stopping(run: AgentRun): boolean {
     return (

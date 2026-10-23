@@ -147,7 +147,7 @@ Storage is local to this browser profile and origin, unencrypted, and not synchr
 or devices. Avoid storing secrets; multiple open tabs can overwrite each other's changes. Removing
 only `ls-assistants.chat-state` from browser storage resets this application's data on the next reload.
 
-## Agent mode: approval-bound tool slice
+## Agent mode: quota-free paginated v2
 
 The header has a native Chat/Agent radio group (arrow-key navigation follows the browser's native
 radio behavior). Both coordinators are root-scoped: switching views preserves pending replies,
@@ -165,19 +165,30 @@ prompt propagation, send, retry or deletion through Chat routes.
 
 ### Implemented interaction
 
-Request → tool-free plan → structured scope review → **Approve and run** → `read_file` or
-`web_fetch` result → completion receipt → GET-based history after reload. Tests drive the actual
-Agent transport through HTTP/SSE doubles and backend-generated wire fixtures. These do not establish
+Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
+`web_fetch` steps → completion receipt → paginated GET-based history after reload. This documents
+the current Step 2 implementation. Tests drive the actual Agent transport through HTTP/SSE doubles
+and backend-generated wire fixtures. These do not establish
 live provider/site compatibility or replace the backend durability and access-policy tests.
 
-The plan displays unverified assumptions, workspace/path and exact arguments, model/effort, limits,
-revision/digest and any recorded search policy. Approval, rejection and plan feedback bind the current
-identity. Double clicks are guarded while a command is pending. Results and answers use the existing
+The plan displays every step and description, unverified assumptions, workspace/path or URL, exact
+arguments, model/effort, revision/digest and the complete exact recorded JSON, including access policy.
+Approval, rejection and plan feedback bind the current identity. A full plan is loaded for review;
+this is not a plan-payload quota. New plans omit `limits`; known legacy
+`{max_steps,max_tool_calls,timeout_seconds}` material remains readable with its exact approval digest
+but is nonoperative. There is no mandatory budget display.
+Double clicks are guarded while a command is pending. Results and answers use the existing
 sanitized Markdown and local-time display pipes; original server timestamps are preserved. Agent
 history does not auto-scroll, so updates do not pull a user away from review.
 File results retain the BFF's path, offset, returned-line count and truncation flag. Live and reloaded
 result cards show the recorded excerpt range/count and explicitly disclose omitted content or clipped
 long lines when `truncated` is true; an excerpt is not presented as evidence of the complete file.
+The BFF scans regular UTF-8 text through EOF in 8 KiB chunks, retaining a preview of at most 200
+lines/16,000 UTF-8 bytes and 1,000 characters per displayed line. There is no 256 KB file allowance
+or 10,000-line offset ceiling. Invalid text beyond the preview still fails the read, and each read
+has its own timeout. File roots still default to none; `/tmp/ls-assistants` is the sole approved
+scope, with its root/platform-alias wiring pending. The v4 file policy narrowly accepts known v3
+approval material only at the same access scope.
 
 Fetch review displays the exact public URL and zero-based character-page arguments. Successful fetch
 cards distinguish actual retrieved text from file excerpts, showing title, requested/final URL,
@@ -188,6 +199,35 @@ controls; these issue only GET requests to the evidence endpoint, never fetch th
 another execution. Loading/errors are result-local; session changes and component destruction abort
 or suppress stale results. Reload restores the execution preview and access to retained pages, not
 the prior inspector position.
+
+### Paged history and loaded views
+
+- Session listing requests 25 v2 headers at a time, including archived sessions, with `total` and an
+  opaque keyset `next_cursor`. More sessions load only on request. A restored selected session outside
+  page one is preserved and resolved by direct `GET /{sid}`, including archived history.
+- Run history loads one page of 10 summaries, newest first by append ordinal. **Load older runs**
+  replaces the summary window using `next_before`; it does not accumulate all run bodies. The
+  current nonterminal run, or latest settled run, stays pinned independently of the summary page.
+- One additional historical run can be opened at a time. Each loaded body contains its complete
+  request and exact plan, answer/error, total `result_count` and `completed_steps`, and a window of
+  at most 20 results. Recent results are the default; each window is in ascending step order.
+  **Load older results** replaces that window, and **Show recent results** returns to the tail.
+  Live changes update matching cells without pulling an older window back to recent results.
+- Reads have page-local loading/errors, request ownership and causal sequence checks. Matching
+  pending reads are shared. Closing historical detail cancels its detail/result reads and clears
+  their loading/error state; late callbacks cannot reopen it or affect newer reconciliation.
+- History is not automatically fetched in full. The stream decoder retains at most 64 duplicate
+  signatures; the workspace keeps a 10-summary window and at most the pinned and opened bodies,
+  each with a 20-result window. Complete plans intentionally remain available for exact review.
+
+Backend list/run/result/event pages accept sizes up to 100, but the UI uses the fixed sizes above
+(and 50 for explicit event reads). Page windows and duplicate-cache size are transport/rendering
+controls, not retained-history or execution allowances. There are no artificial step, call, attempt,
+revision, run, session, event, journal or payload allowances. There is no overall Agent planning,
+execution or transport expiry. One active run per session, exact approval, model/effort freezes and Stop remain.
+Per-call defaults are planner 120 seconds, file read 30 seconds and ASGI send 30 seconds; WebFetcher
+owns a 30-second timeout across one fetch/redirect chain, 10 redirects and per-request parser guards.
+There is no overall stream timer. Chat deadlines are unchanged.
 
 Stop sends the captured operation ID. **Stopping…** is nonterminal and keeps preferences locked.
 Archive retains the session in reviewable history; pending archive stays locked even after a run settles,
@@ -200,32 +240,89 @@ An in-flight archive command has separate local ownership: a concurrently delive
 
 ### Agent API and recovery
 
-All routes are under `/api/agent/sessions`: list (`include_archived=true`), create, get, preference
-PATCH, `/{sid}/runs`, `/{sid}/runs/{rid}/execute`, `/revise`, `/reject`, `/cancel`, and
-`/{sid}/archive`. Mutation bodies contain a fresh `request_id`. Approval sends `plan_id`, `revision`
+All routes are under `/api/agent/sessions`: list (`include_archived=true&limit=25`), create,
+header GET, preference PATCH, `POST /{sid}/runs`, `/{sid}/runs/{rid}/execute`, `/revise`, `/reject`,
+`/cancel`, and `/{sid}/archive`. Mutation bodies contain a fresh `request_id`. Approval sends `plan_id`, `revision`
 and `digest`; Stop sends `operation_id`. The transport understands question-identified clarification
 rejection, but the current BFF returns HTTP 501 for the deferred clarification flow.
 HTTP JSON failures are shown with status and API detail, including missing planner configuration.
+Nonstreaming HTTP mutation acknowledgements return a bounded v2 header, not run history:
+
+```text
+{projection_version:2,id,title,model,reasoning_effort,created_at,updated_at,archived,
+ archive_pending,sequence,run_count,latest_run_id,current_run}
+```
+
+`current_run` is null or a `RunControl` with
+`id,status,operation_id,created_at,updated_at,version_sequence,plan_identity,result_count,
+completed_steps,error`. `plan_identity` is null or `{id,revision,digest,model,reasoning_effort}`.
+Run summaries add `request_preview`. A selected run has
+`projection_version,id,request,created_at,updated_at,status,operation_id,plan,results,answer,error,
+clarification,version_sequence,result_count,completed_steps,results_before`; the current BFF always
+returns null `clarification`.
+
+| GET suffix                           | Response keys / continuation                                                                                                                          |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?include_archived=true&limit=25`    | `projection_version,sessions,next_cursor,total`; pass `cursor` for the next keyset page                                                               |
+| `/{sid}/runs?limit=10`               | `projection_version,session_id,at_sequence,total,runs,next_before`; exclusive older run ordinal via `before`                                          |
+| `/{sid}/runs/{rid}?limit=20`         | Selected run body; `results_before` is the exclusive ordinal for older results                                                                        |
+| `/{sid}/runs/{rid}/results?limit=20` | `projection_version,session_id,run_id,at_sequence,total,completed_steps,results,next_before`; older window via `before`                               |
+| `/{sid}/events?after=N&limit=50`     | `projection_version,events,next_after,through_sequence,has_more`; carry `through=through_sequence` and `after=next_after` to finish a finite catch-up |
+
+HTTP page projections use `projection_version:2`; counts describe complete matching history.
+Event reads are available through `AgentApi` but the workspace does not automatically replay the
+event history. Exact backend DTOs and cursor rules are documented in [AGENT_API.md](../bff/AGENT_API.md).
+
 `GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` reads committed same-session evidence and
 returns `{artifact_id,content,offset,returned_chars,total_chars,next_offset}`. Offsets/counts use
 Unicode characters, not UTF-16 code units. Page size is at most 16000; retained totals and continuation
 must agree with the execution metadata. The decoder rejects unsafe provenance and malformed or
 inconsistent pages without replacing the original preview.
 
-Agent SSE uses event `agent` and decimal committed sequence IDs, with schema version 1 and a full
-session snapshot per envelope. Its independent decoder validates timestamps, snapshot shapes,
+Agent SSE uses event `agent` and decimal committed sequence IDs, with this v2 envelope:
+
+```text
+{schema_version:2,sequence,time,session_id,request_id,run_id,operation_id,type,
+ session,run,request,plan,result,answer,error,invalidates_runs}
+```
+
+`session` is the header and `run` is a control or null. `invalidates_runs` is a **required boolean**,
+false for ordinary single-run progress. Request text appears once per planning/revision admission
+(`run.planning`), the complete plan only at review (`run.awaiting_approval`), the changed result on
+tool progress or representable terminal failure, and the answer at completion. Other body fields
+are null; earlier bodies and complete history are not retransmitted.
+The independent decoder validates timestamps, headers/controls, loaded bodies,
 session correlation and frozen approval identity. Work records must match the owning request/run/operation;
 known session lifecycle records can carry other request IDs and null run/operation IDs without taking
 ownership of the stream. A validated first planning/approval admission establishes the server baseline
 even if metadata commits advanced it beyond the cached sequence; subsequent records must be contiguous.
-Committed sequence is the causal order. Strict timestamp syntax is checked, but UTC wall-clock readings
-may step backwards and are not used as a monotonic clock.
+Committed sequence and per-run `version_sequence` are the causal order; a title/header change can
+advance the session without changing the run version. Strict timestamp syntax is checked, but UTC
+wall-clock readings may step backwards and are not used as a monotonic clock.
 New-run acknowledgements must match the submitted request and use a new run ID. Execution requires a
-reviewed plan, completed runs require completed results, and archived sessions must contain only settled runs.
-Identical duplicates are ignored; gaps, conflicting duplicates, invalid responses and EOF during
-active work fail safely and trigger GET recovery. A failed recovery leaves the last committed view
+reviewed plan; completion requires a validated completed step prefix, not every result body loaded
+in the current window. Archived headers have no nonterminal current run.
+Identical duplicates in the 64-signature cache are ignored; gaps, conflicting or older uncached
+duplicates, invalid responses and EOF during active work fail safely and trigger GET recovery.
+A failed recovery leaves the last committed view
 visible with an error. Reading an active operation after reload never takes ownership or resumes it;
 use Stop or reload history to inspect eventual settlement.
+
+Startup recovery retains the actual `type:"run.interrupted",request_id:"recovery",run_id:null,
+operation_id:null` envelope with `invalidates_runs:true`. It can project the primary affected run's
+control and `outcome_unknown` error, plus a uniquely changed failed result. Multiple affected runs
+or ambiguous result changes require refresh; archive-only recovery can have null `run`, `result`
+and `error`. The UI does not invent command correlation for these null IDs. Any invalidation
+refreshes the header, current summary page and pinned/opened bodies through bounded GETs, keeping
+review/send locked until the required views reconcile at the authoritative causal frontier.
+Closing an optional historical view during recovery reconciles the remaining views; an obsolete
+callback or superseded refresh cannot clear a newer invalidation. A failed required read leaves
+the lock and a page-local error available for recovery.
+
+Public `projection_version:2`/`schema_version:2` is independent of private journal
+`storage_version:2` and the legacy v1 journal-event model. Cached v1 clients must reload the updated
+UI. The frozen v1 reader is read-only compatibility for complete old snapshots; normal backend
+HTTP/SSE no longer serves the unbounded v1 contract.
 
 Only navigation metadata and unsent Agent drafts are saved in version 1 of
 `ls-assistants.agent-ui-state`; server plans/results are not browser-authoritative copies. Invalid or
@@ -235,26 +332,35 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 ### Current limitations and retained content
 
 - The production UI does **not** fabricate fixture/demo plans. The BFF planner is unavailable until
-  explicitly injected/configured. These frontend tests make no real provider or search calls.
-- The BFF supports approved `read_file` and `web_fetch` steps through an injected planner. Web search,
-  folder grep, and no-tool steps remain unavailable. The full four-tool release, full event/audit
-  timeline, paged session history, and live deployment compatibility remain outside this increment.
+  explicitly injected/configured (`503 agent_not_configured`). These frontend tests make no real
+  provider or search calls; no live verification has been performed.
+- The BFF supports approved `read_file` and `web_fetch` steps through an injected planner. Web search
+  (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release, complete
+  LLM audit, production planner, function-loop continuation and LLM synthesis remain deferred. The
+  answer is a deterministic completion receipt pointing to evidence.
 - Fetch handles public static HTML/plain text only, not authenticated/internal pages or browser/JS
   rendering. The BFF requests identity encoding and rejects compressed responses; static extraction
-  can report unsupported/empty pages. Existing prototype plan/run/history caps remain pending backend
-  migration and are displayed honestly, not represented as the target product policy.
+  can report unsupported/empty pages. These per-request protocol/parser guards do not allocate
+  cumulative work or retained-history budgets.
 - Plan feedback is supported. Clarification handling, including replies and rejection, is deferred in
   the current BFF, which produces no clarification states. Compatibility question records are rendered
   read-only without offering unsupported commands; use a new session or await server-side resolution.
-- History renders the server's run projections, including archived sessions. It does not implement
-  event replay or automatic background polling; reload history to refresh settlement after reconnection.
+- History renders paged server projections, including archived sessions. There is no full event/audit
+  timeline or automatic background polling; reload history to refresh settlement after reconnection.
 - The UI discloses retention before use: user requests, reviewed plans, approved source excerpts,
   tool results and logical model input/output are retained by the BFF. Archive preserves records;
   there is no automatic expiry. Permitted content may contain sensitive text; there is no guarantee
-  of secret-content scrubbing. Approved fetch URLs leave the BFF; future search queries would too. Resource limits are not a
-  guaranteed currency ceiling; cost is displayed as unknown.
+  of secret-content scrubbing. Approved fetch URLs leave the BFF; future search queries would too.
+  Provider usage/cost remains unknown; there is no guaranteed currency ceiling.
 - Mocked approval/Stop tests verify UI command ownership only. Durable approval, tool authorization,
   request-id idempotency and cancellation settlement remain BFF responsibilities.
+
+Paged public/UI windows do not make persistent storage fully paged or guarantee bounded total
+memory/disk or physically infinite history. The BFF retains one hydrated latest baseline and
+reference/index state per session, checks O(all committed references) metadata, hashes the complete
+journal prefix on append, and replays prefixes for historical diagnostics/recovery. Normal public
+reads select body references without full-session hydration/replay; selecting a legacy body can
+parse one old full record. Compaction, garbage collection and orphan cleanup are not implemented.
 
 ## Build, test, and scaffold
 
@@ -269,13 +375,22 @@ npx --no-install ng generate component component-name
 Production output is written to `dist/ui/`. `npm test` without additional flags runs tests in watch mode.
 Tests inject fake fetch/API implementations; they never require a running BFF or provider credentials.
 
-First-slice verification is exercised by frontend API/state/component doubles, including preference
-rollback, archive settlement, correlated acknowledgements, recovery validation and session-scoped errors.
-Review-fix verification (2026-10-16): 543 frontend tests pass, including the independent backend-generated
+Agent verification uses API/state/component doubles and the backend-generated
+`src/app/agent-contract.fixture.json` v2 contract. Its recovery case comes from actually reopening a
+temporary backend store with unmatched tool intent, then passes through the production v2 decoder
+and bounded GET recovery paths. `src/app/agent-contract-v1.fixture.json` is frozen for read-only v1
+reader tests. Coverage includes quota-free plan review, 64-signature deduplication, summary/result
+window replacement, restored selections outside page one, closed pending reads/loading cleanup,
+causal invalidation recovery, preference rollback, archive ownership and session-scoped errors.
+These paths use static/mocked inputs; final current check results are recorded separately.
+
+### Historical verification (2026-10-16)
+
+Review-fix verification: 543 frontend tests passed, including the independent backend-generated
 HTTP/SSE fixture contract suite,
 alongside TypeScript checking, the production build and repository-wide Prettier checking.
-The build's initial bundle is approximately 442 kB; Agent workspace and Markdown load lazily.
-The build reports two CSS critical-inlining selector warnings; the full stylesheet remains available.
+That build's initial bundle was approximately 442 kB; Agent workspace and Markdown loaded lazily.
+It reported two CSS critical-inlining selector warnings; the full stylesheet remained available.
 
 ## Installed libraries
 

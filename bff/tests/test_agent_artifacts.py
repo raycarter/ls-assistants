@@ -2,6 +2,7 @@
 
 import json
 import os
+from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
@@ -9,7 +10,7 @@ import pytest
 import app.sessions as sessions_module
 from app.agent_files import AgentFault
 from app.agent_schemas import CreateSession
-from app.sessions import SessionStore, StoreLimits
+from app.sessions import SessionStore
 from tests.test_agent import BASE, CREATE, approval, guard_session_syscalls
 from tests.test_agent_fetch import (
     TEXT,
@@ -75,6 +76,31 @@ async def test_artifact_endpoint_only_exposes_committed_session_evidence(fetch_s
     async with fetch_setup.opened() as (client, owner, _):
         assert (await client.get(f"{BASE}/{sid}/artifacts/{orphan.artifact_id}")).status_code == 404
         assert (await client.get(f"{BASE}/{sid}/artifacts/{aid}")).status_code == 200
+
+
+async def test_public_headers_verify_txt_metadata_without_rereading_stable_bodies(
+    fetch_setup,
+    monkeypatch,
+):
+    async with fetch_setup.opened() as (client, owner, _):
+        sid, _, result, _ = await executed_fetch(client)
+        aid = result["fetch"]["artifact_id"]
+        read = Mock(wraps=owner.store._read_artifact)
+        monkeypatch.setattr(owner.store, "_read_artifact", read)
+        assert (await client.get(BASE)).status_code == 200
+        assert (await client.get(f"{BASE}/{sid}")).status_code == 200
+        assert (await client.get(f"{BASE}/{sid}/events")).status_code == 200
+        read.assert_not_called()
+        path = owner.store.root / sid / "artifacts" / (aid + ".txt")
+        info = path.stat()
+        os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 1000000))
+        assert (await client.get(f"{BASE}/{sid}")).status_code == 200
+        assert read.call_count == 1
+        assert (await client.get(f"{BASE}/{sid}")).status_code == 200
+        assert read.call_count == 1
+        # The artifact endpoint itself still verifies and streams the requested page.
+        assert (await client.get(f"{BASE}/{sid}/artifacts/{aid}?limit=1")).status_code == 200
+        assert read.call_count == 3  # existing full-session evidence check plus requested page
 
 
 @pytest.mark.parametrize(
@@ -180,7 +206,7 @@ async def test_uncommitted_artifact_after_physical_failure_recovers_interrupted_
         assert len(files) == 1 and files[0].read_text() == TEXT
         aid = files[0].stem
     async with fetch_setup.opened() as (client, owner, _):
-        recovered = (await client.get(f"{BASE}/{sid}")).json()["runs"][0]
+        recovered = (await client.get(f"{BASE}/{sid}/runs/{run['id']}")).json()
         assert recovered["status"] == "interrupted"
         assert recovered["error"]["code"] == "outcome_unknown"
         assert recovered["results"][0]["status"] == "failed"
@@ -188,22 +214,21 @@ async def test_uncommitted_artifact_after_physical_failure_recovers_interrupted_
         fetch_setup.fetcher.fetch.assert_awaited_once()
 
 
-def test_artifact_body_not_subject_to_existing_journal_disk_budget_and_legacy_stays_valid(tmp_path):
+def test_artifact_accounting_is_separate_and_orphans_stay_inaccessible(tmp_path):
     root = tmp_path / "journal"
-    limits = StoreLimits(disk_bytes=2000)
-    store = SessionStore(root, limits=limits)
+    store = SessionStore(root)
     store.start()
     snapshot = store.create(CreateSession(**CREATE))
     used = store.used
     page, _ = store.write_artifact(snapshot.id, document(TEXT))
-    assert store.used == used and store.artifact_bytes > limits.disk_bytes
+    assert store.used == used and store.artifact_bytes == len(TEXT.encode())
     # Legacy events have no fetch field at all and no artifact references.
     store.close()
     journal = root / snapshot.id / "events.jsonl"
     record = json.loads(journal.read_text())
     assert record["storage_version"] == 2
     assert record["runs"] == [] and "session" not in record["event"]
-    recovered = SessionStore(root, limits=limits)
+    recovered = SessionStore(root)
     recovered.start()
     assert recovered.get(snapshot.id).runs == []
     assert recovered.artifact_bytes == len(TEXT.encode())

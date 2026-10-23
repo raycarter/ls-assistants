@@ -3,14 +3,31 @@
 FastAPI backend for the Azure OpenAI **v1 Responses API**. The caller owns the
 conversation history and sends it explicitly on every turn. The backend keeps no
 Chat conversation state and calls the provider with `store=False`. The separate
-Agent API has a **first mocked vertical slice**, described in [AGENT_API.md](AGENT_API.md):
-journal-backed sessions, injected tool-free planning, exact-plan approval, bounded
-fixture-tested file reads and public-page fetching, durable paged web evidence,
-progress, rejection, cancellation and restart recovery.
-Its production planner is unavailable by default; this is not a full Agent release.
-Agent storage writes incremental private journal records and immutable JSON payloads,
-while reading existing journals unchanged. The public Agent API/SSE contract stays
-the same; prototype quotas and complete LLM auditing remain pending.
+Agent API implements **Step 2: quota-free work with paginated public v2**, described
+in [AGENT_API.md](AGENT_API.md): journal-backed sessions, injected tool-free planning,
+exact-plan approval, streaming UTF-8 file pages, public-page fetching, durable paged
+web evidence, progress, rejection, Stop and restart recovery. Its production planner
+is unavailable by default (planning returns `503 agent_not_configured`); this is
+not a full Agent release, and no live verification has been performed.
+
+Agent HTTP acknowledgements return v2 session headers; list, run summaries, results
+and events are paginated. Selected runs load one full exact plan and a recent result
+window; v2 SSE sends headers/controls and changed bodies rather than session history.
+There are no artificial work/history/payload allowances or overall Agent operation
+or stream expiry. Per-call defaults remain: planner 120 seconds, file read 30 seconds,
+ASGI send 30 seconds; WebFetcher owns a 30-second fetch timeout and 10-redirect guard.
+Exact approval, one active run per session, preference freezes and Stop still apply.
+New plans omit `limits`; known legacy limits remain exact digest material but are
+nonoperative. These Agent changes do not alter Chat deadlines.
+
+Agent storage uses private journal version 2 and immutable JSON payloads, preserving
+legacy journal bytes and approvals. This is separate from public projection/schema
+version 2; cached v1 clients must reload the updated UI. Normal public reads select
+references directly, but one internal hydrated baseline/index per session, reference
+metadata checks and append-prefix hashing still grow with retained history. There is
+no compaction/GC or complete LLM audit yet. File roots default to none;
+`/tmp/ls-assistants` remains the sole approved scope with root/platform-alias wiring
+pending. See the Agent API document for exact DTOs, paging, recovery and policy rules.
 
 ## Setup
 
@@ -280,7 +297,9 @@ acquisition serialization and lifespan draining. No real subprocess is started.
 - `app/routes.py`: HTTP endpoints and disconnect-aware streaming response.
 - `app/responses.py`: injectable `ChatService`, Responses mapping and stream lifecycle.
 - `app/agent.py`, `app/agent_schemas.py`, `app/agent_routes.py`: isolated Agent
-  coordinator, strict contracts, planner injection and HTTP/SSE endpoints.
+  coordinator, strict commands/durable models, planner injection and HTTP/SSE endpoints.
+- `app/agent_views.py`: public v2 headers, run controls, selected bodies and paged events.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.
-- `app/agent_files.py`: fail-closed workspace policy and bounded no-follow text reads.
+- `app/agent_files.py`: fail-closed v4 workspace policy and no-follow UTF-8 EOF scans
+  with bounded page previews; narrow same-access v3 approval compatibility.
 - `main.py`: thin compatibility entry point.

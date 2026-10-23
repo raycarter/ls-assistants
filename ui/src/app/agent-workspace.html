@@ -1,10 +1,11 @@
 <div class="agent-history" tabindex="0" aria-label="Agent run history">
   <aside class="disclosure" aria-label="Agent capabilities and retained content">
-    <strong>First Agent slice · review before execution</strong>
+    <strong>Agent · review the complete plan before execution</strong>
     <p>
-      The injected-planner path supports approved read_file and web_fetch steps. Search and grep are
-      unavailable. Planning runs no tools. A planner must be explicitly configured in the BFF; a
-      production planner is not provided by this slice.
+      Approved plans support read_file and web_fetch steps. Search and grep are unavailable.
+      Planning runs no tools. Planner availability and tool authorization are determined by the BFF.
+      Every step and description is shown before approval. History loads in fixed-size pages; page
+      sizes are read windows, not retained-history or execution allowances.
     </p>
     <p>
       User requests, reviewed plans, approved source excerpts, tool results and logical model
@@ -48,6 +49,12 @@
     </section>
   } @else if (state.activeSession(); as session) {
     <h1 tabindex="-1">{{ session.title }}</h1>
+    @if (state.invalidating().has(session.id)) {
+      <p role="status">
+        Server run history changed. Reloading the current run, opened run, and summary page; review
+        is disabled until reconciliation completes.
+      </p>
+    }
     @if (session.archived) {
       <p role="status">Archived · read-only retained history</p>
     }
@@ -57,10 +64,94 @@
         status. History is retained.
       </p>
     }
-    @if (!session.runs.length) {
+    @if (!session.run_count) {
       <p>Describe a task to request a tool-free plan. Review its exact scope before approving.</p>
     }
-    @for (run of session.runs; track run.id) {
+    <section class="card" aria-label="Run history summaries">
+      <h2>
+        Run history · {{ session.run_count }} total · {{ state.summaries().length }} summaries
+        loaded
+      </h2>
+      <p>The current or latest run is pinned. Open one historical run at a time.</p>
+      @for (summary of state.summaries(); track summary.id) {
+        <p>
+          {{ summary.request_preview }} · {{ summary.status.replaceAll('_', ' ') }}
+          <button
+            type="button"
+            [disabled]="state.pageLoading().has('opened') || state.pageLoading().has('current')"
+            (click)="state.openRun(summary.id)"
+          >
+            Open run
+          </button>
+        </p>
+      }
+      @if (state.nextRunsBefore() !== null) {
+        <button
+          type="button"
+          [disabled]="state.pageLoading().has('runs')"
+          (click)="state.loadRuns(true)"
+        >
+          Load older runs
+        </button>
+      }
+      @if (state.pageErrors().has('runs')) {
+        <p role="alert">{{ state.pageErrors().get('runs') }}</p>
+        <button type="button" (click)="state.loadRuns()">Retry run summaries</button>
+      }
+      @if (state.openedView()) {
+        <button type="button" (click)="state.closeRun()">Close historical run</button>
+      }
+    </section>
+    @for (key of ['current', 'opened', 'results:current', 'results:opened']; track key) {
+      @if (state.pageLoading().has(key)) {
+        <p role="status">Loading {{ key }} page…</p>
+      }
+      @if (state.pageErrors().has(key)) {
+        <p role="alert">{{ state.pageErrors().get(key) }}</p>
+      }
+    }
+    @if (state.activeControl(); as control) {
+      <section class="card" aria-label="Current run control">
+        <h2>Current run · {{ control.status.replaceAll('_', ' ') }}</h2>
+        <p>
+          {{ control.completed_steps }} completed steps · {{ control.result_count }} recorded
+          results
+        </p>
+        <button
+          type="button"
+          [disabled]="state.pageLoading().has('current')"
+          (click)="state.openRun(control.id, true)"
+        >
+          Load complete current run
+        </button>
+        @if (['planning', 'approved', 'executing', 'cancelling'].includes(control.status)) {
+          <button
+            type="button"
+            [disabled]="
+              control.status === 'cancelling' ||
+              state.stopping().has(session.id) ||
+              state.archivePending().has(session.id)
+            "
+            (click)="state.stop(control)"
+          >
+            {{
+              control.status === 'cancelling' || state.stopping().has(session.id)
+                ? 'Stopping…'
+                : 'Stop operation'
+            }}
+          </button>
+        }
+      </section>
+    } @else if (session.latest_run_id && !state.currentView()) {
+      <button
+        type="button"
+        [disabled]="state.pageLoading().has('current')"
+        (click)="state.openRun(session.latest_run_id, true)"
+      >
+        Load latest run
+      </button>
+    }
+    @for (run of state.visibleRuns(); track run.id) {
       <article class="run" [attr.aria-label]="'Agent run: ' + run.id">
         <section class="card request">
           <h2>
@@ -85,11 +176,6 @@
               }
             </ul>
             <p>Model: {{ plan.model }} · Thinking: {{ plan.reasoning_effort }}</p>
-            <p>
-              Limits: {{ plan.limits.max_steps }} steps · {{ plan.limits.max_tool_calls }} tool
-              calls · {{ plan.limits.timeout_seconds }} seconds. Cost: unknown; resource limits are
-              not a currency ceiling.
-            </p>
             @if (plan.search_policy !== undefined) {
               <h3>Effective search/query policy (as recorded)</h3>
               <pre>{{ plan.search_policy | json }}</pre>
@@ -116,20 +202,31 @@
                       {{ step.arguments.limit }} characters
                     </p>
                   }
-                  <details>
-                    <summary>Exact tool arguments</summary>
+                  <section aria-label="Exact tool arguments">
+                    <h4>Exact tool arguments</h4>
                     <pre>{{ step.arguments | json }}</pre>
-                  </details>
+                  </section>
                   <p>Step: {{ step.id }} · {{ stepStatus(run, step.id) }}</p>
                 </li>
               }
             </ol>
-            @if (run.status === 'awaiting_approval' && !session.archived) {
+            <section aria-label="Exact recorded plan">
+              <h3>Complete exact plan</h3>
+              <pre>{{ plan | json }}</pre>
+            </section>
+            @if (
+              run.status === 'awaiting_approval' &&
+              state.activeControl()?.id === run.id &&
+              state.activeControl()?.status === 'awaiting_approval' &&
+              !session.archived
+            ) {
               <div class="actions">
                 <button
                   type="button"
                   [disabled]="
-                    state.busy().has(session.id) || state.archivePending().has(session.id)
+                    !state.canApprove(run) ||
+                    state.busy().has(session.id) ||
+                    state.archivePending().has(session.id)
                   "
                   (click)="state.approve(run)"
                 >
@@ -156,6 +253,7 @@
               <button
                 type="button"
                 [disabled]="
+                  !state.canApprove(run) ||
                   state.busy().has(session.id) ||
                   state.archivePending().has(session.id) ||
                   !state.feedback(run).trim()
@@ -182,6 +280,37 @@
             </p>
           </section>
         }
+        <section class="card" aria-label="Result window">
+          <p>
+            {{ run.completed_steps }} completed steps of {{ run.plan?.steps?.length ?? 0 }} ·
+            {{ run.results.length }} of {{ run.result_count }} results loaded ·
+            {{ state.windowKind(run) }} window
+          </p>
+          @if (run.results_before !== null) {
+            <button
+              type="button"
+              [disabled]="
+                state.pageLoading().has('results:current') ||
+                state.pageLoading().has('results:opened')
+              "
+              (click)="state.loadResults(run)"
+            >
+              Load older results
+            </button>
+          }
+          @if (state.windowKind(run) === 'older') {
+            <button
+              type="button"
+              [disabled]="
+                state.pageLoading().has('results:current') ||
+                state.pageLoading().has('results:opened')
+              "
+              (click)="state.loadResults(run, true)"
+            >
+              Show recent results
+            </button>
+          }
+        </section>
         @for (result of run.results; track result.step_id) {
           <section class="card" aria-label="Step result">
             <h2>
@@ -326,18 +455,6 @@
         }
         @if (run.error) {
           <p class="error">{{ run.error.code }}: {{ run.error.message }}</p>
-        }
-        @if (
-          ['planning', 'approved', 'executing', 'cancelling'].includes(run.status) &&
-          !session.archived
-        ) {
-          <button
-            type="button"
-            [disabled]="stopping(run) || state.archivePending().has(session.id)"
-            (click)="state.stop(run)"
-          >
-            {{ stopping(run) ? 'Stopping…' : 'Stop operation' }}
-          </button>
         }
       </article>
     }

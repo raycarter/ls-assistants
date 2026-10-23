@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import json
 import os
 import stat
@@ -24,7 +25,7 @@ from app.agent_schemas import (
     StartRun,
 )
 from app.main import create_app
-from app.sessions import OPERATION_EVENTS, SESSION_ID, SessionStore, StoreLimits
+from app.sessions import SESSION_ID, SessionStore
 
 
 def proposal(path="note.txt"):
@@ -58,13 +59,14 @@ def agent_setup(tmp_path, settings_factory, mock_client):
     planner = SimpleNamespace(plan=AsyncMock(return_value=proposal()))
 
     @asynccontextmanager
-    async def opened(*, enabled=True, files=None, limits=None):
-        store = SessionStore(root, limits=limits)
+    async def opened(*, enabled=True, files=None, **timeouts):
+        store = SessionStore(root)
         owner = AgentService(
             store,
             planner=planner if enabled else None,
             files=files or FilePolicy({"fixture": workspace}),
             models=("deployment-a",),
+            **timeouts,
         )
         application = create_app(
             settings_factory(),
@@ -106,7 +108,18 @@ def decode(response):
             "operation_id",
             "type",
             "session",
+            "run",
+            "request",
+            "plan",
+            "result",
+            "answer",
+            "error",
+            "invalidates_runs",
         }
+        assert event["schema_version"] == 2
+        assert type(event["invalidates_runs"]) is bool
+        assert event["session"]["projection_version"] == 2
+        assert "runs" not in event["session"]
         events.append(event)
     assert [e["sequence"] for e in events] == list(
         range(events[0]["sequence"], events[0]["sequence"] + len(events))
@@ -127,9 +140,15 @@ async def planned(client):
             },
         )
     )
-    run = frames[-1]["session"]["runs"][-1]
+    run = await run_detail(client, sid, frames[-1]["run_id"])
     assert run["status"] == "awaiting_approval"
     return sid, run, frames
+
+
+async def run_detail(client, sid, rid):
+    response = await client.get(f"{BASE}/{sid}/runs/{rid}")
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def approval(run, key="execute"):
@@ -187,7 +206,7 @@ async def test_mocked_http_slice_reload_exact_approval_and_audit(agent_setup):
             "tool.result",
             "run.completed",
         ]
-        result = output[-1]["session"]["runs"][0]["results"][0]
+        result = (await run_detail(client, sid, run["id"]))["results"][0]
         assert result["content"] == "1: alpha\n2: beta"
         assert result["truncated"] is True
         assert result["returned_lines"] == 2
@@ -197,7 +216,7 @@ async def test_mocked_http_slice_reload_exact_approval_and_audit(agent_setup):
         assert reads.call_count == 1
         replay = (await client.get(f"{BASE}/{sid}/events?after=0")).json()
         assert replay["has_more"] is False
-        assert replay["events"][-1]["session"]["runs"][0]["status"] == "completed"
+        assert replay["events"][-1]["run"]["status"] == "completed"
         assert "audit" not in json.dumps(replay)
         before = (await client.get(f"{BASE}/{sid}")).json()
     async with setup.opened() as (client, owner, _):
@@ -309,7 +328,7 @@ async def test_rejection_revision_and_payload_binding(agent_setup):
     async with agent_setup.opened() as (client, owner, _):
         sid, run, _ = await planned(client)
         path = f"{BASE}/{sid}/runs/{run['id']}"
-        revised = decode(
+        revised_frames = decode(
             await client.post(
                 path + "/revise",
                 json={
@@ -318,7 +337,8 @@ async def test_rejection_revision_and_payload_binding(agent_setup):
                     "content": "Keep it short",
                 },
             )
-        )[-1]["session"]["runs"][0]
+        )
+        revised = await run_detail(client, sid, revised_frames[-1]["run_id"])
         assert revised["plan"]["revision"] == 2
         assert revised["plan"]["digest"] != run["plan"]["digest"]
         assert agent_setup.planner.plan.call_args.args[0].feedback == "Keep it short"
@@ -330,7 +350,8 @@ async def test_rejection_revision_and_payload_binding(agent_setup):
                 "kind": "plan",
             },
         )
-        assert response.json()["runs"][0]["status"] == "rejected"
+        assert response.json()["current_run"] is None
+        assert (await run_detail(client, sid, run["id"]))["status"] == "rejected"
         assert not any(r.event.type == "tool.intent" for r in owner.store.records[sid])
         assert (await client.post(path + "/execute", json=approval(revised))).status_code == 409
         conflict = await client.post(
@@ -447,7 +468,8 @@ async def test_targeted_stop_pending_archive_and_worker_settlement(agent_setup):
         assert settled.runs[0].status == "cancelled"
         assert settled.archived and not settled.archive_pending
         assert op.id not in owner.active and files.calls == 1
-        assert (await client.get(BASE)).json() == {"sessions": []}
+        listing = (await client.get(BASE)).json()
+        assert listing == {"projection_version": 2, "sessions": [], "next_cursor": None, "total": 0}
         assert len((await client.get(BASE + "?include_archived=true")).json()["sessions"]) == 1
 
 
@@ -534,7 +556,8 @@ async def test_malformed_planner_result_is_not_approvable(agent_setup):
         response = await client.post(
             f"{BASE}/{sid}/runs", json={"request_id": "plan", "content": "Read"}
         )
-        run = decode(response)[-1]["session"]["runs"][0]
+        frames = decode(response)
+        run = await run_detail(client, sid, frames[-1]["run_id"])
         assert run["status"] == "failed" and run["plan"] is None
         assert not any(r.event.type == "tool.intent" for r in owner.store.records[sid])
 
@@ -559,7 +582,7 @@ async def test_audit_write_failure_prevents_tool_dispatch_and_recovers_unknown(
         assert "run.completed" not in response.text
         assert not read.called
     async with agent_setup.opened() as (client, owner, _):
-        recovered = (await client.get(f"{BASE}/{sid}")).json()["runs"][0]
+        recovered = await run_detail(client, sid, run["id"])
         assert recovered["status"] == "interrupted"
         assert recovered["error"]["code"] == "outcome_unknown"
         assert (
@@ -628,12 +651,11 @@ def test_interrupted_recovery_does_not_replay_tools(tmp_path):
     store.close()
 
 
-def test_fsync_failure_is_not_published_and_limits_fail_closed(tmp_path, monkeypatch):
-    store = SessionStore(tmp_path / "storage", limits=StoreLimits(sessions=1))
+def test_fsync_failure_is_not_published(tmp_path, monkeypatch):
+    store = SessionStore(tmp_path / "storage")
     store.start()
     snapshot = store.create(CreateSession(**CREATE))
-    with pytest.raises(AgentFault, match="limit"):
-        store.create(CreateSession(**{**CREATE, "request_id": "second"}))
+    store.create(CreateSession(**{**CREATE, "request_id": "second"}))
     before = len(store.records[snapshot.id])
 
     def fail(fd):
@@ -676,7 +698,7 @@ def test_file_exclusions(agent_setup, path):
         )
 
 
-def test_file_symlinks_binary_caps_and_storage_symlinks(agent_setup, tmp_path):
+def test_file_symlinks_binary_and_storage_symlinks(agent_setup, tmp_path):
     workspace = agent_setup.workspace
     (workspace / "link").symlink_to(workspace / "note.txt")
     (workspace / "dirlink").symlink_to(workspace, target_is_directory=True)
@@ -684,13 +706,20 @@ def test_file_symlinks_binary_caps_and_storage_symlinks(agent_setup, tmp_path):
     (workspace / "large").write_bytes(b"a" * 256001)
     os.mkfifo(workspace / "pipe")
     policy = FilePolicy({"fixture": workspace})
-    for path in ("link", "dirlink/note.txt", "binary", "large", "pipe"):
+    for path in ("link", "dirlink/note.txt", "binary", "pipe"):
         with pytest.raises(AgentFault):
             policy.read(
                 ReadArguments(workspace_id="fixture", path=path),
                 threading.Event(),
                 time.monotonic() + 3,
             )
+    page = policy.read(
+        ReadArguments(workspace_id="fixture", path="large"),
+        threading.Event(),
+        time.monotonic() + 3,
+    )
+    assert page["content"].startswith("1: a") and page["returned_lines"] == 1
+    assert page["truncated"] is True
     link = tmp_path / "storage-link"
     link.symlink_to(workspace, target_is_directory=True)
     with pytest.raises(AgentFault):
@@ -736,61 +765,53 @@ def test_journal_symlink_cannot_redirect_write(tmp_path):
     store.close()
 
 
-@pytest.mark.parametrize("kind", ["events", "disk"])
-async def test_capacity_rejected_before_operation_admission_and_restart(agent_setup, kind):
-    limits = StoreLimits(events=3) if kind == "events" else StoreLimits(disk_bytes=1000)
-    async with agent_setup.opened(limits=limits) as (client, owner, _):
+async def test_enospc_before_admission_is_not_published_and_restart_recovers(
+    agent_setup, monkeypatch
+):
+    async with agent_setup.opened() as (client, owner, _):
         sid = (await client.post(BASE, json=CREATE)).json()["id"]
-        if kind == "events":
-            await owner.patch(sid, PatchSession(request_id="title", title="Updated"))
         before = owner.store.get(sid).sequence
-        for _ in range(2):
+        original = os.write
+
+        def no_space(fd, raw):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(os, "write", no_space)
             response = await client.post(
                 f"{BASE}/{sid}/runs", json={"request_id": "plan", "content": "Read"}
             )
-            assert response.status_code == 507
+            assert response.status_code == 503
             assert response.headers["content-type"].startswith("application/json")
-        assert owner.store.get(sid).sequence == before
-        assert not owner.active and not owner.store.reservations
-        assert not owner.store.poisoned
+        assert os.write is original
+        assert not owner.active
+        assert owner.store.poisoned
         agent_setup.planner.plan.assert_not_awaited()
-    async with agent_setup.opened(limits=limits) as (client, owner, _):
-        assert (await client.get(f"{BASE}/{sid}")).json()["runs"] == []
+    async with agent_setup.opened() as (client, owner, _):
+        assert owner.store.get(sid).sequence == before
+        assert (await client.get(f"{BASE}/{sid}")).json()["run_count"] == 0
         assert len((await client.get(BASE)).json()["sessions"]) == 1
 
 
-@pytest.mark.parametrize("kind", ["events", "disk"])
-async def test_capacity_reserved_for_settlement_cannot_be_spent_by_mutations(agent_setup, kind):
-    limits = (
-        StoreLimits(events=OPERATION_EVENTS + 1)
-        if kind == "events"
-        else StoreLimits(record_bytes=8000, disk_bytes=OPERATION_EVENTS * 8000 + 1000)
-    )
-    async with agent_setup.opened(limits=limits) as (client, owner, _):
+async def test_mutations_do_not_expire_or_revoke_owned_operation(agent_setup):
+    async with agent_setup.opened() as (client, owner, _):
         sid = (await client.post(BASE, json=CREATE)).json()["id"]
         op = await owner.prepare(sid, StartRun(request_id="plan", content="Read"))
         for index in range(100):
-            try:
-                await owner.patch(sid, PatchSession(request_id=f"title-{index}", title="x" * 200))
-            except AgentFault as exc:
-                assert exc.code == "storage_limit"
-                break
-        else:
-            pytest.fail("Mutations consumed the protected settlement allowance")
-        assert not op.stop.is_set()  # Quota rejection is not a disk recording failure.
+            await owner.patch(sid, PatchSession(request_id=f"title-{index}", title="x" * 200))
+        assert not op.stop.is_set()
         await owner.disconnect(op)
         await op.task
-        assert not owner.store.reservations
+        assert not owner.active
         settled = await owner.get(sid)
         assert settled.runs[0].status == "interrupted"
-        assert settled.sequence <= limits.events and owner.store.used <= limits.disk_bytes
-    async with agent_setup.opened(limits=limits) as (_, owner, _):
+        assert settled.sequence > 100
+    async with agent_setup.opened() as (_, owner, _):
         assert (await owner.get(sid)).runs[0].status == "interrupted"
         assert not owner.store.poisoned
 
 
-@pytest.mark.parametrize("kind", ["events", "disk"])
-def test_recovery_of_legacy_operation_at_capacity_is_bounded_and_repeatable(tmp_path, kind):
+def test_recovery_of_legacy_operation_is_repeatable(tmp_path):
     root = tmp_path / "journal"
     store = SessionStore(root)
     store.start()
@@ -806,50 +827,43 @@ def test_recovery_of_legacy_operation_at_capacity_is_bounded_and_repeatable(tmp_
         )
     )
     store.append(snapshot, "run.planning", "plan", run_id="run", operation_id="operation")
-    used = store.used
     store.close()
-    limits = StoreLimits(events=2) if kind == "events" else StoreLimits(disk_bytes=used)
     for _ in range(2):
-        recovered = SessionStore(root, limits=limits)
+        recovered = SessionStore(root)
         recovered.start()
         snapshot = recovered.get(snapshot.id)
         assert snapshot.runs[0].status == "interrupted"
         assert snapshot.runs[0].error.code == "outcome_unknown"
-        assert snapshot.sequence == 3  # Exactly one emergency control record, not one per restart.
-        assert recovered.records[snapshot.id][-1].audit["capacity_recovery"] is True
+        assert snapshot.sequence == 3  # Exactly one recovery record, not one per restart.
         assert len(recovered.listing(False)) == 1
-        assert recovered.used <= recovered.recovery_disk_limit
-        with pytest.raises(AgentFault) as failure:
-            recovered.append(snapshot, "session.updated", "blocked")
-        assert failure.value.code == "storage_limit"
         assert not recovered.poisoned
         recovered.close()
 
 
-def test_creation_capacity_failure_does_not_publish_or_grow_empty_sessions(tmp_path):
+def test_creation_enospc_does_not_publish_or_grow_empty_sessions(tmp_path, monkeypatch):
     root = tmp_path / "journal"
-    limits = StoreLimits(disk_bytes=1000)
-    store = SessionStore(root, limits=limits)
+    store = SessionStore(root)
     store.start()
     first = store.create(CreateSession(**CREATE))
     entries = set(root.iterdir())
     retry = CreateSession(**{**CREATE, "request_id": "retry"})
-    for _ in range(4):
+
+    def no_space(fd, raw):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "write", no_space)
         with pytest.raises(AgentFault) as failure:
             store.create(retry)
-        assert failure.value.code == "storage_limit"
+        assert failure.value.code == "storage_unavailable"
         assert list(store.records) == [first.id]
-        assert store.listing(False)[0].id == first.id
-        assert store.create(CreateSession(**CREATE)).id == first.id
-        assert set(root.iterdir()) == entries
-    limits = StoreLimits(disk_bytes=10000)
-    store.limits = limits
-    second = store.create(retry)
-    assert store.create(retry).id == second.id
-    assert len(store.listing(False)) == 2
+        assert store.poisoned
+    # An uncertain physical write may retain one unpublished directory for recovery.
+    assert len(set(root.iterdir()) - entries) <= 1
     store.close()
-    recovered = SessionStore(root, limits=limits)
+    recovered = SessionStore(root)
     recovered.start()
+    second = recovered.create(retry)
     assert recovered.create(CreateSession(**CREATE)).id == first.id
     assert recovered.create(retry).id == second.id
     assert len(recovered.listing(False)) == 2
@@ -957,19 +971,20 @@ def execution_transport(application, sid, run, disconnected):
     return asyncio.create_task(application(scope, receive, send)), sent
 
 
-async def test_asgi_deadline_closes_transport_and_stops_but_retains_blocked_worker(agent_setup):
+async def test_file_request_timeout_settles_after_owned_worker_returns(agent_setup):
     files = BlockingFiles({"fixture": agent_setup.workspace})
-    proposed = proposal()
-    proposed.limits.timeout_seconds = 1
-    agent_setup.planner.plan.return_value = proposed
-    async with agent_setup.opened(files=files) as (client, owner, application):
+    async with agent_setup.opened(files=files, file_timeout_seconds=0.02) as (
+        client,
+        owner,
+        application,
+    ):
         sid, run, _ = await planned(client)
         transport, sent = execution_transport(application, sid, run, asyncio.Event())
         try:
             await wait_until(files.entered.is_set)
             op = next(iter(owner.active.values()))
-            await asyncio.wait_for(asyncio.shield(transport), 2)
-            assert op.stop.is_set() and op.reason == "failed"
+            await asyncio.sleep(0.03)
+            assert not transport.done() and not op.stop.is_set()
             assert op.id in owner.active and not op.task.done()
             assert files.calls == 1 and sent[0]["status"] == 200
         finally:
@@ -978,7 +993,7 @@ async def test_asgi_deadline_closes_transport_and_stops_but_retains_blocked_work
             await asyncio.gather(*(op.task for op in list(owner.active.values())))
         snapshot = await owner.get(sid)
         assert snapshot.runs[0].status == "failed"
-        assert snapshot.runs[0].error.code == "timeout"
+        assert snapshot.runs[0].error.code == "file_timeout"
 
 
 async def test_asgi_disconnect_does_not_wait_for_blocked_storage_lock(agent_setup, monkeypatch):

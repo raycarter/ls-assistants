@@ -1,17 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import fixture from './agent-contract.fixture.json';
-import { AgentApi, AgentEventDecoder, type AgentStreamRequest } from './agent-api';
+import fixture from './agent-contract-v1.fixture.json';
+import { AgentApi } from './agent-api';
 import {
-  parseAgentSession,
+  parseLegacyAgentSession as parseAgentSession,
   parseArtifactPage,
   safeHttpUrl,
-  type AgentCommand,
-  type AgentEvent,
   type AgentSession,
   type ArtifactPage,
   type FetchMetadata,
-} from './agent.models';
+} from './agent-legacy.models';
 import { FETCH } from './chat-api';
 
 const recorded = fixture.streams.find((entry) => entry.name === 'fetch_execution')!;
@@ -21,13 +19,6 @@ function session(): AgentSession {
 function page(): ArtifactPage {
   return structuredClone(recorded.artifact_page!.body);
 }
-const request: AgentStreamRequest = {
-  session_id: recorded.baseline.id,
-  request_id: recorded.http.body.request_id,
-  sequence: recorded.baseline.sequence,
-  snapshot: recorded.baseline as AgentSession,
-  command: recorded.command as AgentCommand,
-};
 
 describe('strict fetch evidence contract', () => {
   it('keeps pre-fetch read-only history compatible when fetch is absent', () => {
@@ -133,24 +124,13 @@ describe('strict fetch evidence contract', () => {
     ['next_offset', 19],
     ['next_offset', null],
     ['html', '<script>forged</script>'],
-  ])('rejects forged provenance from GET and real SSE decoder: %s=%s', (field, value) => {
+  ])('rejects forged provenance in frozen read-only v1: %s=%s', (field, value) => {
     const forged = session();
     forged.runs[0].results[0].fetch = {
       ...forged.runs[0].results[0].fetch!,
       [field]: value,
     } as FetchMetadata;
     expect(() => parseAgentSession(forged)).toThrow('Invalid Agent');
-    const firstBlock = recorded.sse.split('\n\n')[0];
-    const event = JSON.parse(firstBlock.split('data: ')[1]) as AgentEvent;
-    event.session = forged;
-    event.session.sequence = event.sequence;
-    expect(() =>
-      new AgentEventDecoder(request).decode({
-        id: String(event.sequence),
-        event: 'agent',
-        data: JSON.stringify(event),
-      }),
-    ).toThrow('Invalid Agent');
   });
 
   it.each(['missing', 'file', 'running', 'file metadata', 'content mismatch'])(

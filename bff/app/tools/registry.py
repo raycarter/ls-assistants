@@ -41,12 +41,18 @@ class ToolRegistry:
         }
 
     def matches(self, policy: dict[str, str], steps: list) -> bool:
-        if policy == self.projection():
-            return True
+        if any(step.tool not in self.enabled for step in steps):
+            return False
+        current = self.projection()
+        registry_keys = {"tool_registry_version", "enabled_tools", "network_policy_version"}
+        if policy.keys() == current.keys():
+            return all(policy[key] == current[key] for key in registry_keys) and self.files.matches(
+                {key: value for key, value in policy.items() if key not in registry_keys}
+            )
         # An old reviewed read-only plan retains its original material and digest.
         # Its old policy cannot authorize a newly introduced network capability.
         return (
-            policy == self.files.projection()
+            self.files.matches(policy)
             and all(step.tool == "read_file" for step in steps)
             and "read_file" in self.enabled
         )

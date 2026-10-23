@@ -1,6 +1,3 @@
-import asyncio
-import time
-
 import anyio
 from fastapi import APIRouter, Query, Request, Response
 
@@ -32,43 +29,87 @@ class AgentStreamingResponse(ClosingStreamingResponse):
         self.owner, self.op = owner, op
         super().__init__(
             owner.frames(op),
-            deadline=asyncio.get_running_loop().time() + max(0, op.deadline - time.monotonic()),
+            send_timeout_seconds=owner.send_timeout_seconds,
         )
 
     async def __call__(self, scope, receive, send):
         try:
-            # Bound the whole transport, including waits for the next journal
-            # frame. The operation's independent timer still owns worker Stop.
-            with anyio.move_on_after(max(0, self.op.deadline - time.monotonic())):
-                await super().__call__(scope, receive, send)
+            await super().__call__(scope, receive, send)
         finally:
             with anyio.CancelScope(shield=True):
                 await self.owner.disconnect(self.op)
 
 
 @router.get("")
-async def listing(request: Request, include_archived: bool = False):
-    return {"sessions": await service(request).listing(include_archived)}
+async def listing(
+    request: Request,
+    include_archived: bool = False,
+    limit: int = Query(default=25, ge=1, le=100),
+    cursor: str | None = None,
+):
+    return await service(request).public_list(include_archived, limit, cursor)
 
 
 @router.post("")
 async def create(body: CreateSession, request: Request):
-    return await service(request).create(body)
+    owner = service(request)
+    snapshot = await owner.create(body)
+    return await owner.public_session(snapshot.id)
 
 
 @router.get("/{sid}")
 async def get(sid: str, request: Request):
-    return await service(request).get(sid)
+    return await service(request).public_session(sid)
 
 
 @router.patch("/{sid}")
 async def patch(sid: str, body: PatchSession, request: Request):
-    return await service(request).patch(sid, body)
+    owner = service(request)
+    snapshot = await owner.patch(sid, body)
+    return await owner.public_session(snapshot.id)
 
 
 @router.get("/{sid}/events")
-async def events(sid: str, request: Request, after: int = Query(default=0, ge=0)):
-    return await service(request).history(sid, after)
+async def events(
+    sid: str,
+    request: Request,
+    after: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    through: int | None = Query(default=None, ge=0),
+):
+    return await service(request).public_events(sid, after, limit, through)
+
+
+@router.get("/{sid}/runs")
+async def runs(
+    sid: str,
+    request: Request,
+    limit: int = Query(default=10, ge=1, le=100),
+    before: int | None = Query(default=None, ge=0),
+):
+    return await service(request).public_runs(sid, limit, before)
+
+
+@router.get("/{sid}/runs/{rid}")
+async def run(
+    sid: str,
+    rid: str,
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    before: int | None = Query(default=None, ge=0),
+):
+    return await service(request).public_run(sid, rid, limit, before)
+
+
+@router.get("/{sid}/runs/{rid}/results")
+async def results(
+    sid: str,
+    rid: str,
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    before: int | None = Query(default=None, ge=0),
+):
+    return await service(request).public_results(sid, rid, limit, before)
 
 
 @router.get("/{sid}/artifacts/{artifact_id}", response_model=ArtifactPage)
@@ -106,18 +147,22 @@ async def revise(sid: str, rid: str, body: Revise, request: Request):
 
 @router.post("/{sid}/runs/{rid}/reject")
 async def reject(sid: str, rid: str, body: Reject, request: Request):
-    return await service(request).reject(sid, rid, body)
+    owner = service(request)
+    snapshot = await owner.reject(sid, rid, body)
+    return await owner.public_session(snapshot.id)
 
 
 @router.post("/{sid}/runs/{rid}/cancel")
 async def cancel(sid: str, rid: str, body: Cancel, request: Request, response: Response):
-    snapshot, pending = await service(request).cancel(sid, rid, body)
+    owner = service(request)
+    snapshot, pending = await owner.cancel(sid, rid, body)
     response.status_code = 202 if pending else 200
-    return snapshot
+    return await owner.public_session(snapshot.id)
 
 
 @router.post("/{sid}/archive")
 async def archive(sid: str, body: Command, request: Request, response: Response):
-    snapshot, pending = await service(request).archive(sid, body)
+    owner = service(request)
+    snapshot, pending = await owner.archive(sid, body)
     response.status_code = 202 if pending else 200
-    return snapshot
+    return await owner.public_session(snapshot.id)

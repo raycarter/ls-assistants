@@ -1,6 +1,6 @@
 # Agent mode: research and design plan
 
-Research date: 2026-10-15. Implementation update: 2026-10-20. Policy clarification: 2026-10-19. Status: the injected-planner slice supports approved file reads and public-page fetching; the full Agent release is not complete.
+Research date: 2026-10-15. Implementation update: 2026-10-20. Policy clarification: 2026-10-19. Status: the quota-free injected-planner slice supports approved file reads, public-page fetching, incremental storage, and paged public views; the full Agent release is not complete.
 
 Implementation progress is tracked only in [AGENT_MODE_CHECKLIST.md](AGENT_MODE_CHECKLIST.md). This document owns the design and contract decisions, not a second completion ledger.
 
@@ -26,7 +26,7 @@ Out of scope initially: file writes, shell execution, browser/JavaScript automat
 2. **No product-level quotas.** Do not cap plan steps, LLM interactions, tool/search calls, total run duration, or the number of retained plans/sessions. Web search is task-dependent, not a mandatory phase. Actual provider/model constraints, per-request failure handling, and paged I/O are operational facts, not cumulative task allowances.
 3. **Record every LLM interaction** inside its session folder under `bff/sessions`, with plan/step identity, timestamp, LLM/model name, actual prompt/input, and observable response/output. Include planning, revisions, execution, synthesis, retries, and unsuccessful attempts. Authentication credentials are not part of the prompt and must not be logged.
 
-These rules replace the earlier exact-query approval and run-budget proposals. The current prototype still contains quotas and abbreviated recording; removing those restrictions and completing the audit trail are implementation tasks, not changes already made by editing this plan.
+These rules replace the earlier exact-query approval and run-budget proposals. Legacy budget fields must remain unchanged historical digest material, never current execution controls; new plans omit them. Per-request failures/timeouts are not overall run expiry. Complete LLM interaction recording remains a prerequisite to production model calls; see the checklist for implementation evidence and remaining work.
 
 **MVP scope addition (2026-10-19):** `web_fetch` is required alongside search. Search finds candidate sources; fetch reads an actual public page, including a URL supplied directly by the user without a preceding search. Both are task-dependent and covered by the plan's single approval. Completion and verification evidence belong in the checklist.
 
@@ -218,11 +218,11 @@ bff/sessions/
       <artifact-id>.txt    # complete extracted web evidence, read through pages
 ```
 
-Persisted entries may differ from public event projections. Use private versioned journal headers and fixed session/run/result changes with typed payload references; reconstruct public schema-version-1 snapshots on demand. Read legacy full-snapshot entries in place and append new records without rewriting old bytes, changing approval/command digests, or introducing a migration approval/event. Retain one current projection and compact indexes rather than every historical full snapshot. A future on-disk projection cache is optional and never an independent authority.
+Persisted entries differ from public projections. Use private versioned journal headers and fixed session/run/result changes with typed payload references. Read legacy full-snapshot entries in place and append new records without rewriting old bytes, changing approval/command digests, or introducing a migration approval/event. Public v2 headers, run controls and paged bodies are selected directly through reference indexes, not by reconstructing full historical sessions and slicing them. Full schema-version-1 historical snapshots remain a diagnostic compatibility view. Retain one current projection and compact indexes rather than every historical full snapshot. A future on-disk projection cache is optional and never an independent authority.
 
 Payload references carry server-owned identity, SHA-256, and byte length. Reuse unchanged bodies without reserializing/hashing them; preserve explicit null clearing, run/result order, and multi-run archive/recovery changes. Keep committed claim/attempt/operation indexes available without replay; Stop's initial conflict check must remain lock-free and I/O-free. Verify committed payloads, including superseded and audit-only bodies, before trusting cached state or replay. Anchor live reads to the pinned storage root, never a replacement at the same pathname. History iterators must not retain the store lock while a consumer is paused.
 
-The current integrity strategy verifies the full journal prefix at commit, checks all committed payload metadata on cached operations, and replays prefixes for historical views. These are known scaling costs, not hidden product quotas. Quota removal, paged public projections, full LLM instrumentation, and future compaction remain separately tracked in the checklist.
+The current integrity strategy verifies the full journal prefix at commit, checks all committed payload metadata on cached operations, and replays prefixes for diagnostic historical views. Each session still has a hydrated latest internal baseline and reference/index state proportional to retained history. These are known scaling costs, not hidden product quotas or a constant-memory storage guarantee. Full LLM instrumentation, fully paged persistent current state, and future compaction remain separately tracked in the checklist.
 
 Generate names on the server using a UTC timestamp and four cryptographically random lowercase alphanumeric characters. Create directories exclusively and retry collisions. A short suffix is not a security token. Never use a client title/path as a directory name; validate session IDs before resolving existing folders. Use restrictive file/directory permissions and reject symlinked storage/artifact paths.
 
@@ -251,28 +251,33 @@ Do not impose artificial retained-session, journal-event, or interaction-payload
 
 ## 7. Agent API and streaming contract
 
-Keep existing `/api/chat`, `/api/models`, and `/health` contracts unchanged. Proposed separate endpoints:
+Keep existing `/api/chat`, `/api/models`, and `/health` contracts unchanged. Agent reads use explicit public projection version 2, independently of private journal versions:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/agent/sessions` | List journal-backed summaries, with an archive filter and bounded pagination. |
+| `GET /api/agent/sessions?include_archived=true&limit=25&cursor=...` | List small journal-backed session headers using stable keyset pagination and an archive filter. |
 | `POST /api/agent/sessions` | Create an empty session; idempotent, no LLM call. |
-| `GET /api/agent/sessions/{sid}` | Return snapshot plus last committed sequence; no inference. |
+| `GET /api/agent/sessions/{sid}` | Return metadata/counts/current-run control plus committed sequence, not the entire session history; no inference. |
 | `PATCH /api/agent/sessions/{sid}` | Persist title/next-run preferences; reject model/thinking changes while a run is planning, awaiting clarification/approval, executing, or cancelling. |
 | `POST /api/agent/sessions/{sid}/runs` | Record a user request and stream planning; finish at review/clarification, without tools. |
+| `GET /api/agent/sessions/{sid}/runs?limit=10&before=...` | Read a newest-first run-summary page using stable append ordinals. |
+| `GET /api/agent/sessions/{sid}/runs/{rid}` | Read one run's full request/plan/answer and a recent result window; complete plan content is required for approval. |
+| `GET /api/agent/sessions/{sid}/runs/{rid}/results?limit=20&before=...` | Read an ascending result window, with older-page continuation and authoritative progress counts. |
 | `POST /api/agent/sessions/{sid}/runs/{rid}/revise` | Accept a clarification answer bound to its question ID or plan feedback bound to its revision; start a new planning operation. |
 | `POST /api/agent/sessions/{sid}/runs/{rid}/reject` | Reject the matching clarification/plan waiting state without execution; no nonexistent plan digest is required for clarification. |
 | `POST /api/agent/sessions/{sid}/runs/{rid}/execute` | Validate submitted plan ID/revision/digest, durably approve, then stream sequential execution. |
 | `POST /api/agent/sessions/{sid}/runs/{rid}/cancel` | Request Stop for the supplied `operation_id`; return `202` while cancelling or its known settled outcome, never target a newer operation. |
-| `GET /api/agent/sessions/{sid}/events?after={sequence}` | Paginated durable event replay for recovery and history review. |
+| `GET /api/agent/sessions/{sid}/events?after={sequence}&limit=50&through=...` | Page compact committed v2 events through a fixed catch-up sequence, not an indefinitely moving tail. |
 | `GET /api/agent/sessions/{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Read a character page of committed, same-session extracted-text evidence without fetching again or executing tools. |
 | `POST /api/agent/sessions/{sid}/archive` | Record archive intent, request targeted cancellation if needed, and archive after settlement; `202` while pending. |
 
 Mutation requests use a client request ID/idempotency key bound to the request payload; reusing a key with different content is a conflict. Persist accepted commands and outcomes. Use a per-session operation lock and an explicit single-BFF-worker constraint initially; multiple workers require inter-process coordination, not just an asyncio lock.
 
-Agent SSE events have their own strict discriminated schema: session/run/plan state, text deltas, step state/results, tool state/results, and terminal outcome. Every durable event carries correlation IDs, sequence, and server timestamp. Whitelist exposed fields; raw internal artifacts are not an unaudited static directory.
+Agent SSE events use `schema_version: 2`, with committed envelope IDs/sequence/time, a small session header, run control when applicable, and selected admission request/review plan/changed result/completion answer/error bodies. They do not repeat historical runs/results. A required `invalidates_runs` boolean identifies session-wide or multi-run changes. Restart recovery retains its original null envelope run/operation IDs while projecting an affected primary run when possible; archive-only recovery may have no primary body. Consumers refresh their bounded loaded views rather than invent command correlation or assume one body describes all changed runs. Whitelist exposed fields; raw internal artifacts are not an unaudited static directory.
 
-Planning and execution are finite, **request-owned** operations initially. Disconnect requests cancellation of its owning operation, eventually settling as interrupted; explicit Stop eventually settles the targeted operation as cancelled. The root BFF coordinator retains task ownership solely to settle already-started local work after transport teardown—not to keep executing the plan. A bounded transport-cleanup window is not a hard worker-termination guarantee. Stop for an already-settled operation returns its recorded outcome and cannot cancel a later revision/execution. Human waiting holds no upstream stream or background loop. Switching modes must not abort an operation—the root-scoped UI coordinator remains alive—but reload/network loss may interrupt it. Recovery fetches snapshot/events; it never re-POSTs execution automatically or takes ownership of existing work. A duplicate in-flight command returns its known operation/conflict, not another execution.
+Mutation acknowledgements return small headers. Page sizes are operational I/O windows, not retained-history allowances. Existing browser clients must reload the updated v2 UI; frozen v1 readers/fixtures are read-only compatibility evidence, not an unbounded legacy API fallback. Current run control is authoritative independently of the latest retained run ID. Complete loaded plan identity/model/effort must match that control before approval; no header-only approval.
+
+Planning and execution are **request-owned** operations without a lifetime budget. Disconnect requests cancellation of its owning operation, eventually settling as interrupted; explicit Stop eventually settles the targeted operation as cancelled. The root BFF coordinator retains task ownership solely to settle already-started local work after transport teardown—not to keep executing the plan. A bounded transport-cleanup window is not a hard worker-termination guarantee. Stop for an already-settled operation returns its recorded outcome and cannot cancel a later revision/execution. Human waiting holds no upstream stream or background loop. Switching modes must not abort an operation—the root-scoped UI coordinator remains alive—but reload/network loss may interrupt it. Recovery fetches headers/details/events; it never re-POSTs execution automatically or takes ownership of existing work. A duplicate in-flight command returns its known operation/conflict, not another execution.
 
 Apply timeouts to individual provider/transport operations and bounded shielded cleanup, not an overall Agent-run expiry. Agent history/replay requests have no execution side effects. Reserve background job infrastructure for a later requirement to continue after browser disconnection.
 
@@ -289,6 +294,7 @@ Apply timeouts to individual provider/transport operations and bounded shielded 
 - Keep the existing model/thinking controls but bind them to the active mode/session. Persist Agent preferences in BFF. Freeze choices when planning starts and disable Agent model/thinking changes through clarification/review/execution/cancellation; reject a waiting run or await settlement before choosing different settings for a new run. Chat's existing preference behavior remains unchanged.
 - Render Agent messages plus a structured plan card: objective/unverified assumptions, numbered steps, intended tools, filesystem scope, model/thinking settings, and **Approve and run / Request changes / Reject**. The displayed revision/digest must be the submitted approval identity. Do not ask for approval of individual queries/calls or display mandatory task budgets. Do not implement approval by parsing Markdown checkboxes or model text.
 - Render pending/running/completed/failed step states, expandable bounded tool arguments/results, search citations, final output, and an audit timeline. Use the existing safe Markdown/timestamp rendering; never execute returned HTML or URLs.
+- Load session summaries, older run summaries, and result windows explicitly. Pin a saved/archived selected session via direct GET even when it is outside the first list page. Keep only current/opened run bodies and bounded result/duplicate working state; do not prefetch all retained history. Authoritative counters distinguish off-window completed steps from pending work. Reconcile paged and live updates by identity/version, validating staged body changes before publishing control state; failed or superseded required reads cannot clear recovery invalidation.
 - Provide Stop with a visible nonterminal Stopping state, clarification answer/reject controls, recoverable errors/partial results, and read-only history. Reconcile sequence duplicates/gaps and stale session/run/revision callbacks. Avoid auto-scroll pulling the user away from a plan they are reviewing.
 
 ## 9. Delivery strategy and task ownership

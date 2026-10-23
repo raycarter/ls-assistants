@@ -4,6 +4,7 @@ All filesystem data is synthetic and local to pytest's temporary directory.
 Legacy/mixed public replay contracts are covered independently by migration tests.
 """
 
+import errno
 import hashlib
 import json
 import os
@@ -31,7 +32,7 @@ from app.agent_schemas import (
     ReadArguments,
     StepResult,
 )
-from app.sessions import SessionStore, StoreLimits
+from app.sessions import SessionStore
 
 SID = "20261020T123456123456Z-ab12"
 NOW = "2026-10-20T12:00:00Z"
@@ -488,28 +489,22 @@ def test_payload_ids_independent_of_public_uuid_stream_and_exclusive(opened, mon
     assert len(store.records[SID]) == 2
 
 
-@pytest.mark.parametrize("limit", ["record", "disk", "reservation"])
-def test_json_offloading_cannot_bypass_capacity_or_poison_store(opened, limit):
+@pytest.mark.parametrize("error", [errno.ENOSPC, errno.EIO])
+def test_json_offloading_physical_failure_never_publishes(opened, monkeypatch, error):
     store, snapshot = opened
     snapshot.runs.append(run(large=True))
-    if limit == "record":
-        store.limits = StoreLimits(record_bytes=10000)
-    elif limit == "disk":
-        store.limits = StoreLimits(disk_bytes=store.used + 10000)
-    else:
-        store.limits = StoreLimits(record_bytes=8000, disk_bytes=store.used + 12 * 8000 + 10000)
-        store.reserve(store.get(SID), "reserved", executing=False)
+    monkeypatch.setattr(os, "write", Mock(side_effect=OSError(error, "physical failure")))
     with pytest.raises(AgentFault) as failure:
         store.append(snapshot, "session.updated", "too-large")
-    assert failure.value.code == "storage_limit" and not store.poisoned
-    assert len(store.records[SID]) == 1 and not payloads(store)
+    assert failure.value.code == "storage_unavailable" and store.poisoned
+    assert len(store.records[SID]) == 1
     assert store.used == physical_bytes(store)
-    assert store.get(SID).runs == []
+    assert store._committed[SID].baseline.runs == []
+    assert store._committed[SID].views.session.run_count == 0
 
 
 def test_streaming_recovery_bounds_reads_and_fsyncs_partial_tail(opened, monkeypatch):
     store, snapshot = opened
-    store.limits = StoreLimits(record_bytes=2000)
     for n in range(80):
         snapshot.title = f"title-{n}"
         snapshot = store.append(snapshot, "session.updated", f"title-{n}").session
@@ -541,7 +536,7 @@ def test_streaming_recovery_bounds_reads_and_fsyncs_partial_tail(opened, monkeyp
 
     monkeypatch.setattr(os, "fdopen", lambda *a, **kw: BoundedLines(real_fdopen(*a, **kw)))
     monkeypatch.setattr(os, "fsync", fsync)
-    recovered = SessionStore(store.root, limits=store.limits)
+    recovered = SessionStore(store.root)
     recovered.start()
     try:
         assert recovered.get(SID) == snapshot

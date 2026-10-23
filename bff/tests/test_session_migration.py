@@ -386,7 +386,7 @@ async def finish(owner, operation):
     frames = [frame async for frame in owner.frames(operation)]
     await operation.task
     events = [json.loads(frame.split("data: ", 1)[1]) for frame in frames]
-    assert all(event["schema_version"] == 1 for event in events)
+    assert all(event["schema_version"] == 2 for event in events)
     return events
 
 
@@ -829,7 +829,7 @@ async def test_new_feedback_plan_digest_and_claim_survive_mixed_restarts(migrati
             owner.fetcher.fetch.assert_not_awaited()
 
 
-async def test_schema_valid_cjk_planning_reaches_review_with_default_utf8_quota(migration_archive):
+async def test_schema_valid_cjk_planning_reaches_review_without_storage_quota(migration_archive):
     archive = SimpleNamespace(
         root=migration_archive.root.parent / "cjk-journal",
         workspace=migration_archive.workspace,
@@ -843,10 +843,9 @@ async def test_schema_valid_cjk_planning_reaches_review_with_default_utf8_quota(
         step["description"] = cjk
     validated = Proposal.model_validate(proposed)
     async with opened_service(archive) as owner:
-        assert owner.store.limits.record_bytes == 512_000
         utf8_bytes = len(json.dumps(proposed, ensure_ascii=False).encode("utf-8"))
         escaped_bytes = len(json.dumps(proposed, ensure_ascii=True).encode("utf-8"))
-        assert utf8_bytes < owner.store.limits.record_bytes < escaped_bytes
+        assert utf8_bytes < 512_000 < escaped_bytes
         owner.planner.plan.return_value = validated
         created = await owner.create(CreateSession(**{**CREATE, "request_id": "cjk-create"}))
         operation = await owner.prepare(
@@ -870,7 +869,7 @@ async def test_schema_valid_cjk_planning_reaches_review_with_default_utf8_quota(
                 "plan": {key: value for key, value in plan.items() if key != "digest"},
             }
         )
-        assert len(snapshot.model_dump_json().encode("utf-8")) < owner.store.limits.record_bytes
+        assert len(snapshot.model_dump_json().encode("utf-8")) < 512_000
         images = payload_images(archive.root, created.id)
         assert any(cjk.encode("utf-8") in raw for raw in images.values())
         assert_v2((archive.root / created.id / "events.jsonl").read_bytes())

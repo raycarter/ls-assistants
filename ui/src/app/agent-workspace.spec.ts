@@ -1,11 +1,15 @@
 import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import fixtureData from './agent-contract.fixture.json';
+import fixtureData from './agent-contract-v1.fixture.json';
 import { AgentApi } from './agent-api';
 import { AgentState } from './agent-state';
 import { AgentWorkspace } from './agent-workspace';
-import { parseAgentSession, settled, type AgentSession, type ArtifactPage } from './agent.models';
+import { settled, type ArtifactPage } from './agent.models';
+import {
+  workspaceFixture as parseAgentSession,
+  type WorkspaceFixture as AgentSession,
+} from './agent-legacy.testing';
 import { FETCH } from './chat-api';
 
 const recorded = fixtureData.streams.find((entry) => entry.name === 'fetch_execution')!;
@@ -35,6 +39,23 @@ class WorkspaceState {
   readonly activeRun = computed(
     () => this.activeSession()?.runs.find((run) => !settled(run)) ?? null,
   );
+  readonly visibleRuns = computed(() => this.activeSession()?.runs ?? []);
+  readonly activeControl = computed(() => this.activeSession()?.current_run ?? null);
+  readonly summaries = signal([]);
+  readonly nextRunsBefore = signal(null);
+  readonly currentView = computed(() =>
+    this.visibleRuns()[0] ? { body: this.visibleRuns()[0] } : null,
+  );
+  readonly openedView = signal(null);
+  readonly pageLoading = signal(new Set<string>());
+  readonly pageErrors = signal(new Map<string, string>());
+  readonly invalidating = signal(new Set<string>());
+  readonly loadRuns = vi.fn();
+  readonly openRun = vi.fn();
+  readonly closeRun = vi.fn();
+  readonly loadResults = vi.fn();
+  readonly windowKind = vi.fn(() => 'recent');
+  readonly canApprove = vi.fn(() => true);
   readonly stopping = signal(new Set<string>());
   readonly archivePending = signal(new Set<string>());
   readonly busy = signal(new Set<string>());
@@ -86,31 +107,34 @@ describe('safe fetched evidence workspace', () => {
     fixture.detectChanges();
   }
   async function render(session = fetchedSession()): Promise<void> {
-    fetchDouble.mockResolvedValueOnce(Response.json(session));
+    const { runs, ...header } = session;
+    fetchDouble.mockResolvedValueOnce(Response.json(header));
     // History reload goes through the strict UI decoder, without a real store or network.
     const reloaded = await TestBed.inject(AgentApi).get(session.id, new AbortController().signal);
-    state.sessions.set([reloaded]);
+    state.sessions.set([{ ...reloaded, runs }]);
     state.selectedId.set(reloaded.id);
     fixture = TestBed.createComponent(AgentWorkspace);
     await settle();
   }
 
-  it('reviews exact fetch URL and zero-based character arguments, retaining file review and limits', async () => {
+  it('reviews the whole exact fetch scope, with quota-free presentation', async () => {
     await render(parseAgentSession(structuredClone(recorded.baseline)));
     const plan = root().querySelector('[aria-label="Reviewed plan"]')!;
     expect(plan.textContent).toContain('Fetch URL: https://example.com/public');
     expect(plan.textContent).toContain('offset 0 (zero-based)');
     expect(plan.textContent).toContain('18 characters');
-    expect(JSON.parse(plan.querySelector('details pre')!.textContent!)).toEqual({
+    expect(
+      JSON.parse(plan.querySelector('[aria-label="Exact tool arguments"] pre')!.textContent!),
+    ).toEqual({
       url: 'https://example.com/public',
       offset: 0,
       limit: 18,
     });
     expect(plan.textContent).not.toContain('Workspace:');
     expect(plan.textContent).not.toContain('Lines');
-    expect(plan.textContent).toContain('3 tool calls');
+    expect(plan.textContent).not.toContain('tool calls');
     expect(root().textContent).toContain('Search and grep are unavailable');
-    expect(root().textContent).toContain('explicitly configured');
+    expect(root().textContent).toContain('determined by the BFF');
     expect(root().textContent).toContain('not a complete LLM audit');
     const file = parseAgentSession(
       structuredClone(fixtureData.streams.find((entry) => entry.name === 'execution')!.baseline),
@@ -159,6 +183,30 @@ describe('safe fetched evidence workspace', () => {
     state.sessions.set([unsafe]);
     await settle();
     expect(root().querySelector('[aria-label="Step result"] a')).toBeNull();
+  });
+
+  it('renders every description and the complete exact plan before approval beyond old step/revision ceilings', async () => {
+    const session = parseAgentSession(structuredClone(recorded.baseline));
+    const run = session.runs[0];
+    run.plan!.revision = 25;
+    delete run.plan!.limits;
+    run.plan!.steps = Array.from({ length: 12 }, (_, index) => ({
+      ...run.plan!.steps[0],
+      id: `step-${index}`,
+      description: `Exact scope ${index}`,
+    }));
+    session.current_run!.plan_identity!.revision = 25;
+    await render(session);
+    const reviewed = root().querySelector('[aria-label="Reviewed plan"]')!;
+    for (let index = 0; index < 12; index++)
+      expect(reviewed.textContent).toContain(`Exact scope ${index}`);
+    expect(reviewed.querySelectorAll('ol > li')).toHaveLength(12);
+    expect(reviewed.querySelectorAll('details')).toHaveLength(0);
+    expect(
+      JSON.parse(reviewed.querySelector('[aria-label="Exact recorded plan"] pre')!.textContent!),
+    ).toEqual(run.plan);
+    expect(reviewed.textContent).not.toContain('Limits:');
+    expect(button('Approve and run').disabled).toBe(false);
   });
 
   it('loads the generated continuation once via GET and makes full retained text available again after reload', async () => {

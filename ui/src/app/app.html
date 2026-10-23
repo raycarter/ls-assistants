@@ -72,7 +72,12 @@
         class="flex min-h-24 flex-1 flex-col overflow-y-auto"
         aria-label="Agent session history"
       >
-        <h2 class="mb-3 text-sm font-semibold">Agent history ({{ agent.sessions().length }})</h2>
+        <h2 class="mb-3 text-sm font-semibold">
+          Agent history · {{ agent.sessions().length }} loaded
+          @if (agent.total() !== null) {
+            · {{ agent.total() }} total
+          }
+        </h2>
         <ul class="space-y-1">
           @for (session of agent.sessions(); track session.id) {
             <li
@@ -109,6 +114,16 @@
             </li>
           }
         </ul>
+        @if (agent.nextCursor()) {
+          <button
+            type="button"
+            class="rounded-lg px-2 py-3 text-left text-sm hover:bg-gray-700"
+            [disabled]="agent.loadingMore() || agent.loading()"
+            (click)="agent.loadMoreSessions()"
+          >
+            {{ agent.loadingMore() ? 'Loading sessions…' : 'Load more sessions' }}
+          </button>
+        }
         @if (state.legacySessions().length) {
           <h3 class="mt-4 text-sm font-semibold">Legacy Agent (read-only)</h3>
           <ul>

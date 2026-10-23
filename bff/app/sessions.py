@@ -36,14 +36,12 @@ from app.agent_schemas import (
     JournalRecord,
     Strict,
 )
+from app.agent_views import PublicIndex, PublicViews, index_record
 from app.session_journal import PayloadRef, SessionState, decode, encode
 
 SESSION_ID = re.compile(r"^[0-9]{8}T[0-9]{12}Z-[a-z0-9]{4}$")
 ARTIFACT_FILE = re.compile(r"^[a-f0-9]{32}\.txt$")
 PAYLOAD_FILE = re.compile(r"^[a-f0-9]{32}\.json$")
-SETTLEMENT_MARGIN = 5000
-# Nine execution events at most, plus Stop, archive settlement and crash recovery.
-OPERATION_EVENTS = 12
 
 
 def utc_now() -> str:
@@ -53,14 +51,6 @@ def utc_now() -> str:
 def session_id() -> str:
     suffix = "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(4))
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ-") + suffix
-
-
-@dataclass(frozen=True)
-class StoreLimits:
-    sessions: int = 100
-    events: int = 500
-    record_bytes: int = 512_000
-    disk_bytes: int = 64_000_000
 
 
 class ArtifactReceipt(Strict):
@@ -110,6 +100,7 @@ class Committed:
     attempts: Mapping[str, int]
     operations: frozenset[tuple[str, str]]
     payloads: Mapping[str, PayloadRef]
+    views: PublicIndex
 
 
 class HistoricalRecords(Sequence[JournalRecord]):
@@ -150,10 +141,9 @@ class SessionStore:
         *,
         clock: Callable[[], str] = utc_now,
         id_factory: Callable[[], str] = session_id,
-        limits: StoreLimits | None = None,
     ):
         self.root = root or Path(__file__).absolute().parents[1] / "sessions"
-        self.clock, self.id_factory, self.limits = clock, id_factory, limits or StoreLimits()
+        self.clock, self.id_factory = clock, id_factory
         self.lock = threading.RLock()
         # Failure signalling must not wait for the I/O lock. This short barrier
         # linearizes a latched failure against publication, never against fsync.
@@ -163,16 +153,35 @@ class SessionStore:
         self.lease: int | None = None
         self._root_identity: tuple[int, int] | None = None
         self.used = 0
-        # Physical JSON journal + payload bytes, including safe orphans, use the
-        # existing disk budget. Fetched TXT evidence retains separate accounting.
+        # Physical diagnostics only, including safe orphans; never admission quotas.
+        # Fetched TXT evidence retains separate accounting.
         self.artifact_bytes = 0
         self.artifacts: dict[str, dict[str, ArtifactReceipt]] = {}
+        self._artifact_stamps: dict[str, dict[str, FileStamp]] = {}
         self._committed: dict[str, Committed] = {}
         self._verified: dict[str, VerifiedFiles] = {}
         self._records: dict[str, HistoricalRecords] = {}
         self.records: Mapping[str, Sequence[JournalRecord]] = MappingProxyType(self._records)
         self.creations: dict[str, tuple[str, str]] = {}
-        self.reservations: dict[str, tuple[str, int]] = {}
+        self._public = PublicViews(self)
+
+    def public_session(self, sid: str) -> dict:
+        return self._public.session(sid)
+
+    def public_list(self, include_archived: bool, limit=25, cursor=None) -> dict:
+        return self._public.listing(include_archived, limit, cursor)
+
+    def public_runs(self, sid: str, limit=10, before=None) -> dict:
+        return self._public.runs(sid, limit, before)
+
+    def public_run(self, sid: str, rid: str, limit=20, before=None) -> dict:
+        return self._public.run(sid, rid, limit, before)
+
+    def public_results(self, sid: str, rid: str, limit=20, before=None) -> dict:
+        return self._public.results(sid, rid, limit, before)
+
+    def public_events(self, sid: str, after: int, limit=50, through=None) -> dict:
+        return self._public.events(sid, after, limit, through)
 
     @property
     def poisoned(self) -> bool:
@@ -184,45 +193,6 @@ class SessionStore:
         # instance cannot be revived by clearing a flag; startup uses a new store.
         with self._publication_lock:
             self._poisoned = self._poisoned or value
-
-    @property
-    def recovery_disk_limit(self) -> int:
-        return self.limits.disk_bytes + self.limits.sessions * (
-            self.limits.record_bytes + SETTLEMENT_MARGIN
-        )
-
-    def reserve(self, snapshot: AgentSession, operation_id: str, *, executing: bool):
-        """Conservatively reserve the whole finite slice, including stop/recovery.
-
-        Normal mutations cannot consume these slots/bytes. Planning failure keeps
-        the previous snapshot; execution can add at most three bounded results.
-        """
-        with self.lock:
-            self._opened()
-            # Three 24,000-character results at six JSON bytes/character,
-            # plus bounded result metadata; never assume ASCII source text.
-            growth = SETTLEMENT_MARGIN + (450_000 if executing else 0)
-            if len(snapshot.model_dump_json().encode()) + growth > self.limits.record_bytes:
-                raise AgentFault(
-                    "storage_limit", "Insufficient bounded settlement record space.", 507
-                )
-            events = sum(n for sid, n in self.reservations.values() if sid == snapshot.id)
-            reserved_bytes = (
-                sum(n for _, n in self.reservations.values()) * self.limits.record_bytes
-            )
-            if (
-                len(self.records[snapshot.id]) + events + OPERATION_EVENTS > self.limits.events
-                or self.used + reserved_bytes + OPERATION_EVENTS * self.limits.record_bytes
-                > self.limits.disk_bytes
-            ):
-                raise AgentFault(
-                    "storage_limit", "Insufficient capacity for a complete Agent operation.", 507
-                )
-            self.reservations[operation_id] = (snapshot.id, OPERATION_EVENTS)
-
-    def release(self, operation_id: str):
-        with self.lock:
-            self.reservations.pop(operation_id, None)
 
     def _healthy(self):
         if self.poisoned:
@@ -278,6 +248,7 @@ class SessionStore:
                 self._records.clear()
                 self.creations.clear()
                 self.artifacts.clear()
+                self._artifact_stamps.clear()
                 self.close()
                 raise AgentFault(
                     "storage_unavailable", "Agent storage could not be opened safely.", 503
@@ -337,7 +308,15 @@ class SessionStore:
 
     @staticmethod
     def _record_bytes(fd: int, location: RecordLocation) -> bytes:
-        raw = os.pread(fd, location.length, location.offset)
+        parts = []
+        length = 0
+        while length < location.length:
+            part = os.pread(fd, min(65536, location.length - length), location.offset + length)
+            if not part:
+                break
+            parts.append(part)
+            length += len(part)
+        raw = b"".join(parts)
         if (
             len(raw) != location.length
             or not raw.endswith(b"\n")
@@ -439,7 +418,7 @@ class SessionStore:
                     size += len(raw)
                     remaining = memoryview(raw)
                     while remaining:
-                        count = os.write(fd, remaining)
+                        count = os.write(fd, remaining[:65536])
                         if count <= 0:
                             raise OSError("short evidence write")
                         self.artifact_bytes += count
@@ -488,8 +467,8 @@ class SessionStore:
                 os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                 dir_fd=artifacts,
             )
-            info = self._regular(fd)
-            if info.st_size != receipt.bytes:
+            stamp = self._stamp(fd)
+            if stamp.size != receipt.bytes:
                 raise ValueError("evidence size changed")
             digest = hashlib.sha256()
             decoder = codecs.getincrementaldecoder("utf-8")()
@@ -508,8 +487,10 @@ class SessionStore:
                 size != receipt.bytes
                 or chars != receipt.total_chars
                 or digest.hexdigest() != receipt.sha256
+                or self._stamp(fd) != stamp
             ):
                 raise ValueError("evidence changed")
+            self._artifact_stamps.setdefault(sid, {})[receipt.artifact_id] = stamp
             return self._page(receipt, "".join(selected), offset)
         except OSError, ValueError:
             raise self._evidence_failure() from None
@@ -620,7 +601,12 @@ class SessionStore:
             raise
 
     def _read_payload(
-        self, directory: int, ref: PayloadRef, *, verified: dict[str, FileStamp] | None = None
+        self,
+        directory: int,
+        ref: PayloadRef,
+        *,
+        verified: dict[str, FileStamp] | None = None,
+        materialize: bool = True,
     ) -> object:
         payloads = fd = None
         try:
@@ -629,18 +615,21 @@ class SessionStore:
                 ref.id + ".json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=payloads
             )
             stamp = self._stamp(fd)
-            if stamp.size != ref.bytes or ref.bytes > self.recovery_disk_limit:
+            if stamp.size != ref.bytes:
                 raise ValueError("payload size changed")
-            raw = bytearray()
+            raw = bytearray() if materialize else None
+            size = 0
             digest = hashlib.sha256()
-            while block := os.read(fd, min(65536, ref.bytes + 1 - len(raw))):
-                raw.extend(block)
+            while block := os.read(fd, min(65536, ref.bytes + 1 - size)):
+                size += len(block)
+                if raw is not None:
+                    raw.extend(block)
                 digest.update(block)
-                if len(raw) > ref.bytes:
+                if size > ref.bytes:
                     raise ValueError("payload grew")
-            if len(raw) != ref.bytes or digest.hexdigest() != ref.sha256:
+            if size != ref.bytes or digest.hexdigest() != ref.sha256:
                 raise ValueError("payload changed")
-            value = json.loads(raw)
+            value = json.loads(raw) if raw is not None else None
             if self._stamp(fd) != stamp:
                 raise ValueError("payload changed during verification")
             if verified is not None:
@@ -676,7 +665,7 @@ class SessionStore:
                 finally:
                     os.close(fd)
                 if known.get(key) != stamp:
-                    self._read_payload(directory, ref, verified=stamps)
+                    self._read_payload(directory, ref, verified=stamps, materialize=False)
                 else:
                     stamps[key] = stamp
         finally:
@@ -694,6 +683,28 @@ class SessionStore:
         finally:
             os.close(fd)
 
+    def _verify_public_artifacts(self, sid: str, directory: int):
+        """Keep public headers body-free for stable, already verified TXT evidence."""
+        receipts = self.artifacts.get(sid, {})
+        if not receipts:
+            return
+        folder = self._artifact_directory(directory)
+        try:
+            for aid, receipt in receipts.items():
+                fd = os.open(
+                    aid + ".txt", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=folder
+                )
+                try:
+                    stamp = self._stamp(fd)
+                    if stamp.size != receipt.bytes:
+                        raise ValueError("evidence size changed")
+                finally:
+                    os.close(fd)
+                if self._artifact_stamps.get(sid, {}).get(aid) != stamp:
+                    self._read_artifact(sid, receipt, 0, 1)
+        finally:
+            os.close(folder)
+
     def _recover_payload_files(self, directory: int):
         payloads = self._payload_directory(directory)
         try:
@@ -704,8 +715,6 @@ class SessionStore:
                 try:
                     self.used += self._regular(fd).st_size
                     os.fchmod(fd, 0o600)
-                    if self.used > self.recovery_disk_limit:
-                        raise ValueError("payload limit")
                 finally:
                     os.close(fd)
         finally:
@@ -756,6 +765,7 @@ class SessionStore:
             MappingProxyType(attempts),
             frozenset(operations),
             MappingProxyType(dict(payloads)),
+            index_record(record, state, old.views if old else None, old.baseline if old else None),
         )
 
     def _publish(self, sid: str, committed: Committed, artifacts: dict, verified: VerifiedFiles):
@@ -777,10 +787,8 @@ class SessionStore:
         self._records.clear()
         self.creations.clear()
         self.artifacts.clear()
-        self.reservations.clear()
+        self._artifact_stamps.clear()
         entries = os.listdir(root_fd)
-        if len(entries) > self.limits.sessions * 2 + 1:
-            raise ValueError("session directory limit")
         for sid in sorted(entries):
             if sid == ".lock":
                 continue
@@ -823,29 +831,22 @@ class SessionStore:
                 verified_payloads = {}
                 if journal is not None:
                     try:
-                        info = self._regular(journal)
+                        self._regular(journal)
                         os.fchmod(journal, 0o600)
-                        if (
-                            not stat.S_ISREG(info.st_mode)
-                            or info.st_size > self.recovery_disk_limit
-                        ):
-                            raise ValueError("journal limit")
-                        # Bounded line reads; an arbitrarily long partial tail is
-                        # drained without buffering it, then truncated and fsynced.
+                        # Locate complete records using bounded reads. Buffer just
+                        # one complete record for decoding, never a partial tail or
+                        # the whole journal. Complete records have no size ceiling.
                         with os.fdopen(os.dup(journal), "rb") as stream:
                             offset = 0
-                            while line := stream.readline(
-                                self.limits.record_bytes + SETTLEMENT_MARGIN + 2
-                            ):
-                                if not line.endswith(b"\n"):
-                                    while rest := stream.readline(65536):
-                                        if rest.endswith(b"\n"):
-                                            raise ValueError("oversized complete record")
-                                    os.ftruncate(journal, offset)
-                                    os.fsync(journal)
-                                    os.fsync(directory)
-                                    break
-                                introduced = 0
+                            length = 0
+                            digest = hashlib.sha256()
+                            while part := stream.readline(65536):
+                                length += len(part)
+                                digest.update(part)
+                                if not part.endswith(b"\n"):
+                                    continue
+                                location = RecordLocation(offset, length, digest.hexdigest())
+                                line = self._record_bytes(journal, location)
 
                                 def read(
                                     ref,
@@ -853,7 +854,6 @@ class SessionStore:
                                     seen_refs=seen_refs,
                                     verified_payloads=verified_payloads,
                                 ):
-                                    nonlocal introduced
                                     # Verify superseded plans and audit-only refs.
                                     # Only the latest session baseline is retained.
                                     value = self._read_payload(
@@ -861,7 +861,6 @@ class SessionStore:
                                     )
                                     prior = seen_refs.get(ref.id)
                                     if prior is None:
-                                        introduced += ref.bytes
                                         seen_refs[ref.id] = ref
                                     elif prior != ref:
                                         raise ValueError("conflicting payload identity")
@@ -869,18 +868,7 @@ class SessionStore:
 
                                 record, state = decode(line, state, read)
                                 event = record.event
-                                emergency = (
-                                    event.type == "run.interrupted"
-                                    and event.request_id == "recovery"
-                                    and record.audit.get("capacity_recovery") is True
-                                )
-                                if len(line) - 1 + introduced > self.limits.record_bytes + (
-                                    SETTLEMENT_MARGIN if emergency else 0
-                                ):
-                                    raise ValueError("record limit")
-                                if event.session_id != sid or event.sequence > (
-                                    self.limits.events + int(emergency)
-                                ):
+                                if event.session_id != sid:
                                     raise ValueError("invalid journal sequence")
                                 if offset == 0:
                                     if event.type != "session.created" or record.claim is None:
@@ -895,9 +883,7 @@ class SessionStore:
                                 committed = self._next_committed(
                                     record,
                                     state,
-                                    RecordLocation(
-                                        offset, len(line), hashlib.sha256(line).hexdigest()
-                                    ),
+                                    location,
                                     seen_refs,
                                 )
                                 self._publish(
@@ -911,8 +897,12 @@ class SessionStore:
                                 )
                                 offset += len(line)
                                 self.used += len(line)
-                                if self.used > self.recovery_disk_limit:
-                                    raise ValueError("journal limit")
+                                length = 0
+                                digest = hashlib.sha256()
+                            if length:
+                                os.ftruncate(journal, offset)
+                                os.fsync(journal)
+                                os.fsync(directory)
                         if state is not None:
                             self._verified[sid] = VerifiedFiles(
                                 self._stamp(journal), MappingProxyType(dict(verified_payloads))
@@ -925,8 +915,6 @@ class SessionStore:
                     continue
             finally:
                 os.close(directory)
-        if len(self.records) > self.limits.sessions or self.used > self.recovery_disk_limit:
-            raise ValueError("retained limit")
         for sid in list(self.records):
             snapshot = self.get(sid)
             changed = False
@@ -956,7 +944,6 @@ class SessionStore:
                     "run.interrupted",
                     "recovery",
                     audit={"outcome": "unknown"},
-                    recovery=True,
                 )
 
     def get(self, sid: str) -> AgentSession:
@@ -1067,8 +1054,6 @@ class SessionStore:
                         "request_conflict", "Creation request ID has different content."
                     )
                 return self.get(found[1])
-            if len(self.records) >= self.limits.sessions:
-                raise AgentFault("storage_limit", "Agent session limit reached.", 507)
             now = self.clock()
             for _ in range(10):
                 sid = self.id_factory()
@@ -1091,9 +1076,6 @@ class SessionStore:
                     claim=Claim(request_id=body.request_id, digest=digest),
                 )
                 raw, state, payloads = self._encode(record)
-                # Check before mkdir: capacity rejection must leave neither a
-                # directory nor a visible empty cache entry behind.
-                self._capacity(record, raw, payload_bytes=sum(ref.bytes for ref, _ in payloads))
                 try:
                     os.mkdir(sid, mode=0o700, dir_fd=root_fd)
                     os.fsync(root_fd)
@@ -1122,8 +1104,6 @@ class SessionStore:
         operation_id: str | None = None,
         claim: Claim | None = None,
         audit: dict | None = None,
-        reservation: str | None = None,
-        recovery: bool = False,
     ) -> AgentEvent:
         with self.lock:
             self._opened()
@@ -1137,27 +1117,7 @@ class SessionStore:
                 audit=audit,
             )
             raw, state, payloads = self._encode(record)
-            payload_bytes = sum(ref.bytes for ref, _ in payloads)
-            try:
-                self._capacity(record, raw, reservation, payload_bytes=payload_bytes)
-            except AgentFault:
-                if not recovery:
-                    raise
-                # Compatibility escape hatch for an already-full legacy journal:
-                # one bounded recovery-only control record beyond normal caps.
-                record.audit["capacity_recovery"] = True
-                raw, state, payloads = self._encode(record)
-                payload_bytes = sum(ref.bytes for ref, _ in payloads)
-                if (
-                    record.event.sequence > self.limits.events + 1
-                    or len(raw) + payload_bytes > self.limits.record_bytes + SETTLEMENT_MARGIN
-                    or self.used + len(raw) + payload_bytes > self.recovery_disk_limit
-                ):
-                    raise
             self._write(record, raw, state, payloads)
-            if reservation is not None:
-                sid, remaining = self.reservations[reservation]
-                self.reservations[reservation] = (sid, remaining - 1)
             return record.event.model_copy(deep=True)
 
     def _record(
@@ -1185,21 +1145,6 @@ class SessionStore:
             audit=audit or {},
         )
 
-    def _capacity(self, record, raw: bytes, reservation: str | None = None, *, payload_bytes=0):
-        sid = record.event.session_id
-        reserved = self.reservations.get(reservation)
-        if reservation is not None and (reserved is None or reserved[0] != sid or reserved[1] < 1):
-            raise AgentFault("storage_limit", "Agent operation reservation is exhausted.", 507)
-        others = [value for key, value in self.reservations.items() if key != reservation]
-        held_events = sum(n for session, n in others if session == sid)
-        held_bytes = sum(n for _, n in others) * self.limits.record_bytes
-        if (
-            len(raw) + payload_bytes > self.limits.record_bytes
-            or record.event.sequence + held_events > self.limits.events
-            or self.used + len(raw) + payload_bytes + held_bytes > self.limits.disk_bytes
-        ):
-            raise AgentFault("storage_limit", "Agent recording limit reached.", 507)
-
     def _recording_failure(self):
         self.poisoned = True
         return AgentFault(
@@ -1220,7 +1165,7 @@ class SessionStore:
     def _write_bytes(self, fd: int, raw: bytes):
         remaining = memoryview(raw)
         while remaining:
-            count = os.write(fd, remaining)
+            count = os.write(fd, remaining[:65536])
             if count <= 0:
                 raise OSError("short write")
             self.used += count
