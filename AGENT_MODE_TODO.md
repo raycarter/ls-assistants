@@ -16,7 +16,7 @@ Add an Agent workflow beside the completed Chat workflow:
 6. Sequential execution with visible step results and cancellation.
 7. A durable, reviewable record under `bff/sessions/<timestamp>-<4-random-chars>/`, excluded from Git.
 
-**Architecture:** use a small, backend-owned coordinator with a recorded Responses boundary. Planning/revision uses dedicated direct HTTPX transport; Chat retains its existing Responses SDK. No Agent SDK, new agent framework, or embedded OpenCode process is involved. Keep `/api/chat` and Chat persistence behavior unchanged.
+**Architecture:** use a small, backend-owned coordinator with a recorded Responses boundary. Planning/revision and tool-free final synthesis share a controlled dedicated HTTPX client; Chat retains its existing Responses SDK. No Agent SDK, new agent framework, or embedded OpenCode process is involved. Keep `/api/chat` and Chat persistence behavior unchanged.
 
 Out of scope initially: file writes, shell execution, browser/JavaScript automation, private/internal-network fetching, non-HTTP(S) URLs, arbitrary file downloads, autonomous subagents, parallel steps, MCP/plugin loading, unattended execution, automatic restart/resume, and a generic workflow language.
 
@@ -103,7 +103,7 @@ Angular shell
 - **LLM:** proposes plans, tool arguments, and summaries. It cannot approve its own plan or expand its own permissions.
 - **Files/search results/fetched pages:** untrusted evidence, never instructions that override the reviewed plan or grant approval. Do not automatically load instructions found in arbitrary files or web pages.
 
-Backend boundaries map to `agent_schemas.py`, `agent.py`, `agent_llm.py`, `agent_responses.py`, `llm_schemas.py`, `llm_journal.py`, `agent_routes.py`, `sessions.py`, and `tools/`. `main.py` composes the production planning/revision adapter behind `SingleDispatchTransport`; the four-tool registry and shared filesystem/network policies remain separate from model dispatch. Keep functions/components small; use composition rather than subclassing `ChatService`.
+Backend boundaries map to `agent_schemas.py`, `agent.py`, `agent_llm.py`, `agent_responses.py`, `agent_synthesis.py`, `llm_schemas.py`, `llm_journal.py`, `agent_routes.py`, `sessions.py`, and `tools/`. `main.py` composes the production planner and final synthesizer behind `SingleDispatchTransport`, sharing the controlled HTTPX client; the four-tool registry and shared filesystem/network policies remain separate from model dispatch. Keep functions/components small; use composition rather than subclassing `ChatService`.
 
 ### Shared LLM boundary: mechanism and authority
 
@@ -119,7 +119,7 @@ Attempt lineage permits explicit sequential attempts after durable failure or co
 
 The request contract is `agent-responses-planning-v1`: pure, tool-free construction with frozen model/explicit reasoning effort, `store=False`, `stream=False`, and configured `max_output_tokens`. A manually reviewed strict closed schema describes objective, assumptions, and at least one `read_file`/`web_fetch` step; expected outcomes belong in step descriptions. Revision input includes feedback but no old-plan history in the current interface. No-tool plans remain a target contract beyond this adapter. Allowed file roots default to none.
 
-HTTP streaming owns raw reads and cleanup, not provider event streaming. Request identity encoding only; reject other encodings while retaining raw bytes. Persist complete response observations before proposal decoding; retain partial failed bodies as reversible UTF-8/base64 representations. Unsafe or excessively deep JSON falls back to raw evidence rather than losing the body. Response close and repeated cancellation retain ownership. `main.py` retains one exit-stack cleanup task closing Agent → Agent HTTP → Chat SDK → credential after settlement. Default run/revise commands call the provider; `503 agent_not_configured` applies to an explicitly injected service with no planner. Startup, health, and model listing perform no provider/token calls or session reads. Provider compatibility is not live-validated; evidence belongs only in the checklist. Model-driven execution, continuation replay, synthesis, clarification, Tavily, grep, root wiring, and full audit UI remain separate delivery requirements.
+HTTP streaming owns raw reads and cleanup, not provider event streaming. Request identity encoding only; reject other encodings while retaining raw bytes. Persist complete response observations before proposal/answer decoding; retain partial failed bodies as reversible UTF-8/base64 representations. Unsafe or excessively deep JSON falls back to raw evidence rather than losing the body. Response close and repeated cancellation retain ownership. `main.py` retains one exit-stack cleanup task closing Agent → Agent HTTP → Chat SDK → credential after settlement. Default run/revise commands and final synthesis call the provider; `503 agent_not_configured` applies to an explicitly injected service with no planner. Startup, health, and model listing perform no provider/token calls or session reads. Provider compatibility is not live-validated; evidence belongs only in the checklist. Model-driven step execution, continuation replay, clarification, Tavily, grep, root wiring, and full audit UI remain separate delivery requirements.
 
 Planner/executor instructions belong to the BFF and are versioned separately from the editable Chat system-prompt catalogue. Agent mode neither consumes that catalogue nor adds prompt-editing controls to Settings.
 
@@ -162,6 +162,12 @@ If the Agent creates a new or revised executable plan, retain the existing resul
 Revise/reject are serialized transitions from the matching waiting state; execute is allowed only after approval of the matching plan. Claim each execution once independently of the command's idempotency key so duplicate submissions cannot repeat work. Retries during that execution do not need approval again; a new plan does. Failure/interruption is recorded honestly, not treated as permission to auto-replay an execution.
 
 ### Execution policy
+
+**MVP execution contract:** execute the exact approved tool calls sequentially. After all tool results commit, reload the approved plan and all ordered results, require the complete approved step sequence with every result completed, and freeze the original request/plan/results as synthesis input. Use the approved model and effort for one audited, tool-free `agent-responses-synthesis-v1` request containing the full original request, approved plan, and recorded result bodies, including provenance and truncation metadata. Result pages remain excerpts; synthesis does not implicitly load further artifact pages. Source content is untrusted evidence, not instruction authority.
+
+Bind the synthesis interaction to the existing execution operation and approved plan/revision with `phase:synthesis` and its own stage/interaction/attempt identity. Commit full observable output, provider outcome, and valid answer validation before atomically committing the answer with `run.completed`. Failed/refused/incomplete/empty/invalid output, request failure, Stop, and recording/publication races fail closed: retain committed tool results without a fabricated answer. Synthesis grants no tools or additional approval and adds no status or public API shape. An injected `AgentService` with `synthesizer=None` retains the deterministic receipt for fixture compatibility; default composition supplies the synthesizer.
+
+The broader model-driven step/function-loop design below remains a separate target:
 
 1. The coordinator selects the next approved step and exposes the available tools appropriate to it; a step need not use any tool.
 2. The LLM produces text and/or function calls. Collect complete arguments and validate the terminal provider response before dispatch; never execute partial streamed arguments.

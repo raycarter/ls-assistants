@@ -2,7 +2,7 @@
 
 Design and research: [AGENT_MODE_TODO.md](AGENT_MODE_TODO.md).
 
-This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, Step 3 recorded LLM foundation, and production planning/revision adapter are implemented and mock-verified. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
+This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, Step 3 recorded LLM foundation, production planning/revision adapter, and MVP tool-free final synthesis are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
 
 **Firm constraint:** Borrow OpenCode's architectural/behavioral ideas only. Write the implementation independently; do not copy, translate, vendor, or adapt OpenCode implementation code or embed its runtime.
 
@@ -88,7 +88,8 @@ Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implemen
   - [x] Complete independent Step 3 runtime/storage/public-contract re-reviews and full backend/frontend checks, including cancellation of operation/shutdown waiters and contradictory failure/success rejection.
   - [x] Integrate the direct HTTPX provider adapter and prove one send/no retry with mocked HTTP plus the actual `AsyncHTTPTransport(retries=0, trust_env=False)` configuration. This is not an Agent SDK retry claim; no Agent SDK is used. Chat SDK `max_retries=0` remains unchanged. No automatic retry policy was added; explicit attempts require durable failed/invalid predecessors and a revoked runner cannot retry.
   - [x] Wire the production planning/revision path in default `main.py` composition, sharing Chat's bearer provider and retaining ordered lifespan cleanup. Focused adapter/integration evidence, full checks, and independent review are recorded below.
-  - [ ] Complete actual model-driven execution, continuation replay, synthesis, and full audit-history UI. Execution/synthesis recording primitives alone do not complete these capabilities or the broad P3-08 parent.
+  - [x] Integrate one recorded tool-free final synthesis over the original request, approved plan and all committed ordered results, using frozen approved model/effort and execution-bound synthesis identity; see the MVP synthesis record below.
+  - [ ] Complete actual model-driven step execution, continuation replay, and full audit-history UI. MVP final synthesis does not complete these capabilities or the broad P3-08 parent.
 
 **Gate:** Only an explicit valid user command can authorize the reviewed revision; no model message, tool output, or reused approval can do so.
 
@@ -104,6 +105,7 @@ Depends on storage/approval primitives and the tool(s) used by the slice; comple
 - [x] **P4-06** Remove prototype run/call/attempt quotas and overall expiry; continue the approved plan as needed, use search only when useful, and await approval if a genuinely new executable plan is created.
 - [ ] **P4-07** Implement targeted nonterminal cancelling, per-request timeout/failure handling, and cleanup; retain settlement ownership and stop dispatch if recording actually fails.
 - [ ] **P4-08** Produce step results and a final evidence-based synthesis without extra unapproved tool work.
+  - [x] MVP final synthesis after exact approved tool calls: reload complete ordered committed results and approved-plan snapshot, make one audited tool-free request, validate before atomic answer/completion, retain results on failure, and enforce Stop/publication barriers. Model-driven step results remain open, so the broad parent stays partial.
 - [ ] **P4-09** Test partial/invalid calls, filesystem/network escapes, prompt injection from fetched pages, refusals, retries, zero-search and fetch-only plans, work beyond former quotas, unknown outcomes, full prompt/response retention, and recording failures.
 
 **Gate:** Execution follows the approved plan and access policy, with every LLM interaction durably recorded, no cumulative product quotas, and no extra step/tool/query approval.
@@ -163,7 +165,7 @@ Depends on Phases 0–7.
 
 Checked P8-04/P8-05/P8-06/P8-10 have dated evidence for each increment. Step 3's completed full checks and scoped independent reviews are recorded in its verification record; they do not certify the unfinished broader release gates.
 
-The later production planning/revision adapter milestone has focused evidence only so far. Its final full checks remain pending; the historical checked rows below do not certify that new increment.
+The production planning/revision adapter has completed full checks at the committed `fcf7308` checkpoint. The later uncommitted MVP synthesis increment also passed full regression checks and scoped independent review, recorded in its own verification record. These checks do not complete the broader release gates below.
 
 - [ ] **P8-01** Run mocked end-to-end scenarios covering all four tools, a reasoning-only/no-search task, a filesystem-only task, and fetch of a directly supplied URL without search; four-tool coverage is a test case, not a requirement for every plan.
 - [ ] **P8-02** Verify rejection, stale approval, duplicate commands, delayed Stop, disconnect, and restart never trigger unauthorized or repeated execution.
@@ -231,7 +233,7 @@ Live verification is not required for mocked implementation completion. No real 
 
 ## Verification record — 2026-10-20, incremental storage Step 1
 
-Historical status note (2026-10-23): the uncommitted/second-commit statements below describe this record's original checkpoint. Storage Step 1 was subsequently committed as `2fb37a5`; they are superseded by that commit and the current `1a33e31` baseline, not current working-tree status.
+Historical status note (2026-10-23): the uncommitted/second-commit statements below describe this record's original checkpoint. Storage Step 1 was subsequently committed as `2fb37a5`, followed by the Steps 1/2 baseline `1a33e31` and recorded-planning checkpoint `fcf7308`; these statements are not current working-tree status.
 
 - At the user's request, committed the preceding fetch milestone as **`811032a` — `add approved web fetch and retained evidence`**, after clean scope review and 493 backend/655 UI passing tests plus lint/type/build/format/lock checks. No push was requested or performed. The following storage work is separate and remains uncommitted.
 - New writes use private `storage_version: 2` event headers and fixed session/run/result deltas in `events.jsonl`. Immutable request, plan-revision, step-result, answer, and existing logical-audit bodies are retained in session-local `payloads/<id>.json` with ID/SHA-256/byte references. Unchanged large bodies are not serialized, hashed, or rewritten on title/control changes.
@@ -245,7 +247,7 @@ Historical status note (2026-10-23): the uncommitted/second-commit statements be
 
 ## Verification record — 2026-10-20, quota-free Step 2 and public projection v2
 
-Historical status note (2026-10-23): the uncommitted/no-Step-2-commit statements below describe this record's original checkpoint. The user subsequently committed Steps 1 and 2; current baseline HEAD is `1a33e31`. The original timestamps, counts, and verification statements are preserved as historical evidence.
+Historical status note (2026-10-23): the uncommitted/no-Step-2-commit statements below describe this record's original checkpoint. The user subsequently committed Steps 1 and 2 at `1a33e31`, followed by recorded-planning checkpoint `fcf7308`. The original timestamps, counts, and verification statements are preserved as historical evidence.
 
 - At the user's request, committed storage Step 1 as **`2fb37a5` — `migrate agent sessions to incremental journals`**, after 608 backend/655 frontend tests and lint/type/build/format/lock checks passed. Step 2 is separate, uncommitted work; nothing was pushed.
 - Removed artificial plan-step/tool-call/attempt/revision/run/session/event/journal/payload allowances, prototype global admission/active-operation caps, fixed event/byte reservations, and overall planning/execution/transport expiry. New plans omit `limits`; legacy limit fields remain unchanged signed historical material but no longer govern work. One nonterminal run/session, exact-version approval, model/policy validation, and idempotency remain enforced.
@@ -260,6 +262,8 @@ Historical status note (2026-10-23): the uncommitted/no-Step-2-commit statements
 - Remaining: full LLM-attempt identities/input/output recording (P3-08), production planning/clarification/function loop/synthesis, Tavily/grep and approved filesystem-root wiring, complete interaction history, and user/live walkthroughs. Private latest baselines/indexes still grow with retained history; metadata checks, commit-prefix hashing and diagnostic prefix replay retain their documented scaling costs. No compaction/GC, constant-memory storage, or end-to-end Agent release is claimed.
 
 ## Verification record — 2026-10-23, Step 3 recorded LLM boundary
+
+Subsequent commit checkpoint: Step 3 and production planning/revision were committed together as **`fcf7308` — `add recorded agent responses planning`**. Original uncommitted/baseline statements below are historical; the later MVP synthesis record supersedes default completion-receipt claims.
 
 Historical scoped checkpoint: the adapter/default-planner/retry-proof statements below describe Step 3 before the subsequent production planning/revision milestone. They are preserved as dated evidence, not current runtime defaults; the next record supersedes those statements.
 
@@ -278,6 +282,8 @@ Historical scoped checkpoint: the adapter/default-planner/retry-proof statements
 
 ## Verification record — 2026-10-23, production planning/revision adapter
 
+Subsequent commit checkpoint: this milestone and Step 3 were committed as **`fcf7308` — `add recorded agent responses planning`**. Preserve the original evidence below as historical. Its uncommitted/baseline and default completion-receipt statements are superseded by this checkpoint and the MVP synthesis record that follows.
+
 **Status: default production planning/revision wired and mock-verified; independent review and full regression checks passed. Changes remain unstaged and uncommitted at baseline `1a33e31`.** This follows the historical Step 3 checkpoint above and does not complete the broader Agent release.
 
 - `bff/app/agent_responses.py` composes pure `agent-responses-planning-v1` request construction, `ResponsesTransport`, strict response decoding, and coordinator proposal validation. Exact canonical bytes reach a dedicated direct HTTPX transport, with frozen model/effort, `store=False`, `stream=False`, and configured maximum output tokens. The manually reviewed closed schema requires objective, assumptions, and at least one `read_file`/`web_fetch` step. Revision includes feedback but no old-plan history in the current interface.
@@ -289,3 +295,18 @@ Historical scoped checkpoint: the adapter/default-planner/retry-proof statements
 - Final full regression verification: **1,534 backend tests** and **749 frontend tests across 22 files** passed. Ruff lint/format (50 Python files), offline/frozen lock validation, app/spec TypeScript checks, production build, full frontend Prettier and the five milestone documents, generated v2 contract comparison, frozen-v1 baseline equality, Git-ignore and whitespace checks passed. A final focused backend run after import sorting passed **159 tests**. The initial full run exposed one outdated instruction-string assertion, corrected to distinguish provider HTTP from forbidden pre-approval source/tool work. The two existing nonfatal critical-CSS selector warnings remain.
 - No dependencies changed. No actual Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, staging, commit, or push were performed. Steps 1/2 history remains untouched at `1a33e31`. Starting the app remains lazy; a user-issued default Agent run/revision now contacts the configured provider, unlike the historical disabled-planner default.
 - Open scope: no-tool plans, clarification, autonomous model/tool loop, continuation replay, synthesis, Tavily, grep, approved-root wiring, full audit UI, and broad release gates. Execution still runs deterministic approved tools and returns a completion receipt. Provider/deployment compatibility has not been live-validated.
+
+## Verification record — 2026-10-23, MVP tool-free final synthesis
+
+**Status: MVP synthesis implemented; mocked end-to-end verification, scoped independent review, and full regression checks passed. New work remains unstaged and uncommitted on `fcf7308`.** This completes the synthesis subitem, not the full MVP or broad Agent release gates. Priority is the useful MVP path; revision edge cases remain follow-up work.
+
+- `bff/app/agent_synthesis.py` supplies `RecordedSynthesizer` and `agent-responses-synthesis-v1`. Default `main.py` composes planner and synthesizer with the same controlled dedicated HTTPX client, bearer provider, no lower transport retries, and retained cleanup ownership.
+- `AgentService` executes exact approved tool calls sequentially, then reloads the committed run, approved plan and all ordered results. It requires matching plan/revision and a complete completed result sequence. Frozen synthesis input includes the full original request, approved-plan snapshot and full recorded result bodies with provenance/truncation metadata; it does not silently expand result excerpts into unseen artifact pages.
+- One tool-free synthesis request uses the approved model/effort, `store=False`, `stream=False` and configured output tokens. Its `phase:synthesis` identity binds the existing execution operation and approved plan/revision. Full observable output, provider outcome and valid answer validation commit before the atomic `run.completed` answer. No additional tools, approval, statuses, API shapes or full function loop are introduced.
+- Failure/refusal/incomplete/empty/invalid output, Stop/cancellation, recording failures and publication races fail closed without a fabricated answer; committed results remain inspectable. Explicitly injected `AgentService(synthesizer=None)` preserves the deterministic receipt for fixture compatibility, not the production default.
+- Evidence: `bff/tests/test_agent_synthesis.py`, `test_agent_synthesis_api.py`, and updated `test_agent_responses_api.py` cover request/identity/audit binding, full original input and ordered evidence, validation/publication ordering, failures, Stop/races, and default composition. A useful supplied-URL-only plan → approval → fetch → synthesis → retained answer path is mock-covered; production compatibility is **not live-verified**.
+- Independent scoped review **PASS**, no remaining material P1/P2 findings reported in scope; **317 scoped tests passed**. This is not proof of model factual accuracy, every possible interleaving, or live provider compatibility.
+- Full regression verification: **1,585 backend tests** and **749 frontend tests across 22 files** passed. Ruff lint/format (53 Python files), offline/frozen lock validation, app/spec TypeScript checks, production build, Prettier, generated v2 contract comparison, frozen-v1 baseline equality, Git-ignore and whitespace checks passed. The two existing nonfatal critical-CSS selector warnings remain.
+- The first frontend regression run exposed an existing order-dependent Markdown fallback test failure (748 passed/1 failed). A separate investigation reproduced module-level highlighter reuse with the runner's default shared-module setting. `ui/angular.json` now explicitly enables per-file `isolate:true`; security assertions and application rendering code are unchanged. The full suite then passed with isolation configured. No dependencies changed.
+- The user-requested commit of previous work is `fcf7308`; this subsequent MVP increment remains uncommitted. No actual Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, or push were performed.
+- Open scope: model-driven step results/function loop and continuation replay, search/Tavily, grep, approved filesystem-root wiring, no-tool plans, revision prior context, clarification and full audit UI. Broad P4-08 remains partial; no full MVP completion is claimed.

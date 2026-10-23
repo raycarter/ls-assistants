@@ -13,6 +13,7 @@ from app.agent import AgentService
 from app.agent_files import AgentFault
 from app.agent_responses import build_recorded_planner, create_http_client
 from app.agent_routes import router as agent_router
+from app.agent_synthesis import build_recorded_synthesizer
 from app.auth import create_bearer_provider, create_credential
 from app.responses import ChatService
 from app.routes import router
@@ -53,6 +54,12 @@ def create_app(
                 stack.push_async_callback(agent_client.aclose)
                 agent_service = AgentService(
                     planner=build_recorded_planner(
+                        agent_client,
+                        configuration.openai_base_url,
+                        bearer_provider,
+                        configuration.max_output_tokens,
+                    ),
+                    synthesizer=build_recorded_synthesizer(
                         agent_client,
                         configuration.openai_base_url,
                         bearer_provider,

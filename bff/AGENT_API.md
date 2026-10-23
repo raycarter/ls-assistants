@@ -1,13 +1,13 @@
-# Agent: production planning/revision and paginated public v2
+# Agent: production planning, tool-free synthesis and paginated public v2
 
 This backend implements request → provider-generated tool-free plan → exact-version approval
-→ approved `read_file`/`web_fetch` steps → persisted results → paginated history.
-Step 1 (`2fb37a5`) established the incremental private journal; the user-committed
-Steps 1/2 baseline is `1a33e31`. The default `main.py` composition wires a direct
-HTTPX Responses planning/revision adapter through Step 3's recorded LLM boundary.
+→ approved `read_file`/`web_fetch` steps → persisted results → tool-free final synthesis
+→ paginated history. The default `main.py` composition wires Responses planning/revision
+and final synthesis through the recorded LLM boundary, sharing a controlled dedicated
+HTTPX client.
 No Agent SDK is used. Provider/deployment compatibility has not been live-validated.
 Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
-replay, synthesis, approved-root wiring, and full audit UI remain deferred.
+replay, grep, approved-root wiring, revision prior context, and full audit UI remain deferred.
 Implementation progress and all verification evidence are tracked only in
 [the root checklist](../AGENT_MODE_CHECKLIST.md).
 Chat's schemas, API and credential selection are unchanged.
@@ -21,6 +21,7 @@ receiving the existing `Settings`. It returns `AgentService`, for example:
 AgentService(
     SessionStore(explicit_storage_path),
     planner=my_recorded_planner,
+    synthesizer=my_recorded_synthesizer,
     files=FilePolicy(),  # File access stays disabled until approved-root wiring lands.
     models=settings.available_models,
 )
@@ -39,11 +40,14 @@ The older fixture injection `async plan(context: PlanningInput) -> Proposal` rem
 supported. Its `planner.attempt`/`planner.result` records have `coverage:"logical_only"`;
 they do not establish actual provider input/output or physical send count. Historical
 opaque planner audits are not retroactively reclassified as typed LLM attempts.
-Default composition uses the recorded path with the production adapter described
-below. Observed usage is informational when supplied, not a guaranteed price or
+Default composition supplies both `RecordedPlanner` and `RecordedSynthesizer` with
+the production adapters described below. Explicitly injected services with
+`synthesizer=None` retain a deterministic completion receipt for fixture compatibility.
+Observed usage is informational when supplied, not a guaranteed price or
 currency ceiling.
 
-The default application planner calls the provider on run/revise commands. HTTP
+The default application calls the provider on run/revise commands and for final synthesis
+after approved tool results commit. HTTP
 `503 agent_not_configured` before run admission applies only to an explicitly
 injected service with no planner. Allowed file roots default to none;
 configuration is explicit Python composition, with no changes to identity settings
@@ -80,14 +84,15 @@ revision retains the plan ID and increments the revision with a new operation/st
 Each typed `LLMIdentity` also binds `session_id,run_id,operation_id,step_id,
 interaction_id,attempt_id,attempt,retry_of,backoff_seconds`. Planning/revision use
 `step_id:null`; validated step IDs and the canonical plan digest are assigned after
-proposal validation. Shared execution/synthesis identities can bind known approved
-plans and steps/stages, but the current executor does not call an LLM.
+proposal validation. Final synthesis uses `phase:"synthesis"`, `step_id:null` and a
+stage identity bound to the existing execution operation and approved plan/revision.
 
 `CanonicalRequest` accepts only the reviewed application-body schema, enforces
 `store:false`, and serializes immutable UTF-8 JSON bytes once. Those same bytes
 enter `send_once`; the durable intent retains the exact JSON body and instruction
 version. `RecordedPlanner` rejects a mismatched model or missing/mismatched explicit
-`reasoning.effort` before intent/send. Both must match the frozen selection. The
+`reasoning.effort` before intent/send; `RecordedSynthesizer` enforces the same match
+against the approved model/effort. The
 service also rechecks that the frozen model is allowed. This is application JSON
 evidence; the production adapter sends those exact bytes directly over HTTPX.
 
@@ -125,6 +130,34 @@ Response close remains owned through repeated cancellation without discarding an
 already observed body. Complete parsed responses preserve full observable content
 and reported metadata. Provider/deployment compatibility is not live-validated.
 
+### MVP tool-free final synthesis
+
+`agent_synthesis.py` supplies `RecordedSynthesizer` and version
+`agent-responses-synthesis-v1`. After every exact approved tool call has a committed
+result, the coordinator reloads the run and approved plan, verifies plan/revision
+binding and the complete ordered step/result sequence with every result completed,
+and freezes the synthesis input as immutable JSON strings. This includes the full
+original request, approved-plan snapshot and all recorded result bodies, including
+file/page offsets, provenance and truncation metadata. It uses all committed results,
+not the UI's recent result window. Recorded excerpts remain excerpts; synthesis does
+not automatically load further retained artifact pages.
+
+One request uses the approved model and explicit reasoning effort, `store:false`,
+`stream:false`, configured `max_output_tokens`, and ordinary text output. It sends
+no tools, function outputs or previous-response ID. BFF-owned instructions treat
+source content as untrusted evidence, require evidence-based citations where relevant,
+and acknowledge missing/truncated evidence and uncertainty. This is a final answer
+stage within `executing`, not a model-driven step/function loop or a new approval.
+
+The existing `AttemptRunner` records exact input and full observable output, then
+commits provider outcome and separate valid/invalid answer validation. Only a valid
+nonempty answer can advance to the atomic answer plus `run.completed` commit.
+Failed/refused/incomplete/empty/invalid output or request failure does not produce a
+receipt fallback or fabricated answer; committed tool results remain inspectable.
+Stop/cancellation and recording/publication races revoke advancement and retain
+cleanup ownership. The same controlled HTTPX transport and lifecycle described
+above serve planner and synthesizer. No public statuses, endpoints or DTO shapes change.
+
 Private `llm_audit_version:1` records carry `kind,identity,at,data`, with UTC timestamps:
 
 | Kind / event                    | Private data and ordering                                                                                                                                                                                                                |
@@ -133,7 +166,7 @@ Private `llm_audit_version:1` records carry `kind,identity,at,data`, with UTC ti
 | `dispatched` / `llm.dispatched` | Durable authorization marker, not proof of remote execution. The scheduled send owner rechecks Stop/storage health immediately before transport entry.                                                                                   |
 | `output` / `llm.output`         | One independent observation: ascending `index`, `kind:event\|response\|error_body`, full `body`, `reported_model`, `provider_status`, `usage`, `failed`. Each callback awaits its durable immutable payload before the adapter advances. |
 | `outcome` / `llm.outcome`       | Attempt status, dispatch knowledge, output count, latest available model/status/usage, and curated error code; committed before further advancement.                                                                                     |
-| `validation` / `llm.validation` | Separate `valid`/`invalid` proposal-validation status and error code after a completed nonempty outcome; committed before publishing the reviewed plan.                                                                                  |
+| `validation` / `llm.validation` | Separate `valid`/`invalid` proposal/answer-validation status and error code after a completed nonempty outcome; committed before publishing the reviewed plan or final answer.                                                           |
 
 Provider completion does not imply a valid plan. Failed/refused/incomplete provider
 observations, invalid JSON/schema/tool/policy proposals, partial output, explicit
@@ -327,8 +360,9 @@ For a successful fetch, content is a page of extracted text and `fetch` contains
 redirects,total_chars,offset,returned_chars,next_offset`. `title` and `next_offset`
 may be null. `fetched_at` is UTC; redirects list followed destinations, including
 the final destination. File results have null/absent fetch metadata.
-The final answer is a deterministic completion receipt pointing to recorded
-evidence, not an LLM synthesis or a fabricated substantive answer.
+The default final answer is a validated, recorded tool-free LLM synthesis over the
+original request, approved plan and all committed ordered results. Only explicitly
+injected services with `synthesizer=None` return a deterministic completion receipt.
 
 Normal flow: `planning → awaiting_approval → approved → executing → completed`.
 Feedback creates an immutable next revision; rejection releases the session.
@@ -348,10 +382,10 @@ normal `422` format. Raw provider exceptions are never used as messages.
 
 Clarification-shaped `/revise` and `/reject` requests are strictly parsed but
 return `501 clarification_unavailable`; no clarification state is produced.
-Search/Tavily, grep, null-tool steps, function-loop/model continuation replay and LLM
-synthesis are unavailable. Shared audit/request primitives can retain canonical and
-opaque continuation items, but do not perform those workflows. The completion receipt
-is not a substantive model answer.
+Search/Tavily, grep, null-tool steps, revision prior context and function-loop/model
+continuation replay are unavailable. Shared audit/request primitives retain canonical
+and opaque continuation items without replaying them. Final tool-free synthesis does
+not implement model-driven step results or the broader function loop.
 
 ## Public web fetching and retained evidence
 
@@ -540,7 +574,7 @@ immutable audit payload, not a cumulative snapshot of all earlier chunks.
 References contain ID, SHA-256, and byte length. Unchanged bodies reuse references
 without serialization or hashing; control/title updates do not rewrite old bodies.
 Successful fetched text remains separately stored in `artifacts/<uuid>.txt`.
-Typed recording covers the production planning/revision adapter through the recorded
+Typed recording covers production planning/revision and final synthesis through the recorded
 boundary; legacy logical fixtures do not become provider observations.
 
 The store keeps one private hydrated latest-session baseline per session, its
@@ -602,7 +636,7 @@ active-call/per-record costs. Selected public bodies and UI windows do not
 make persistent state fully paged or guarantee bounded total memory/disk or
 physically infinite history. The fast path relies on coherent single-writer
 filesystem metadata, not protection against a malicious operating system.
-Compaction, garbage collection/orphan cleanup, model-driven execution/synthesis,
+Compaction, garbage collection/orphan cleanup, model-driven step execution,
 and full audit-history UI remain future work. Archive retains history; no
 expiry/permanent deletion exists.
 
@@ -694,5 +728,5 @@ composition coverage live in `tests/test_agent_responses.py` and
 Verification results and remaining release checks belong
 only in [the checklist](../AGENT_MODE_CHECKLIST.md).
 Broad release items for all four tools, no-tool plans, clarification, function-loop
-continuation, synthesis and full audit UI remain incomplete. Planning/revision
+continuation, model-driven step results, revision prior context and full audit UI remain incomplete. Planning/synthesis
 composition does not wire approved filesystem roots.

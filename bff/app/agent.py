@@ -32,6 +32,7 @@ from app.agent_schemas import (
     RejectClarification,
     StepResult,
 )
+from app.agent_synthesis import RecordedSynthesizer, SynthesisInput
 from app.llm_schemas import LLMIdentity, Phase
 from app.sessions import SessionStore
 from app.tools import WebFetcher
@@ -90,6 +91,7 @@ class AgentService:
         store: SessionStore | None = None,
         *,
         planner: Planner | RecordedPlanner | None = None,
+        synthesizer: RecordedSynthesizer | None = None,
         files: FilePolicy | None = None,
         fetcher: WebFetcher | None = None,
         models: tuple[str, ...] = (),
@@ -115,6 +117,7 @@ class AgentService:
         self.send_timeout_seconds = send_timeout_seconds
         self.store = store or SessionStore()
         self.planner, self.files, self.models = planner, files or FilePolicy(), models
+        self.synthesizer = synthesizer
         self.fetcher = fetcher if fetcher is not None else WebFetcher()
         self.files.bind_storage(self.store.root)
         self.eager = eager
@@ -500,9 +503,7 @@ class AgentService:
             self.registry.validate(step)
         return proposal
 
-    async def recorded_proposal(self, op: Operation) -> Proposal:
-        self.model_allowed(op.context.model)
-
+    def llm_runner(self, op: Operation) -> AttemptRunner:
         def dispatch_check():
             self.check_stop(op)
             self.store._healthy()
@@ -519,13 +520,17 @@ class AgentService:
         )
         if op.stop.is_set():
             runner.stop(op.reason)
-        identity = LLMIdentity(
+        return runner
+
+    @staticmethod
+    def llm_identity(op: Operation, phase: Phase | None = None) -> LLMIdentity:
+        return LLMIdentity(
             session_id=op.sid,
             run_id=op.rid,
             operation_id=op.id,
             plan_id=op.plan_id,
             revision=op.revision,
-            phase=op.phase,
+            phase=phase or op.phase,
             stage_id=op.stage_id,
             step_id=None,
             interaction_id=uuid4().hex,
@@ -534,6 +539,11 @@ class AgentService:
             retry_of=None,
             backoff_seconds=0.0,
         )
+
+    async def recorded_proposal(self, op: Operation) -> Proposal:
+        self.model_allowed(op.context.model)
+        runner = self.llm_runner(op)
+        identity = self.llm_identity(op)
         try:
             return await self.planner.plan_recorded(
                 op.context, runner=runner, identity=identity, validate=self.validate_proposal
@@ -787,9 +797,16 @@ class AgentService:
             await self.transition(op, "tool.result", completed, audit=audit)
         self.check_stop(op)
 
+        answer = None
+        if self.synthesizer is not None:
+            answer = await self.synthesize(op)
+            self.check_stop(op)
+
         def finished(snapshot, run):
             run.status, run.operation_id = "completed", None
-            if all(step.tool == "read_file" for step in plan.steps):
+            if answer is not None:
+                run.answer = answer
+            elif all(step.tool == "read_file" for step in plan.steps):
                 run.answer = (
                     f"Completed {len(run.results)} approved file read(s). "
                     "See the recorded excerpts."
@@ -801,6 +818,39 @@ class AgentService:
                 )
 
         await self.transition(op, "run.completed", finished)
+
+    async def synthesize(self, op: Operation) -> str:
+        self.check_stop(op)
+        snapshot = await self.get(op.sid)
+        self.check_stop(op)
+        run = self.run(snapshot, op.rid)
+        plan = run.plan
+        if (
+            plan is None
+            or (plan.id, plan.revision) != (op.plan_id, op.revision)
+            or [result.step_id for result in run.results] != [step.id for step in plan.steps]
+            or any(result.status != "completed" for result in run.results)
+        ):
+            raise AgentFault("synthesis_evidence_invalid", "Approved results are incomplete.")
+        self.model_allowed(plan.model)
+        context = SynthesisInput(
+            request=run.request,
+            model=plan.model,
+            reasoning_effort=plan.reasoning_effort,
+            plan_json=plan.model_dump_json(),
+            results_json=json.dumps(
+                [result.model_dump() for result in run.results], ensure_ascii=False
+            ),
+        )
+        runner = self.llm_runner(op)
+        identity = self.llm_identity(op, "synthesis")
+        try:
+            return await self.synthesizer.synthesize_recorded(
+                context, runner=runner, identity=identity
+            )
+        except asyncio.CancelledError:
+            self.signal_stop(op, "interrupted")
+            raise AgentFault("operation_stopped", "Operation stopped.") from None
 
     @staticmethod
     async def wait_owned(task: asyncio.Task, on_cancel=None):

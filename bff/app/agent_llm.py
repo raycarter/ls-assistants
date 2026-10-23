@@ -393,7 +393,9 @@ class AttemptRunner:
         except TimeoutError:
             pass
 
-    async def validation(self, result: AttemptResult, *, valid: bool):
+    async def validation(
+        self, result: AttemptResult, *, valid: bool, error_code: str = "invalid_plan"
+    ):
         self.check()
         if (
             result is not self.previous
@@ -407,7 +409,7 @@ class AttemptRunner:
             "validation",
             {
                 "status": "valid" if valid else "invalid",
-                "error_code": None if valid else "invalid_plan",
+                "error_code": None if valid else error_code,
             },
         )
         self.validated[result.identity.attempt_id] = valid

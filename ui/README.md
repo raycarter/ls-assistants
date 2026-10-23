@@ -166,14 +166,23 @@ prompt propagation, send, retry or deletion through Chat routes.
 ### Implemented interaction
 
 Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
-`web_fetch` steps → completion receipt → paginated GET-based history after reload. The default
-BFF now calls the Responses provider for planning and plan-feedback revisions through its recorded
-direct HTTPX adapter; the UI does not fabricate plans. Provider/deployment compatibility has not
-been live-validated. All test evidence and pending final full checks are tracked only in the
+`web_fetch` steps → tool-free final synthesis → paginated GET-based history after reload. The default
+BFF calls the Responses provider for planning, plan-feedback revisions and final synthesis through
+its recorded adapters sharing a controlled dedicated HTTPX client. Provider/deployment compatibility has not
+been live-validated. Implementation status, test evidence and remaining checks are tracked only in the
 [root checklist](../AGENT_MODE_CHECKLIST.md).
 
 The plan displays every step and description, unverified assumptions, workspace/path or URL, exact
 arguments, model/effort, revision/digest and the complete exact recorded JSON, including access policy.
+After all exact approved tool calls commit, the BFF reloads the approved plan and all ordered
+completed results for one tool-free synthesis using the frozen approved model/effort. Input includes
+the full original request, approved-plan snapshot and recorded result bodies with provenance and
+truncation metadata; it is independent of the UI's loaded result window. Excerpts remain excerpts,
+without implicit loading of further retained artifact pages. No extra tools or approval are requested.
+Synthesis stays within `executing`; the existing completion event supplies the validated final answer.
+Full observable output, outcome and valid answer validation commit before atomic answer/completion.
+Failures, Stop/cancellation and recording/publication races retain committed results without a
+fabricated answer. No public status or API shape changes are needed.
 Approval, rejection and plan feedback bind the current identity. A full plan is loaded for review;
 this is not a plan-payload quota. New plans omit `limits`; known legacy
 `{max_steps,max_tool_calls,timeout_seconds}` material remains readable with its exact approval digest
@@ -356,14 +365,16 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   not been live-validated.
 - The BFF supports approved `read_file` and `web_fetch` steps through its production planner. Web search
   (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release,
-  autonomous model/tool loop, continuation replay and LLM synthesis remain deferred. The
-  answer is a deterministic completion receipt pointing to evidence.
+  autonomous model/tool loop, model-driven step results, continuation replay and revision prior
+  context remain deferred. Default final output is a recorded tool-free synthesis; only explicitly
+  injected `AgentService` instances with `synthesizer=None` retain a deterministic receipt for fixtures.
 - The recorded backend seam explicitly composes `RecordedPlanner`, `CanonicalRequest`,
   `SingleDispatchTransport` and `AttemptRunner`; it is not an opaque fixture `Planner.plan` call
   claimed as full provider coverage. Candidate plan/revision/stage identities precede the call;
   interaction/attempt/retry lineage and the actual request's frozen model/explicit reasoning effort
-  are bound to it. The legacy fixture path stays `logical_only`. Shared execution/synthesis audit
-  primitives do not mean the executor calls an LLM. The production adapter uses no Agent SDK.
+  are bound to it. The legacy planner fixture path stays `logical_only`. Final synthesis uses
+  `RecordedSynthesizer` with `phase:synthesis`, bound to the execution operation and approved
+  plan/revision, with its own stage/interaction/attempt identity. The adapters use no Agent SDK.
 - The `agent-responses-planning-v1` request builder is pure and tool-free, uses frozen model/effort,
   `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
   strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
@@ -432,6 +443,8 @@ npx --no-install ng generate component component-name
 
 Production output is written to `dist/ui/`. `npm test` without additional flags runs tests in watch mode.
 Tests inject fake fetch/API implementations; they never require a running BFF or provider credentials.
+The test target enables per-file isolation so import-time mocks, including Markdown highlighter
+failure doubles, cannot reuse another spec's initialized module state.
 
 Agent verification uses API/state/component doubles and the backend-generated
 `src/app/agent-contract.fixture.json` v2 contract. Its recovery case comes from actually reopening a

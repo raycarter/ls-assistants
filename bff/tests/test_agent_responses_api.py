@@ -289,15 +289,22 @@ async def test_plan_revision_exact_wire_private_retention_and_approval(wired):
             public += (await client.get(f"{BASE}/{sid}" + suffix)).text
         assert PRIVATE not in public and '"audit"' not in public
         assert TOKEN not in json.dumps(groups)
+        synthesized = provider_body()
+        synthesized["output"][1]["content"] = [
+            {"type": "output_text", "text": "Synthetic article summary 🌱"}
+        ]
+        wired.handler = lambda request: httpx.Response(200, json=synthesized)
         executed = decode(await client.post(path + "/execute", json=approval(revised)))
         assert executed[-1]["type"] == "run.completed"
+        assert executed[-1]["answer"] == "Synthetic article summary 🌱"
         wired.fetcher.fetch.assert_awaited_once_with(URL)
         for key in ("execute", "another-execute"):
             duplicate = await client.post(path + "/execute", json=approval(revised, key))
             assert duplicate.status_code == 409
-        assert len(wired.calls) == 2
+        assert len(wired.calls) == 3
         wired.fetcher.fetch.assert_awaited_once()
         wired.sdk.responses.create.assert_not_awaited()
+        groups = audits(owner, sid)
     # Reopen only the synthetic store: full private bodies survive application shutdown.
     recovered = SessionStore(wired.root)
     recovered.start()

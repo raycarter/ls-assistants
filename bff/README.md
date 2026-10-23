@@ -3,12 +3,12 @@
 FastAPI backend for the Azure OpenAI **v1 Responses API**. The caller owns the
 conversation history and sends it explicitly on every turn. The backend keeps no
 Chat conversation state and calls the provider with `store=False`. The separate
-Agent API uses a **production planning/revision adapter over the recorded LLM boundary** with quota-free work and paginated
+Agent API uses **production planning/revision and tool-free final synthesis over the recorded LLM boundary** with quota-free work and paginated
 public v2, described in [AGENT_API.md](AGENT_API.md): journal-backed sessions,
 provider-generated tool-free planning, exact-plan approval, streaming UTF-8 file pages,
-public-page fetching, durable paged web evidence, progress, rejection, Stop and
-restart recovery. Default run/revise commands call the Responses provider through
-dedicated direct HTTPX; no Agent SDK is used. An explicitly injected service with
+public-page fetching, durable paged web evidence, final answers, progress, rejection,
+Stop and restart recovery. Default run/revise commands and final synthesis call the
+Responses provider through a shared controlled dedicated HTTPX client; no Agent SDK is used. An explicitly injected service with
 no planner still returns `503 agent_not_configured`. Provider/deployment
 compatibility has not been live-validated; this is not a full Agent release.
 
@@ -27,7 +27,7 @@ legacy journal bytes and approvals. This is separate from public projection/sche
 version 2; cached v1 clients must reload the updated UI. Normal public reads select
 references directly, but one internal hydrated baseline/index per session, reference
 metadata checks and append-prefix hashing still grow with retained history. There is
-no compaction/GC. Typed LLM audit covers production planning/revision through the
+no compaction/GC. Typed LLM audit covers production planning/revision and final synthesis through the
 recorded boundary; full audit-history UI is pending. File roots default to none;
 `/tmp/ls-assistants` remains the sole approved scope with root/platform-alias wiring
 pending. See the Agent API document for exact DTOs, paging, recovery and policy rules.
@@ -86,10 +86,27 @@ unsafe/deep JSON falls back to raw evidence. Response close remains owned throug
 repeated cancellation. `main.py` retains one exit-stack cleanup task closing
 Agent → Agent HTTP → Chat SDK → credential after settlement.
 
-Execution still runs deterministic approved tools and returns a completion receipt.
+Execution runs the exact approved tool calls sequentially. After all results commit,
+`AgentService` reloads the approved plan and all ordered completed results, then makes
+one audited tool-free `agent-responses-synthesis-v1` request with the full original
+request, approved-plan snapshot and recorded result bodies, including provenance and
+truncation metadata. Result excerpts are not silently expanded into unseen artifact
+pages. Synthesis uses the approved frozen model/effort, `store=False`, `stream=False`
+and configured output tokens, with no extra tools or approval.
+
+Its `phase:synthesis` identity binds the execution operation and approved plan/revision.
+Full observable output, provider outcome and valid answer validation commit before
+the atomic answer plus `run.completed` transition. Failures, invalid/empty/refused or
+incomplete output, Stop/cancellation and recording/publication races fail closed;
+committed results remain inspectable without a fabricated answer. Only explicitly
+injected services with `synthesizer=None` keep the deterministic receipt for fixture
+compatibility. Default `main.py` supplies both planner and synthesizer; no new status
+or public API shape is introduced.
+
 No-tool plans, clarification, autonomous model/tool execution, continuation replay,
-synthesis, Tavily, grep, approved-root wiring and full audit UI remain pending.
-Implementation status, all test counts/evidence and pending final full checks are
+model-driven step results, revision prior context, Tavily, grep, approved-root wiring
+and full audit UI remain pending.
+Implementation status, all test counts/evidence and remaining checks are
 recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
 
 ## Setup
@@ -371,6 +388,8 @@ acquisition serialization and lifespan draining. No real subprocess is started.
   contract, and attempt/recording/cleanup ownership.
 - `app/agent_responses.py`: production direct HTTPX planning/revision adapter,
   versioned strict proposal contract, exact wire bytes and raw response ownership.
+- `app/agent_synthesis.py`: tool-free final answer request/decoding and recorded
+  validation over frozen approved-plan/result snapshots, sharing the controlled HTTPX client.
 - `app/llm_schemas.py`, `app/llm_journal.py`: strict private audit lifecycle,
   committed-reference indexes/readers and unmatched-intent recovery.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.
