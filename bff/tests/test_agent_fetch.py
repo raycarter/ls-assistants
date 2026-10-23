@@ -191,7 +191,8 @@ async def test_real_fetcher_no_dns_http_or_tools_before_exact_approval(fetch_set
         context = fetch_setup.planner.plan.call_args.args[0]
         assert len(context.available_tools) == 2
         assert "web_fetch:" in context.available_tools[1]
-        assert "Planning performs no tools" in context.instructions
+        assert "Planning performs no tool execution" in context.instructions
+        assert "only the configured LLM provider is contacted" in context.instructions
         path = f"{BASE}/{sid}/runs/{run['id']}/execute"
         response = await client.post(path, json={**approval(run), "digest": "0" * 64})
         assert response.status_code == 409

@@ -15,6 +15,7 @@ import secrets
 import stat
 import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +38,8 @@ from app.agent_schemas import (
     Strict,
 )
 from app.agent_views import PublicIndex, PublicViews, index_record
+from app.llm_journal import LLMIndex, LLMReaders, audit_reference, empty_index
+from app.llm_journal import index_record as index_llm_record
 from app.session_journal import PayloadRef, SessionState, decode, encode
 
 SESSION_ID = re.compile(r"^[0-9]{8}T[0-9]{12}Z-[a-z0-9]{4}$")
@@ -101,6 +104,7 @@ class Committed:
     operations: frozenset[tuple[str, str]]
     payloads: Mapping[str, PayloadRef]
     views: PublicIndex
+    llm: LLMIndex
 
 
 class HistoricalRecords(Sequence[JournalRecord]):
@@ -164,6 +168,15 @@ class SessionStore:
         self.records: Mapping[str, Sequence[JournalRecord]] = MappingProxyType(self._records)
         self.creations: dict[str, tuple[str, str]] = {}
         self._public = PublicViews(self)
+        self._llm = LLMReaders(self)
+
+    def llm_attempts(self, sid: str, rid: str, limit=25, before=None) -> dict:
+        """Private compact metadata, newest first; before is an exclusive run ordinal."""
+        return self._llm.attempts(sid, rid, limit, before)
+
+    def llm_records(self, sid: str, attempt_id: str, after=0, limit=50) -> dict:
+        """Private {sequence, record} items, oldest first; after is a journal sequence."""
+        return self._llm.records(sid, attempt_id, after, limit)
 
     def public_session(self, sid: str) -> dict:
         return self._public.session(sid)
@@ -735,6 +748,7 @@ class SessionStore:
         state: SessionState,
         location: RecordLocation,
         payloads: Mapping[str, PayloadRef],
+        audit_ref: PayloadRef | None = None,
     ) -> Committed:
         event = record.event
         old = self._committed.get(event.session_id)
@@ -755,6 +769,15 @@ class SessionStore:
         if event.type == "planner.attempt" and event.run_id is not None:
             attempts[event.run_id] = attempts.get(event.run_id, 0) + 1
         operations = old.operations if old else frozenset()
+        if audit_ref is not None and payloads.get(audit_ref.id) != audit_ref:
+            raise ValueError("uncommitted LLM audit reference")
+        llm = index_llm_record(
+            record,
+            old.llm if old else empty_index(),
+            old.baseline if old else None,
+            operations,
+            audit_ref,
+        )
         if event.run_id is not None and event.operation_id is not None:
             operations = operations | {(event.run_id, event.operation_id)}
         return Committed(
@@ -766,6 +789,7 @@ class SessionStore:
             frozenset(operations),
             MappingProxyType(dict(payloads)),
             index_record(record, state, old.views if old else None, old.baseline if old else None),
+            llm,
         )
 
     def _publish(self, sid: str, committed: Committed, artifacts: dict, verified: VerifiedFiles):
@@ -885,6 +909,9 @@ class SessionStore:
                                     state,
                                     location,
                                     seen_refs,
+                                    audit_reference(line)
+                                    if event.type.startswith("llm.")
+                                    else None,
                                 )
                                 self._publish(
                                     sid,
@@ -917,6 +944,20 @@ class SessionStore:
                 os.close(directory)
         for sid in list(self.records):
             snapshot = self.get(sid)
+            # Settle only committed unmatched intents. This never dispatches work,
+            # validates a plan, or changes approval/other coordinator state.
+            index = self._committed[sid].llm
+            pending = sorted(index.pending, key=lambda aid: index.attempts[aid].records[0].sequence)
+            for aid in pending:
+                attempt = index.attempts[aid]
+                snapshot = self.append(
+                    snapshot,
+                    "llm.outcome",
+                    "recovery",
+                    run_id=attempt.identity.run_id,
+                    operation_id=attempt.identity.operation_id,
+                    audit=self._llm.recovery_record(sid, aid, self.clock()).model_dump(mode="json"),
+                ).session
             changed = False
             for run in snapshot.runs:
                 if run.operation_id is not None or run.status in {
@@ -1107,15 +1148,18 @@ class SessionStore:
     ) -> AgentEvent:
         with self.lock:
             self._opened()
-            record = self._record(
-                snapshot,
-                kind,
-                request_id,
-                run_id=run_id,
-                operation_id=operation_id,
-                claim=claim,
-                audit=audit,
-            )
+            try:
+                record = self._record(
+                    snapshot,
+                    kind,
+                    request_id,
+                    run_id=run_id,
+                    operation_id=operation_id,
+                    claim=claim,
+                    audit=audit,
+                )
+            except OSError, ValueError, TypeError, KeyError:
+                raise self._recording_failure() from None
             raw, state, payloads = self._encode(record)
             self._write(record, raw, state, payloads)
             return record.event.model_copy(deep=True)
@@ -1129,7 +1173,10 @@ class SessionStore:
         snapshot.sequence += 1
         snapshot.updated_at = self.clock()
         if run_id:
-            next(run for run in snapshot.runs if run.id == run_id).updated_at = snapshot.updated_at
+            run = next((run for run in snapshot.runs if run.id == run_id), None)
+            if run is None:
+                raise self._recording_failure()
+            run.updated_at = snapshot.updated_at
         return JournalRecord(
             event=AgentEvent(
                 sequence=snapshot.sequence,
@@ -1142,7 +1189,9 @@ class SessionStore:
                 session=snapshot,
             ),
             claim=claim,
-            audit=audit or {},
+            # Preflight and serialization must see the same detached evidence,
+            # even if the caller later mutates a nested request/observation.
+            audit=deepcopy(audit) if audit else {},
         )
 
     def _recording_failure(self):
@@ -1205,12 +1254,30 @@ class SessionStore:
             directory = None
             fd = None
             try:
-                directory = self._directory(snapshot.id)
-                artifact_index = self._index_artifacts(record, self.artifacts.get(snapshot.id, {}))
-                self._verify_artifacts(snapshot.id, artifact_index, snapshot)
                 if state is None:
                     raw, state, payloads = self._encode(record)
                 previous = self._committed.get(snapshot.id)
+                end = (
+                    previous.locations[-1].offset + previous.locations[-1].length if previous else 0
+                )
+                refs = dict(previous.payloads) if previous else {}
+                for ref, _ in payloads:
+                    if ref.id in refs:
+                        raise ValueError("payload identity reused")
+                    refs[ref.id] = ref
+                # Validate the complete prospective commit before writing ANY
+                # payload, including bodies excluded by the typed audit schema.
+                # These refs are pending, not published or trusted file stamps.
+                committed = self._next_committed(
+                    record,
+                    state,
+                    RecordLocation(end, len(raw), hashlib.sha256(raw).hexdigest()),
+                    refs,
+                    audit_reference(raw) if record.event.type.startswith("llm.") else None,
+                )
+                directory = self._directory(snapshot.id)
+                artifact_index = self._index_artifacts(record, self.artifacts.get(snapshot.id, {}))
+                self._verify_artifacts(snapshot.id, artifact_index, snapshot)
                 flags = os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK
                 if previous is None:
                     flags |= os.O_CREAT | os.O_EXCL
@@ -1221,29 +1288,15 @@ class SessionStore:
                     dir_fd=directory,
                 )
                 opened = self._stamp(fd)
-                end = (
-                    previous.locations[-1].offset + previous.locations[-1].length if previous else 0
-                )
                 if opened.size != end:
                     raise ValueError("journal size changed")
                 known = self._verified.get(snapshot.id)
                 if previous is not None:
                     known = VerifiedFiles(self._verify_journal(fd, previous, known), known.payloads)
                 self._write_payloads(directory, payloads)
-                refs = dict(previous.payloads) if previous else {}
-                for ref, _ in payloads:
-                    if ref.id in refs:
-                        raise ValueError("payload identity reused")
-                    refs[ref.id] = ref
                 stamps = self._verify_payloads(directory, refs, known.payloads if known else {})
                 if previous is not None:
                     self._verify_journal(fd, previous, known)
-                committed = self._next_committed(
-                    record,
-                    state,
-                    RecordLocation(end, len(raw), hashlib.sha256(raw).hexdigest()),
-                    refs,
-                )
                 os.fchmod(fd, 0o600)
                 self._write_bytes(fd, raw)
                 os.fsync(fd)

@@ -1,6 +1,8 @@
 import {
+  controlOf,
   identityMatches,
   parseAgentRun,
+  validateLlmProgress,
   validateResultWindow,
   type AgentEvent,
   type AgentRun,
@@ -12,6 +14,7 @@ export function reduceRunView(view: RunView | null, event: AgentEvent): RunView 
   const control = event.run;
   if (!control) return view;
   const body = view?.body.id === control.id ? view.body : null;
+  if (body) validateLlmProgress(controlOf(body), event);
   const plan = event.plan ?? body?.plan ?? null;
   if (
     plan === null ? control.plan_identity !== null : !identityMatches(plan, control.plan_identity)

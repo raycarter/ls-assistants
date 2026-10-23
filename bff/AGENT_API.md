@@ -1,14 +1,16 @@
-# Agent: quota-free execution and paginated public v2
+# Agent: production planning/revision and paginated public v2
 
-This backend implements request → injected tool-free plan → exact-version approval
+This backend implements request → provider-generated tool-free plan → exact-version approval
 → approved `read_file`/`web_fetch` steps → persisted results → paginated history.
-Step 1 (`2fb37a5`) established the incremental private journal; this document covers
-the current uncommitted Step 2 implementation, including quota removal and public
-v2 projections. Tests supply a planner, temporary fixtures, and mocked network
-connections. The public-web fetch implementation is real, but no live verification
-has been performed. No default mock planner, production planner/search adapter,
-shell, framework, or autonomous LLM tool loop is included. Chat's schemas, API and
-credential selection are unchanged.
+Step 1 (`2fb37a5`) established the incremental private journal; the user-committed
+Steps 1/2 baseline is `1a33e31`. The default `main.py` composition wires a direct
+HTTPX Responses planning/revision adapter through Step 3's recorded LLM boundary.
+No Agent SDK is used. Provider/deployment compatibility has not been live-validated.
+Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
+replay, synthesis, approved-root wiring, and full audit UI remain deferred.
+Implementation progress and all verification evidence are tracked only in
+[the root checklist](../AGENT_MODE_CHECKLIST.md).
+Chat's schemas, API and credential selection are unchanged.
 
 ## Composition and defaults
 
@@ -18,30 +20,40 @@ receiving the existing `Settings`. It returns `AgentService`, for example:
 ```python
 AgentService(
     SessionStore(explicit_storage_path),
-    planner=my_async_planner,
+    planner=my_recorded_planner,
     files=FilePolicy(),  # File access stays disabled until approved-root wiring lands.
     models=settings.available_models,
 )
 ```
 
-An injected planner implements `async plan(context: PlanningInput) -> Proposal`.
-The immutable context contains request, frozen model/effort, workspace **IDs**,
-optional feedback, versioned BFF instructions, attempt count, and available tool
-descriptions. It receives no tool interface. The coordinator journals its logical
-input/attempt before calling it, validates its structured result, journals that result, and assigns
-plan/step identities and a canonical SHA-256 digest. Injected adapters must perform
-one attempt per call, without hidden retries or tools. No SDK is called by this
-slice. This is not yet the complete per-attempt provider audit required by the
-design. Provider usage/cost is unknown, not a currency ceiling.
+The recorded injection is `RecordedPlanner(build_request=..., transport=..., decode=...)`.
+It receives immutable `PlanningInput`: request, frozen model/effort, workspace **IDs**,
+optional feedback, versioned BFF instructions, logical attempt count, and available
+tool descriptions. It receives no tool interface. The request builder returns a
+`CanonicalRequest`; the transport implements `SingleDispatchTransport.send_once`;
+the decoder returns a `Proposal` subject to coordinator capability/schema/policy
+validation. This is an explicit application-observable boundary, not an opaque
+`Planner.plan` call presented as full provider instrumentation.
 
-The default planner is absent and planning returns HTTP `503` JSON with
-`agent_not_configured` before accepting a run. Allowed file roots default to none;
+The older fixture injection `async plan(context: PlanningInput) -> Proposal` remains
+supported. Its `planner.attempt`/`planner.result` records have `coverage:"logical_only"`;
+they do not establish actual provider input/output or physical send count. Historical
+opaque planner audits are not retroactively reclassified as typed LLM attempts.
+Default composition uses the recorded path with the production adapter described
+below. Observed usage is informational when supplied, not a guaranteed price or
+currency ceiling.
+
+The default application planner calls the provider on run/revise commands. HTTP
+`503 agent_not_configured` before run admission applies only to an explicitly
+injected service with no planner. Allowed file roots default to none;
 configuration is explicit Python composition, with no changes to identity settings
 or `.env` loading. Default storage is `bff/sessions`, **lazily opened on the first
-storage endpoint**, never read/created at unconfigured application startup. An
+storage endpoint**, never read/created at default application startup. An
 explicitly injected store is recovered during lifespan startup. Tests always inject
-temporary paths. The service settles owned operations before the shared Chat
-client and credential close.
+temporary paths. Startup, health, and model listing make no provider/token calls
+or session reads. `main.py` retains an exit-stack cleanup task through repeated
+cancellation: settle/close Agent → dedicated Agent HTTP → Chat SDK → credential.
+Construction failures unwind already-registered resources in the same order.
 
 `fetcher=WebFetcher(...)` is an optional injection seam; the default is the safe
 public-network implementation. It opens connections only during approved execution.
@@ -60,6 +72,130 @@ only; it cannot authorize a network tool. All four tool names are recognized;
 only `read_file` and `web_fetch` are enabled. `web_search` and `grep_in_folder` are
 explicitly rejected, not stubbed successes.
 
+## Recorded LLM requests, observations and attempts
+
+The coordinator allocates candidate `plan_id`, `revision`, `phase` and `stage_id`
+before planning/revision dispatch and commits them with operation admission. A
+revision retains the plan ID and increments the revision with a new operation/stage.
+Each typed `LLMIdentity` also binds `session_id,run_id,operation_id,step_id,
+interaction_id,attempt_id,attempt,retry_of,backoff_seconds`. Planning/revision use
+`step_id:null`; validated step IDs and the canonical plan digest are assigned after
+proposal validation. Shared execution/synthesis identities can bind known approved
+plans and steps/stages, but the current executor does not call an LLM.
+
+`CanonicalRequest` accepts only the reviewed application-body schema, enforces
+`store:false`, and serializes immutable UTF-8 JSON bytes once. Those same bytes
+enter `send_once`; the durable intent retains the exact JSON body and instruction
+version. `RecordedPlanner` rejects a mismatched model or missing/mismatched explicit
+`reasoning.effort` before intent/send. Both must match the frozen selection. The
+service also rechecks that the frozen model is allowed. This is application JSON
+evidence; the production adapter sends those exact bytes directly over HTTPX.
+
+### Production Responses planning/revision adapter
+
+`agent_responses.py` builds `RecordedPlanner` with `ResponsesTransport` and version
+`agent-responses-planning-v1`. Request construction is pure and tool-free. The
+request uses frozen model/explicit reasoning effort, `store:false`, `stream:false`,
+and `Settings.max_output_tokens`. Its input contains the request, workspace IDs,
+available-tool descriptions, and revision feedback; the current interface provides
+no old-plan history. It sends no provider tools or previous-response ID.
+
+The manually reviewed strict JSON schema is closed (`additionalProperties:false`,
+all properties required). It requires objective, assumptions, and at least one
+`read_file`/`web_fetch` step, with expected outcomes in descriptions. Strict local
+shape/domain checks and coordinator capability/policy validation remain authoritative;
+provider structured-output acceptance is not authorization. No-tool plans are not
+supported by this adapter. File roots still default to none.
+
+`create_http_client` owns a dedicated `AsyncHTTPTransport(retries=0, trust_env=False)`
+with `trust_env=False` and redirects disabled. Each send constructs a fresh
+`httpx.Request` carrying exact canonical bytes, an explicit bearer from the shared
+Chat credential provider, JSON content type, and `Accept-Encoding: identity`.
+`client.send(..., auth=None, follow_redirects=False, stream=True)` prevents ambient
+client auth; fresh requests do not inherit client cookies/default headers. Agent
+uses no SDK; the separate Chat SDK retains `max_retries=0`.
+
+HTTP streaming is for raw read/close ownership, not provider event streaming.
+Nonidentity response encodings are rejected without decompression, retaining raw
+bytes. A complete body is durably observed before proposal decoding; unsafe JSON
+(including duplicate keys, nonfinite values, invalid Unicode, or excessive depth)
+falls back to raw evidence. Failed partial reads retain a failed `error_body` with
+reversible UTF-8/base64 representation; non-UTF-8 complete bodies use base64 too.
+Response close remains owned through repeated cancellation without discarding an
+already observed body. Complete parsed responses preserve full observable content
+and reported metadata. Provider/deployment compatibility is not live-validated.
+
+Private `llm_audit_version:1` records carry `kind,identity,at,data`, with UTC timestamps:
+
+| Kind / event                    | Private data and ordering                                                                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `intent` / `llm.intent`         | Exact canonical `request` and `instructions_version`; fsynced before dispatch.                                                                                                                                                           |
+| `dispatched` / `llm.dispatched` | Durable authorization marker, not proof of remote execution. The scheduled send owner rechecks Stop/storage health immediately before transport entry.                                                                                   |
+| `output` / `llm.output`         | One independent observation: ascending `index`, `kind:event\|response\|error_body`, full `body`, `reported_model`, `provider_status`, `usage`, `failed`. Each callback awaits its durable immutable payload before the adapter advances. |
+| `outcome` / `llm.outcome`       | Attempt status, dispatch knowledge, output count, latest available model/status/usage, and curated error code; committed before further advancement.                                                                                     |
+| `validation` / `llm.validation` | Separate `valid`/`invalid` proposal-validation status and error code after a completed nonempty outcome; committed before publishing the reviewed plan.                                                                                  |
+
+Provider completion does not imply a valid plan. Failed/refused/incomplete provider
+observations, invalid JSON/schema/tool/policy proposals, partial output, explicit
+error bodies, cancellation and timeout retain the observations actually supplied.
+Empty completion is failure, not a valid proposal. Unavailable responses/metadata
+remain unavailable. A transport must report every observable stream event or full
+response/explicit error body; generic exception strings/objects and HTTP headers
+are never serialized as evidence. Full opaque continuation content is retained
+under `store=False`; this neither implements continuation replay nor captures
+hidden chain-of-thought.
+
+Credential/client/settings/transport configuration is structurally excluded from
+the request/observation envelope, including strict reasoning/text options and
+function-tool/format wrappers. Structural and lifecycle validation precede payload
+writes, so rejected configuration does not become an orphan audit payload.
+There is no substring redaction of canonical
+input, source text, JSON-schema property names, or opaque response/error bodies.
+Permitted content can contain sensitive text; this is not guaranteed secret-content
+scrubbing. Raw audit bodies and per-observation metadata remain private rather than
+entering public event projections.
+
+`AttemptRunner` owns one active send and all recording/transport cleanup. Stop or
+authorization revocation before an intent/dispatch append is normal cancellation,
+not storage poisoning. An already-entered append retains its durable receipt;
+observations and outcomes remain recordable after Stop, including late output from
+a cancellation-suppressing transport. Outcomes and applicable validation must settle
+before another send/plan publication can advance. Actual recording failure poisons
+the runner/store, revokes dispatch/advancement, and retains owned cleanup until
+settlement; a failed disk cannot guarantee a final record.
+
+The coordinator's public task handle waits on a retained settlement owner covering
+post-validation publication and final cleanup. Repeated native cancellation signals
+Stop and drains that owner before propagating cancellation; an already durable
+review/completion is preserved. Concurrent shutdown callers share one retained
+owner and wait for transport, recording, and control tasks plus store-lease release.
+The journal also latches explicit failed/error/refused/incomplete observations and
+rejects a contradictory completed outcome during append and startup replay.
+
+No automatic retry policy is added. Explicit sequential attempts preserve the
+interaction/candidate/stage identity, use fresh attempt IDs with consecutive ordinals,
+`retry_of` and recorded backoff, and require a durable failed predecessor or a
+completed predecessor with durably invalid validation. Cancellation/timeout revoke
+the runner, so they cannot silently start another attempt. The production direct
+HTTPX adapter disables lower transport retries and has no automatic retry. Retry
+and actual transport-configuration evidence belongs in the root checklist; this
+does not make a claim about an Agent SDK, which is not used.
+
+### Internal audit readers (not HTTP endpoints)
+
+| Store method                                      | Selection and return                                                                                                                                            |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_attempts(sid, rid, limit=25, before=None)`   | Newest-first compact attempt summaries; exclusive zero-based per-run ordinal `before`. Returns `session_id,run_id,at_sequence,total,attempts,next_before`.      |
+| `llm_records(sid, attempt_id, after=0, limit=50)` | Ascending committed `{sequence,record}` items strictly after journal sequence `after`. Returns `session_id,attempt_id,at_sequence,records,next_after,has_more`. |
+
+Both limits are `1..100` record-count windows, not byte caps or retention quotas.
+Readers validate identities/cursors, select only committed same-session references,
+and return detached full records. Summaries/indexes retain identities, controls and
+locators, not request/output bodies or usage values; body reads select exact payloads
+(or one exact legacy record), not historical prefix hydration. Existing integrity
+checks still apply to all committed references, including unselected audit payloads.
+These methods have no route in the Agent HTTP API; full interaction-audit UI is pending.
+
 ## Quota-free work and per-call guards
 
 There are no artificial step, tool-call, planner-attempt, revision, run, session,
@@ -74,12 +210,12 @@ and effective policy, single-consumption execution, and Stop remain operative.
 Request IDs, strict schemas, path/URL policy, page sizes and parser guards remain
 protocol and per-request controls. They do not allocate cumulative work budgets.
 
-| Guard | Default | Scope |
-| --- | --- | --- |
-| `AgentService.planner_timeout_seconds` | 120 seconds | Each injected planner call |
-| `AgentService.file_timeout_seconds` | 30 seconds | Each file read, with a fresh monotonic deadline |
-| `AgentService.send_timeout_seconds` | 30 seconds | Each ASGI response send |
-| `WebFetcher(timeout=..., max_redirects=...)` | 30 seconds, 10 redirects | One fetch and its redirect chain; loop/parser/protocol guards also apply |
+| Guard                                        | Default                  | Scope                                                                             |
+| -------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| `AgentService.planner_timeout_seconds`       | 120 seconds              | Each recorded send attempt or legacy fixture call; not recording/cleanup lifetime |
+| `AgentService.file_timeout_seconds`          | 30 seconds               | Each file read, with a fresh monotonic deadline                                   |
+| `AgentService.send_timeout_seconds`          | 30 seconds               | Each ASGI response send                                                           |
+| `WebFetcher(timeout=..., max_redirects=...)` | 30 seconds, 10 redirects | One fetch and its redirect chain; loop/parser/protocol guards also apply          |
 
 The service timeout injections must be positive and finite. Waiting for the next
 SSE frame has no overall stream timer. Timeout/Stop cleanup retains ownership until
@@ -93,23 +229,23 @@ ASCII `request_id` (letters, digits, `_`, `-`, at most 128 characters). Unknown
 fields/coercions are rejected. Model names must belong to `AVAILABLE_MODELS`;
 effort is `low | medium | high | xhigh`.
 
-| Method / suffix | Body / result |
-| --- | --- |
-| `GET /` | Session header page; `include_archived=false`, `limit=25`, optional `cursor` |
-| `POST /` | `{request_id, model, reasoning_effort}` → `SessionHeader` |
-| `GET /{sid}` | `SessionHeader` only, no embedded history or inference |
-| `PATCH /{sid}` | `{request_id, model?, reasoning_effort?, title?}` → `SessionHeader` |
-| `GET /{sid}/runs` | Run summary page; `limit=10`, optional `before` |
-| `GET /{sid}/runs/{rid}` | Selected run body with full exact plan and result window; `limit=20`, optional `before` |
-| `GET /{sid}/runs/{rid}/results` | Result page; `limit=20`, optional `before` |
-| `POST /{sid}/runs` | `{request_id, content}` → planning SSE |
-| `POST /{sid}/runs/{rid}/execute` | `{request_id, plan_id, revision, digest}` → execution SSE |
-| `POST /{sid}/runs/{rid}/revise` | Plan identity plus `{kind:"feedback", content}` → new planning operation/revision SSE |
-| `POST /{sid}/runs/{rid}/reject` | Plan identity plus `{kind:"plan"}` → `SessionHeader` |
-| `POST /{sid}/runs/{rid}/cancel` | `{request_id, operation_id}` → `SessionHeader`; `202` while settling |
-| `POST /{sid}/archive` | `{request_id}` → `SessionHeader`; `202` with `archive_pending:true` until settled |
-| `GET /{sid}/events` | Finite v2 event page; `after=0`, `limit=50`, optional `through` |
-| `GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Retained text page; no network/tool execution |
+| Method / suffix                                           | Body / result                                                                           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `GET /`                                                   | Session header page; `include_archived=false`, `limit=25`, optional `cursor`            |
+| `POST /`                                                  | `{request_id, model, reasoning_effort}` → `SessionHeader`                               |
+| `GET /{sid}`                                              | `SessionHeader` only, no embedded history or inference                                  |
+| `PATCH /{sid}`                                            | `{request_id, model?, reasoning_effort?, title?}` → `SessionHeader`                     |
+| `GET /{sid}/runs`                                         | Run summary page; `limit=10`, optional `before`                                         |
+| `GET /{sid}/runs/{rid}`                                   | Selected run body with full exact plan and result window; `limit=20`, optional `before` |
+| `GET /{sid}/runs/{rid}/results`                           | Result page; `limit=20`, optional `before`                                              |
+| `POST /{sid}/runs`                                        | `{request_id, content}` → planning SSE                                                  |
+| `POST /{sid}/runs/{rid}/execute`                          | `{request_id, plan_id, revision, digest}` → execution SSE                               |
+| `POST /{sid}/runs/{rid}/revise`                           | Plan identity plus `{kind:"feedback", content}` → new planning operation/revision SSE   |
+| `POST /{sid}/runs/{rid}/reject`                           | Plan identity plus `{kind:"plan"}` → `SessionHeader`                                    |
+| `POST /{sid}/runs/{rid}/cancel`                           | `{request_id, operation_id}` → `SessionHeader`; `202` while settling                    |
+| `POST /{sid}/archive`                                     | `{request_id}` → `SessionHeader`; `202` with `archive_pending:true` until settled       |
+| `GET /{sid}/events`                                       | Finite v2 event page; `after=0`, `limit=50`, optional `through`                         |
+| `GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Retained text page; no network/tool execution                                           |
 
 ### Headers, pages and selected bodies
 
@@ -117,28 +253,28 @@ Nonstreaming HTTP acknowledgements return a bounded `SessionHeader`, including
 duplicate commands. Public projection DTOs use `projection_version:2`:
 
 - `SessionHeader`: `projection_version,id,title,model,reasoning_effort,created_at,
-  updated_at,archived,archive_pending,sequence,run_count,latest_run_id,current_run`.
+updated_at,archived,archive_pending,sequence,run_count,latest_run_id,current_run`.
   `current_run` is a `RunControl` for the nonterminal run, or null; `latest_run_id`
   can identify a settled run. There is no `runs` array in a header.
 - `RunControl`: `id,status,operation_id,created_at,updated_at,version_sequence,
-  plan_identity,result_count,completed_steps,error`. `plan_identity` is null or
+plan_identity,result_count,completed_steps,error`. `plan_identity` is null or
   `{id,revision,digest,model,reasoning_effort}`. `completed_steps` counts the
   completed execution prefix; `result_count` includes a running/failed frontier.
 - `RunSummary`: all `RunControl` fields plus `request_preview` (first 200 characters).
 - Selected run: `projection_version,id,request,created_at,updated_at,status,
-  operation_id,plan,results,answer,error,clarification,version_sequence,
-  result_count,completed_steps,results_before`. `clarification` is always null in
+operation_id,plan,results,answer,error,clarification,version_sequence,
+result_count,completed_steps,results_before`. `clarification` is always null in
   this implementation. `plan` is the full exact reviewed plan, not a summary;
   `results` is only the selected window.
 
 Page envelopes have these exact keys:
 
-| Page | Keys |
-| --- | --- |
-| Session list | `projection_version,sessions,next_cursor,total` |
-| Run summaries | `projection_version,session_id,at_sequence,total,runs,next_before` |
-| Results | `projection_version,session_id,run_id,at_sequence,total,completed_steps,results,next_before` |
-| Events | `projection_version,events,next_after,through_sequence,has_more` |
+| Page          | Keys                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Session list  | `projection_version,sessions,next_cursor,total`                                              |
+| Run summaries | `projection_version,session_id,at_sequence,total,runs,next_before`                           |
+| Results       | `projection_version,session_id,run_id,at_sequence,total,completed_steps,results,next_before` |
+| Events        | `projection_version,events,next_after,through_sequence,has_more`                             |
 
 List/run/result/event `limit` values are `1..100`; the defaults above are read
 windows, not retention allowances. Session listing is newest-first by immutable
@@ -212,8 +348,10 @@ normal `422` format. Raw provider exceptions are never used as messages.
 
 Clarification-shaped `/revise` and `/reject` requests are strictly parsed but
 return `501 clarification_unavailable`; no clarification state is produced.
-Search/Tavily, grep, null-tool steps, function-loop/model continuation and LLM
-synthesis are unavailable. The completion receipt is not a substantive model answer.
+Search/Tavily, grep, null-tool steps, function-loop/model continuation replay and LLM
+synthesis are unavailable. Shared audit/request primitives can retain canonical and
+opaque continuation items, but do not perform those workflows. The completion receipt
+is not a substantive model answer.
 
 ## Public web fetching and retained evidence
 
@@ -281,7 +419,8 @@ are sent, never the complete session history or internal audit records:
 Small control events do not retransmit earlier requests, plans or results. One
 complete plan is intentionally loaded for exact approval, with no plan-payload
 quota. Types include `run.planning`,
-`planner.attempt`, `planner.result`, `run.awaiting_approval`, `run.approved`,
+`planner.attempt`, `planner.result`, `llm.intent`, `llm.dispatched`, `llm.output`,
+`llm.outcome`, `llm.validation`, `run.awaiting_approval`, `run.approved`,
 `run.executing`, `tool.intent`, `tool.result`, and terminal `run.completed`,
 `run.rejected`, `run.failed`, `run.cancelled`, `run.interrupted`, plus
 `run.cancelling` and session lifecycle events. Rejection is available through
@@ -293,6 +432,14 @@ Those events retain journal continuity. Persisted `sequence` and per-run
 `version_sequence` are the causal ordering authority; UTC wall timestamps may
 move backward and need not be monotonic.
 
+The five `llm.*` events project neutral header/run controls only: no private audit,
+canonical input, opaque body, provider usage, or candidate proposal. They cannot
+authorize approval, settle a run, advance results/completed steps, or fabricate a
+missing loaded body. Recording timestamps/sequences may change while coordinator
+state stays the same. Intent/dispatch require an active planning/approved/executing
+operation; output/outcome/validation can also settle observations while cancelling.
+Approval becomes available only at the separate `run.awaiting_approval` transition.
+
 Actual startup recovery preserves its original envelope:
 `type:"run.interrupted",request_id:"recovery",run_id:null,operation_id:null`.
 It sets `invalidates_runs:true`. The projection can include the primary affected
@@ -303,6 +450,15 @@ no single `result`. Archive-only recovery may have null `run`, `result` and `err
 while the header confirms archival. Null command IDs are not fabricated into work
 correlation. Clients must refresh bounded header/summary/loaded-run views when
 `invalidates_runs` is true, including ambiguous or multi-run changes.
+
+For an unmatched typed LLM intent, startup first appends `llm.outcome` with the
+attempt's original run/operation IDs, `request_id:"recovery"`, and
+`invalidates_runs:false`. Its private status is `interrupted`, error code
+`outcome_unknown`, with the committed output count and latest known model/status/usage
+read from exact committed output references. A dispatch authorization marker gives
+`dispatched:null` (remote execution unknown); without it recovery records `false`.
+It invents neither missing output nor proposal validation and never replays a send.
+The subsequent null-ID `run.interrupted` event performs the run-state invalidation.
 
 Public v2 is separate from private storage v2 and the legacy v1 journal event
 model. Cached v1 clients must reload to the updated UI. The frozen v1 reader and
@@ -318,8 +474,10 @@ concurrent command/key race or recording failure prevents that acknowledgement;
 this only revokes work, never authorizes new work. The operation remains owned
 until the planner coroutine or actual read/parser/storage worker or async fetch
 settles. Disconnect interrupts **its** operation. Retained tasks only settle work
-and never continue plan progression. Planning cancels and drains its injected
-async call on Stop or its per-call timeout (`planner_timeout`). File reads are
+and never continue plan progression. Recorded planning revokes its `AttemptRunner`
+on Stop or per-send timeout (`planner_timeout`), drains its owned transport/recording,
+and retains late observations without publishing a plan. Legacy fixture planning
+cancels and drains its injected async call. File reads are
 offloaded with cooperative Stop and per-read deadline checks (`file_timeout`).
 Cancelling an await is not presented as killing a thread or rolling back external work.
 Fetch checks Stop and recording health inside its dispatch task immediately before
@@ -376,16 +534,20 @@ v2 DTOs. Public HTTP projections use `projection_version:2`, and SSE/replay uses
 approval and command digest encoding is unchanged.
 
 Session-local `payloads/<server-id>.json` files hold request text, exact plan
-revisions, new/replaced step results, answers, and existing logical audit records.
+revisions, new/replaced step results, answers, logical audit records, and typed LLM
+intent/observation/outcome/validation bodies. Each stream observation has its own
+immutable audit payload, not a cumulative snapshot of all earlier chunks.
 References contain ID, SHA-256, and byte length. Unchanged bodies reuse references
 without serialization or hashing; control/title updates do not rewrite old bodies.
 Successful fetched text remains separately stored in `artifacts/<uuid>.txt`.
-These storage primitives do **not** complete provider input/output instrumentation.
+Typed recording covers the production planning/revision adapter through the recorded
+boundary; legacy logical fixtures do not become provider observations.
 
 The store keeps one private hydrated latest-session baseline per session, its
 reference projection, compact record/claim/attempt/operation/integrity indexes,
-and a public header/control/body-reference index. It does not retain every
-historical full snapshot or audit body. Normal public reads select the referenced
+typed LLM lifecycle/metadata locators, and a public header/control/body-reference
+index. It does not retain every historical full snapshot or audit body. Normal
+public reads select the referenced
 bodies directly without full-session hydration or historical prefix replay.
 Legacy body selection can parse an old full record at its locator; the reader
 retains at most one such decoded legacy record at a time. Historical diagnostic
@@ -411,9 +573,11 @@ sequences are not rewritten, and no migration event or extra approval is added.
 Replay discards and fsync-truncates only an unterminated final JSONL record.
 Uncommitted empty/orphan folders are renamed `.orphan-<sid>`. Corrupt complete or
 middle records fail startup closed; they are never skipped/trusted. Unfinished
-operations are durably marked `interrupted/outcome_unknown`, with running results
-marked failed, before commands are admitted. Waiting reviewed plans survive.
-Nothing replays tools. An actual recording failure stops further dispatch and output
+typed LLM intents are first settled with private interrupted/unknown outcomes and
+known committed observation metadata. Unfinished operations are then durably marked
+`interrupted/outcome_unknown`, with running results marked failed, before commands
+are admitted. Waiting reviewed plans survive. Nothing replays LLM sends or tools.
+An actual recording failure stops further dispatch and output
 publication, signals cooperative stop, and retains ownership until settlement.
 A failed disk cannot promise a final event; the last durable intent remains the
 recovery authority. Local filesystem/fsync behavior is assumed, not universal
@@ -430,12 +594,17 @@ reads reject a replacement root. Missing/changed/unsafe evidence fails closed.
 Known retained costs: one internal hydrated latest baseline plus reference/index
 state per session; O(all committed references) metadata checks on cached reads
 and commit boundaries; full-prefix journal hashing on append; and prefix replay
-for historical diagnostics/recovery. Selected public bodies and UI windows do not
+for historical diagnostics/recovery. The runner also retains one active call's
+observations for decoding, and the existing JSON codec serializes each full record
+in memory; one large canonical request or observation is still one large record.
+Independent immutable stream payloads avoid cumulative reserialization, not these
+active-call/per-record costs. Selected public bodies and UI windows do not
 make persistent state fully paged or guarantee bounded total memory/disk or
 physically infinite history. The fast path relies on coherent single-writer
 filesystem metadata, not protection against a malicious operating system.
-Compaction, garbage collection/orphan cleanup, and complete LLM auditing remain
-future work. Archive retains history; no expiry/permanent deletion exists.
+Compaction, garbage collection/orphan cleanup, model-driven execution/synthesis,
+and full audit-history UI remain future work. Archive retains history; no
+expiry/permanent deletion exists.
 
 ## File pages and access policy
 
@@ -476,15 +645,17 @@ digest. Symlink aliases remain denied by no-follow opens.
 These filename rules are not complete
 secret-content detection and cannot detect hardlink aliases of permitted files.
 
-Retained content includes user requests/feedback, logical planner inputs
-and valid outputs, reviewed plans, approval/rejection, allowed file excerpts and
-results/errors, complete supported fetched text, and fetch provenance. No headers,
-bearer tokens, credential/settings dumps, raw provider
-error bodies or hidden chain-of-thought are captured. Do not treat arbitrary
-permitted user/file/web text as scrubbed of secrets. File/tool content is evidence,
-never a source of execution permissions.
+Retained content includes user requests/feedback, logical fixture inputs/valid outputs,
+reviewed plans, approval/rejection, allowed file excerpts and results/errors,
+complete supported fetched text and provenance, plus the recorded boundary's exact
+canonical input and all supplied observable event/response/explicit error bodies,
+including opaque continuation and per-observation metadata. Structural field
+exclusion keeps headers, bearer-token configuration, credential/settings/client
+objects and generic exception text out of the audit; it does not scrub permitted
+body content. Hidden chain-of-thought is neither requested nor exposed. File/tool
+content is evidence, never a source of execution permissions.
 
-## Verification
+## Verification commands and evidence location
 
 From `bff`: `uv run pytest`, `uv run ruff check .`,
 `uv run ruff format --check .`, `uv lock --check`. Agent tests use temporary stores,
@@ -510,6 +681,18 @@ streams file validation through EOF, preserves exact legacy approvals, and tests
 actual recovery for single/multiple affected runs and archive-only settlement.
 UI tests cover the 64-signature duplicate cache, 10-summary/20-result windows,
 pinned selections outside page one, closed pending reads, and causal recovery.
-These are offline verification paths; final check results are recorded separately.
-Broad release items for all four tools, clarification, complete provider audit,
-production planning, function-loop continuation and synthesis remain incomplete.
+Step 3 static/mock coverage in `tests/test_agent_llm.py` and
+`tests/test_llm_journal.py` adds exact canonical bytes/frozen selection, per-observation
+metadata and independent payloads, durable outcome/validation separation, explicit
+retry lineage, revocation versus recording failure, owned late-output cleanup,
+committed-reference paging, and unmatched-intent recovery without replay. The v2
+fixture adds recorded planning and actual temporary-store LLM recovery through the
+Angular decoder; `agent-llm.spec.ts` checks neutral controls and locked approval/step
+frontiers. The frozen v1 fixture is unchanged. Direct HTTPX adapter and default
+composition coverage live in `tests/test_agent_responses.py` and
+`tests/test_agent_responses_api.py`; no Agent SDK is involved.
+Verification results and remaining release checks belong
+only in [the checklist](../AGENT_MODE_CHECKLIST.md).
+Broad release items for all four tools, no-tool plans, clarification, function-loop
+continuation, synthesis and full audit UI remain incomplete. Planning/revision
+composition does not wire approved filesystem roots.

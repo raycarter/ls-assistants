@@ -789,7 +789,14 @@ async def test_new_feedback_plan_digest_and_claim_survive_mixed_restarts(migrati
         owner.files.read.assert_not_called()
         records = dumps(owner.store.records[SID])
         assert records[: len(archive.legacy)] == archive.legacy
-        assert records[len(archive.legacy)]["audit"] == {"feedback": "Keep it short"}
+        assert records[len(archive.legacy)]["audit"] == {
+            "feedback": "Keep it short",
+            "plan_id": operation.plan_id,
+            "revision": operation.revision,
+            "phase": operation.phase,
+            "stage_id": operation.stage_id,
+        }
+        assert (archive.root / SID / "events.jsonl").read_bytes().startswith(archive.raw)
         assert records[len(archive.legacy)]["claim"] == {
             "request_id": feedback.request_id,
             "digest": digest({"action": "revise:legacy-run", "body": feedback.model_dump()}),

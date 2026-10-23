@@ -110,7 +110,7 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
     api = TestBed.inject(AgentApi);
   });
   afterEach(() => TestBed.resetTestingModule());
-  it('covers the agreed seven cases with headers and separately loaded quota-free bodies', () => {
+  it('covers ordinary and recorded LLM cases with separately loaded quota-free bodies', () => {
     expect(contract.version).toBe(2);
     expect(contract.streams.map((entry) => entry.name)).toEqual([
       'planning',
@@ -120,6 +120,7 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       'cancellation_archive',
       'backwards_clock',
       'fetch_execution',
+      'recorded_planning',
     ]);
     for (const entry of contract.streams) {
       expect(parseAgentSession(entry.baseline)).toEqual(entry.baseline);
@@ -230,8 +231,12 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       });
       const page = await api.events(entry.baseline.id, entry.baseline.sequence, signal);
       expect(page).toEqual(entry.body);
-      expect(page.events).toHaveLength(1);
-      const event = page.events[0];
+      expect(page.events.map((event) => event.type)).toEqual(
+        entry.name === 'llm_startup_recovery'
+          ? ['llm.outcome', 'run.interrupted']
+          : ['run.interrupted'],
+      );
+      const event = page.events.at(-1)!;
       expect(event).toMatchObject({
         invalidates_runs: true,
         request_id: 'recovery',
@@ -239,20 +244,26 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
         run_id: null,
         operation_id: null,
         run: { id: entry.baseline_run.id, status: 'interrupted' },
-        result: { status: 'failed' },
         error: { code: 'outcome_unknown' },
       });
+      expect(event.result).toEqual(
+        entry.baseline_run.results.length ? expect.objectContaining({ status: 'failed' }) : null,
+      );
+      // Recovery is replayed through GET; only the final null-ID invalidation is terminal.
+      const beforeInterruption = page.events.at(-2)?.session ?? entry.baseline;
       const decoder = new AgentEventDecoder({
         session_id: entry.baseline.id,
-        sequence: entry.baseline.sequence,
+        sequence: beforeInterruption.sequence,
         request_id: 'original-execution',
-        snapshot: entry.baseline,
-        reviewed_plan: entry.baseline_run.plan!,
-        command: {
-          action: 'execute',
-          run_id: entry.baseline_run.id,
-          ...planIdentity(entry.baseline_run.plan!),
-        },
+        snapshot: beforeInterruption,
+        reviewed_plan: entry.baseline_run.plan ?? undefined,
+        command: entry.baseline_run.plan
+          ? {
+              action: 'execute',
+              run_id: entry.baseline_run.id,
+              ...planIdentity(entry.baseline_run.plan),
+            }
+          : { action: 'runs', content: entry.baseline_run.request },
       });
       expect(
         decoder.decode({ event: 'agent', id: String(event.sequence), data: JSON.stringify(event) }),

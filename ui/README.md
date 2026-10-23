@@ -147,7 +147,7 @@ Storage is local to this browser profile and origin, unencrypted, and not synchr
 or devices. Avoid storing secrets; multiple open tabs can overwrite each other's changes. Removing
 only `ls-assistants.chat-state` from browser storage resets this application's data on the next reload.
 
-## Agent mode: quota-free paginated v2
+## Agent mode: paginated v2 and neutral LLM progress
 
 The header has a native Chat/Agent radio group (arrow-key navigation follows the browser's native
 radio behavior). Both coordinators are root-scoped: switching views preserves pending replies,
@@ -166,10 +166,11 @@ prompt propagation, send, retry or deletion through Chat routes.
 ### Implemented interaction
 
 Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
-`web_fetch` steps → completion receipt → paginated GET-based history after reload. This documents
-the current Step 2 implementation. Tests drive the actual Agent transport through HTTP/SSE doubles
-and backend-generated wire fixtures. These do not establish
-live provider/site compatibility or replace the backend durability and access-policy tests.
+`web_fetch` steps → completion receipt → paginated GET-based history after reload. The default
+BFF now calls the Responses provider for planning and plan-feedback revisions through its recorded
+direct HTTPX adapter; the UI does not fabricate plans. Provider/deployment compatibility has not
+been live-validated. All test evidence and pending final full checks are tracked only in the
+[root checklist](../AGENT_MODE_CHECKLIST.md).
 
 The plan displays every step and description, unverified assumptions, workspace/path or URL, exact
 arguments, model/effort, revision/digest and the complete exact recorded JSON, including access policy.
@@ -245,7 +246,8 @@ header GET, preference PATCH, `POST /{sid}/runs`, `/{sid}/runs/{rid}/execute`, `
 `/cancel`, and `/{sid}/archive`. Mutation bodies contain a fresh `request_id`. Approval sends `plan_id`, `revision`
 and `digest`; Stop sends `operation_id`. The transport understands question-identified clarification
 rejection, but the current BFF returns HTTP 501 for the deferred clarification flow.
-HTTP JSON failures are shown with status and API detail, including missing planner configuration.
+HTTP JSON failures are shown with status and API detail. `503 agent_not_configured` applies to an
+explicitly injected BFF service with no planner, rather than the default application composition.
 Nonstreaming HTTP mutation acknowledgements return a bounded v2 header, not run history:
 
 ```text
@@ -291,6 +293,16 @@ false for ordinary single-run progress. Request text appears once per planning/r
 (`run.planning`), the complete plan only at review (`run.awaiting_approval`), the changed result on
 tool progress or representable terminal failure, and the answer at completion. Other body fields
 are null; earlier bodies and complete history are not retransmitted.
+
+Step 3 adds `llm.intent`, `llm.dispatched`, `llm.output`, `llm.outcome`, and
+`llm.validation` as **neutral controls**. They expose no canonical input, opaque continuation,
+provider response/error body, usage, or private audit fields. They cannot create a missing loaded
+body, offer approval, settle a run, or advance result counts/completed steps. Recording-only
+sequence/timestamp changes leave the loaded plan and step frontier intact. Intent/dispatch are
+accepted only for active planning/approved/executing controls; late output/outcome/validation may
+also arrive while cancelling. Approval stays locked through LLM validation and becomes available
+only when the separate `run.awaiting_approval` event supplies the exact reviewed plan.
+
 The independent decoder validates timestamps, headers/controls, loaded bodies,
 session correlation and frozen approval identity. Work records must match the owning request/run/operation;
 known session lifecycle records can carry other request IDs and null run/operation IDs without taking
@@ -319,6 +331,13 @@ Closing an optional historical view during recovery reconciles the remaining vie
 callback or superseded refresh cannot clear a newer invalidation. A failed required read leaves
 the lock and a page-local error available for recovery.
 
+An unmatched LLM intent produces a neutral `llm.outcome` before that null-ID run invalidation.
+It keeps the attempt's original run/operation correlation with `request_id:"recovery"` and
+`invalidates_runs:false`; it does not settle the loaded run. The private recovery record retains
+`interrupted/outcome_unknown`, output count and known metadata from committed output references,
+without replaying a send or inventing output/validation. Only the subsequent `run.interrupted`
+performs run-state invalidation and bounded GET recovery.
+
 Public `projection_version:2`/`schema_version:2` is independent of private journal
 `storage_version:2` and the legacy v1 journal-event model. Cached v1 clients must reload the updated
 UI. The frozen v1 reader is read-only compatibility for complete old snapshots; normal backend
@@ -331,13 +350,39 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 
 ### Current limitations and retained content
 
-- The production UI does **not** fabricate fixture/demo plans. The BFF planner is unavailable until
-  explicitly injected/configured (`503 agent_not_configured`). These frontend tests make no real
-  provider or search calls; no live verification has been performed.
-- The BFF supports approved `read_file` and `web_fetch` steps through an injected planner. Web search
-  (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release, complete
-  LLM audit, production planner, function-loop continuation and LLM synthesis remain deferred. The
+- The default BFF production planner is wired in `main.py`; run/revise commands call the provider.
+  Startup, health and model listing make no provider/token calls or session reads. An explicitly
+  injected service with no planner retains `503 agent_not_configured`. Provider compatibility has
+  not been live-validated.
+- The BFF supports approved `read_file` and `web_fetch` steps through its production planner. Web search
+  (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release,
+  autonomous model/tool loop, continuation replay and LLM synthesis remain deferred. The
   answer is a deterministic completion receipt pointing to evidence.
+- The recorded backend seam explicitly composes `RecordedPlanner`, `CanonicalRequest`,
+  `SingleDispatchTransport` and `AttemptRunner`; it is not an opaque fixture `Planner.plan` call
+  claimed as full provider coverage. Candidate plan/revision/stage identities precede the call;
+  interaction/attempt/retry lineage and the actual request's frozen model/explicit reasoning effort
+  are bound to it. The legacy fixture path stays `logical_only`. Shared execution/synthesis audit
+  primitives do not mean the executor calls an LLM. The production adapter uses no Agent SDK.
+- The `agent-responses-planning-v1` request builder is pure and tool-free, uses frozen model/effort,
+  `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
+  strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
+  Revision supplies feedback without old-plan history in the current interface. File roots remain
+  empty by default; no-tool plans and approved-root wiring remain open.
+- Recorded intent/authorization precedes dispatch durably; outcomes and applicable proposal validation
+  precede advancement. Provider outcome is separate from valid/invalid proposal validation. Stop/revocation
+  is normal cancellation; true recording failure poisons/revokes work while retaining cleanup ownership.
+  No automatic retry policy was added: explicit attempts need durable failed/invalid predecessors;
+  cancellation/timeout revoke the runner. Dedicated direct HTTPX sends exact canonical bytes with
+  lower `AsyncHTTPTransport(retries=0)`, `trust_env=False`, redirects disabled and fresh requests
+  using `auth=None`, no ambient cookies/default headers/client auth. It shares Chat's bearer
+  credential provider; Chat SDK `max_retries=0` is unchanged. Scoped mocked transport evidence is
+  in the root checklist, not an Agent SDK retry claim.
+- The provider adapter requests identity encoding only and rejects other encodings while preserving
+  raw bytes. HTTP stream read ownership retains failed partial bodies reversibly as UTF-8/base64;
+  complete response observations precede proposal decoding, with unsafe/deep JSON falling back to
+  raw evidence. Response close remains owned through repeated cancellation. The retained lifespan
+  exit-stack task closes Agent → Agent HTTP → Chat SDK → credential after settlement.
 - Fetch handles public static HTML/plain text only, not authenticated/internal pages or browser/JS
   rendering. The BFF requests identity encoding and rejects compressed responses; static extraction
   can report unsupported/empty pages. These per-request protocol/parser guards do not allocate
@@ -347,11 +392,19 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   read-only without offering unsupported commands; use a new session or await server-side resolution.
 - History renders paged server projections, including archived sessions. There is no full event/audit
   timeline or automatic background polling; reload history to refresh settlement after reconnection.
+- Private store readers `llm_attempts(sid, rid, limit=25, before=None)` and
+  `llm_records(sid, attempt_id, after=0, limit=50)` are internal, bounded by record count, and not
+  HTTP-exposed. The UI has no raw canonical/opaque-body reader or complete per-interaction audit view.
 - The UI discloses retention before use: user requests, reviewed plans, approved source excerpts,
-  tool results and logical model input/output are retained by the BFF. Archive preserves records;
-  there is no automatic expiry. Permitted content may contain sensitive text; there is no guarantee
-  of secret-content scrubbing. Approved fetch URLs leave the BFF; future search queries would too.
-  Provider usage/cost remains unknown; there is no guaranteed currency ceiling.
+  tool results and model input/output are retained by the BFF. The recorded backend boundary retains
+  exact application JSON and every supplied observable event/response/explicit error body, including
+  per-observation model/status/usage/failure metadata and full opaque continuation under `store=False`.
+  Credential/client/settings fields are structurally excluded, without substring redaction of permitted
+  source/user content or opaque bodies. This is neither guaranteed scrubbing nor hidden-reasoning capture.
+  Archive preserves records; there is no automatic expiry. Permitted content may contain sensitive
+  text; there is no guarantee of secret-content scrubbing. Approved fetch URLs leave the BFF;
+  future search queries would too.
+  Provider usage is retained privately when supplied; the UI does not display it or promise a currency ceiling.
 - Mocked approval/Stop tests verify UI command ownership only. Durable approval, tool authorization,
   request-id idempotency and cancellation settlement remain BFF responsibilities.
 
@@ -361,6 +414,11 @@ reference/index state per session, checks O(all committed references) metadata, 
 journal prefix on append, and replays prefixes for historical diagnostics/recovery. Normal public
 reads select body references without full-session hydration/replay; selecting a legacy body can
 parse one old full record. Compaction, garbage collection and orphan cleanup are not implemented.
+Independent stream chunks are immutable audit payloads, but the runner retains one active call's
+observations and the codec serializes each complete JSON record in memory. Those costs remain in
+addition to the baseline/index/linear-verification costs above. Production planning/revision
+does not add approved-root wiring. Implementation status and verification evidence belong only
+in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
 
 ## Build, test, and scaffold
 
@@ -382,15 +440,16 @@ and bounded GET recovery paths. `src/app/agent-contract-v1.fixture.json` is froz
 reader tests. Coverage includes quota-free plan review, 64-signature deduplication, summary/result
 window replacement, restored selections outside page one, closed pending reads/loading cleanup,
 causal invalidation recovery, preference rollback, archive ownership and session-scoped errors.
-These paths use static/mocked inputs; final current check results are recorded separately.
+Step 3 adds `agent-llm.spec.ts` and recorded-planning/unmatched-LLM-intent recovery fixture cases
+for private-body exclusion, neutral controls, locked approval and unchanged step frontiers. The
+frozen v1 fixture remains unchanged read-only evidence. These paths use static/mocked inputs;
+current verification results and remaining release work are recorded only in the root checklist.
 
 ### Historical verification (2026-10-16)
 
-Review-fix verification: 543 frontend tests passed, including the independent backend-generated
-HTTP/SSE fixture contract suite,
-alongside TypeScript checking, the production build and repository-wide Prettier checking.
-That build's initial bundle was approximately 442 kB; Agent workspace and Markdown loaded lazily.
-It reported two CSS critical-inlining selector warnings; the full stylesheet remained available.
+The original 2026-10-16 review-fix counts and build details are preserved in the
+[checklist's dated verification record](../AGENT_MODE_CHECKLIST.md#verification-record--2026-10-16-first-mocked-slice).
+That checklist is the sole progress/evidence ledger; historical results do not certify later increments.
 
 ## Installed libraries
 

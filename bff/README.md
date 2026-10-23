@@ -3,12 +3,14 @@
 FastAPI backend for the Azure OpenAI **v1 Responses API**. The caller owns the
 conversation history and sends it explicitly on every turn. The backend keeps no
 Chat conversation state and calls the provider with `store=False`. The separate
-Agent API implements **Step 2: quota-free work with paginated public v2**, described
-in [AGENT_API.md](AGENT_API.md): journal-backed sessions, injected tool-free planning,
-exact-plan approval, streaming UTF-8 file pages, public-page fetching, durable paged
-web evidence, progress, rejection, Stop and restart recovery. Its production planner
-is unavailable by default (planning returns `503 agent_not_configured`); this is
-not a full Agent release, and no live verification has been performed.
+Agent API uses a **production planning/revision adapter over the recorded LLM boundary** with quota-free work and paginated
+public v2, described in [AGENT_API.md](AGENT_API.md): journal-backed sessions,
+provider-generated tool-free planning, exact-plan approval, streaming UTF-8 file pages,
+public-page fetching, durable paged web evidence, progress, rejection, Stop and
+restart recovery. Default run/revise commands call the Responses provider through
+dedicated direct HTTPX; no Agent SDK is used. An explicitly injected service with
+no planner still returns `503 agent_not_configured`. Provider/deployment
+compatibility has not been live-validated; this is not a full Agent release.
 
 Agent HTTP acknowledgements return v2 session headers; list, run summaries, results
 and events are paginated. Selected runs load one full exact plan and a recent result
@@ -25,9 +27,70 @@ legacy journal bytes and approvals. This is separate from public projection/sche
 version 2; cached v1 clients must reload the updated UI. Normal public reads select
 references directly, but one internal hydrated baseline/index per session, reference
 metadata checks and append-prefix hashing still grow with retained history. There is
-no compaction/GC or complete LLM audit yet. File roots default to none;
+no compaction/GC. Typed LLM audit covers production planning/revision through the
+recorded boundary; full audit-history UI is pending. File roots default to none;
 `/tmp/ls-assistants` remains the sole approved scope with root/platform-alias wiring
 pending. See the Agent API document for exact DTOs, paging, recovery and policy rules.
+
+### Agent LLM boundary
+
+`RecordedPlanner` composes a request builder, `SingleDispatchTransport.send_once`,
+decoder, and coordinator-owned proposal validation. `CanonicalRequest` enforces
+`store=False` and a reviewed application-JSON allowlist. Intent retains the exact JSON
+body, and the same immutable serialized UTF-8 bytes enter the transport. The model
+and explicit `reasoning.effort` must match the frozen run selection. Candidate plan
+ID/revision and stage are allocated before the call; interaction/attempt IDs and retry lineage
+correlate every typed record. The old injected `Planner.plan` fixture path remains
+`logical_only`, not evidence of actual provider input/output or hidden retries.
+
+Through its store callback, `AttemptRunner` fsyncs intent/authorization before
+dispatch and retains every supplied observable event/response/explicit error body
+with per-observation model/status/usage/
+failure metadata, and commits outcome plus applicable proposal validation before
+advancement. Provider completion and valid-plan validation are separate facts.
+Independent stream chunks have immutable session-local audit payloads; full actual
+content and opaque continuation are retained. Credential/client/settings/transport
+fields are structurally excluded, without substring redaction or guaranteed content
+scrubbing. Opaque continuation is protocol evidence, not hidden chain-of-thought.
+
+Stop/revocation is normal cancellation; actual recording failure poisons/revokes
+dispatch and advancement. Both retain owned recording/transport cleanup until it
+settles. Unmatched intents recover as `interrupted/outcome_unknown` with committed
+output counts and known metadata from exact output references, without replay.
+There is no automatic retry policy: explicit attempts require durable failed/invalid
+predecessors, while cancellation/timeout revoke the runner. One-send mocks do not
+establish live compatibility; direct HTTPX retry/configuration evidence is recorded
+only in the root checklist. No Agent SDK retry claim is involved.
+
+Internal store readers `llm_attempts(sid, rid, limit=25, before=None)` and
+`llm_records(sid, attempt_id, after=0, limit=50)` page committed audit records; they
+are not HTTP endpoints. Raw canonical/opaque bodies stay private. Public v2 `llm.*`
+events are neutral controls, never approval or step advancement; v1 compatibility
+remains read-only. The runner retains one active call's observations, and JSON
+serialization still materializes each complete record, in addition to the existing
+baseline/index/linear-verification costs. No constant-memory guarantee is implied.
+
+`agent_responses.py` supplies `agent-responses-planning-v1`: pure request construction
+with `stream=False`, configured `max_output_tokens`, and a manually reviewed strict
+closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
+Revision input includes feedback but no old-plan history in the current interface.
+The adapter sends exact canonical bytes via fresh HTTPX requests with `auth=None`,
+no ambient cookies/default headers/client auth, `trust_env=False`, redirects disabled,
+and lower `AsyncHTTPTransport(retries=0)`. Bearer acquisition shares Chat's credential
+provider; the Chat SDK retains `max_retries=0`.
+
+Requests accept identity encoding only; other encodings are rejected with raw bytes
+retained. Owned HTTP streaming preserves failed partial reads as reversible raw
+UTF-8/base64 evidence. Complete response observations precede proposal decoding;
+unsafe/deep JSON falls back to raw evidence. Response close remains owned through
+repeated cancellation. `main.py` retains one exit-stack cleanup task closing
+Agent → Agent HTTP → Chat SDK → credential after settlement.
+
+Execution still runs deterministic approved tools and returns a completion receipt.
+No-tool plans, clarification, autonomous model/tool execution, continuation replay,
+synthesis, Tavily, grep, approved-root wiring and full audit UI remain pending.
+Implementation status, all test counts/evidence and pending final full checks are
+recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
 
 ## Setup
 
@@ -52,20 +115,20 @@ Pydantic settings load `bff/.env`, independently of the process working director
 **Environment variables override `.env` values.** Invalid configuration fails
 startup. `.env.example` contains placeholders only.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `AZURE_OPENAI_ENDPOINT` | Required | HTTPS Azure resource URL, e.g. `https://your-resource.openai.azure.com`. A URL already ending in `/openai/v1/` is also accepted and normalized. |
-| `AVAILABLE_MODELS` | Required | CSV of Azure **deployment names**, in display order; trimmed, deduplicated, empty entries removed. At least one nonempty entry is required. |
-| `DEFAULT_MODEL` | First available model | Optional; must belong to `AVAILABLE_MODELS`. Blank selects the first model. |
-| `AZURE_TENANT_ID` | Unset | Service-principal tenant ID. |
-| `AZURE_CLIENT_ID` | Unset | Service-principal client ID. |
-| `AZURE_CLIENT_SECRET` | Unset | Service-principal secret, represented internally as `SecretStr`. |
-| `REQUEST_TIMEOUT_SECONDS` | `120` | One fixed deadline for title generation, token acquisition waits, opening attempts, retry delays, provider stream reads and ASGI response sends. Positive, at most `3600`. |
-| `PROVIDER_TIMEOUT_SECONDS` | `60` | OpenAI HTTP timeout per transport operation, including stream-read inactivity. Positive, at most `3600`; the whole-operation deadline still applies. |
-| `TITLE_TIMEOUT_SECONDS` | `10` | Best-effort title call timeout, bounded by the remaining absolute request deadline. Positive, finite, at most `3600`. No title retries. |
-| `MAX_OUTPUT_TOKENS` | `4096` | Positive Responses output-token limit, including reasoning tokens where applicable. |
-| `MAX_RETRIES` | `2` | Additional stream-opening attempts (`0`–`5`). The default permits three attempts total. |
-| `RETRY_DELAY_SECONDS` | `0.5` | Initial retry delay (`0`–`10` seconds), doubled per retry and capped at five seconds. |
+| Variable                   | Default               | Meaning                                                                                                                                                                    |
+| -------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AZURE_OPENAI_ENDPOINT`    | Required              | HTTPS Azure resource URL, e.g. `https://your-resource.openai.azure.com`. A URL already ending in `/openai/v1/` is also accepted and normalized.                            |
+| `AVAILABLE_MODELS`         | Required              | CSV of Azure **deployment names**, in display order; trimmed, deduplicated, empty entries removed. At least one nonempty entry is required.                                |
+| `DEFAULT_MODEL`            | First available model | Optional; must belong to `AVAILABLE_MODELS`. Blank selects the first model.                                                                                                |
+| `AZURE_TENANT_ID`          | Unset                 | Service-principal tenant ID.                                                                                                                                               |
+| `AZURE_CLIENT_ID`          | Unset                 | Service-principal client ID.                                                                                                                                               |
+| `AZURE_CLIENT_SECRET`      | Unset                 | Service-principal secret, represented internally as `SecretStr`.                                                                                                           |
+| `REQUEST_TIMEOUT_SECONDS`  | `120`                 | One fixed deadline for title generation, token acquisition waits, opening attempts, retry delays, provider stream reads and ASGI response sends. Positive, at most `3600`. |
+| `PROVIDER_TIMEOUT_SECONDS` | `60`                  | OpenAI HTTP timeout per transport operation, including stream-read inactivity. Positive, at most `3600`; the whole-operation deadline still applies.                       |
+| `TITLE_TIMEOUT_SECONDS`    | `10`                  | Best-effort title call timeout, bounded by the remaining absolute request deadline. Positive, finite, at most `3600`. No title retries.                                    |
+| `MAX_OUTPUT_TOKENS`        | `4096`                | Positive Responses output-token limit, including reasoning tokens where applicable.                                                                                        |
+| `MAX_RETRIES`              | `2`                   | Additional stream-opening attempts (`0`–`5`). The default permits three attempts total.                                                                                    |
+| `RETRY_DELAY_SECONDS`      | `0.5`                 | Initial retry delay (`0`–`10` seconds), doubled per retry and capped at five seconds.                                                                                      |
 
 Credential selection is explicit:
 
@@ -80,9 +143,11 @@ refreshes. The scope is **`https://ai.azure.com/.default`**, as specified by the
 `AsyncOpenAI` uses `https://<resource>/openai/v1/` and the deployment name as `model`.
 No API-version query parameter or API key is required.
 
-Credentials and the OpenAI client are created in FastAPI lifespan and closed on
-shutdown. Token acquisition is lazy; startup, health and model listing do not
-perform inference or request a token.
+Credentials, the Chat OpenAI client and the dedicated Agent HTTP client are created
+in FastAPI lifespan and closed on shutdown. Token acquisition and default Agent
+storage opening are lazy; startup, health and model listing perform no provider/token
+calls or session reads. Agent uses the configured provider transport timeout and
+output-token setting; Chat retry settings do not add Agent retries.
 
 The CLI credential is composed behind an async public-interface adapter. Its
 public `get_token` call runs in a shielded, tracked task with an explicit SDK
@@ -107,7 +172,7 @@ timeout. No SDK internals are overridden.
 ### `GET /health`
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 This is process health, not a provider-connectivity or inference probe.
@@ -115,7 +180,7 @@ This is process health, not a provider-connectivity or inference probe.
 ### `GET /api/models`
 
 ```json
-{"models":["deployment-a","deployment-b"],"default_model":"deployment-a"}
+{ "models": ["deployment-a", "deployment-b"], "default_model": "deployment-a" }
 ```
 
 Models come exclusively from configuration. No provider discovery call is made.
@@ -136,9 +201,9 @@ must contain at least one message with a nonempty string `content`.
   "system_prompt": "Be concise.",
   "generate_title": false,
   "messages": [
-    {"role": "user", "content": "Earlier question"},
-    {"role": "assistant", "content": "Earlier answer"},
-    {"role": "user", "content": "New question"}
+    { "role": "user", "content": "Earlier question" },
+    { "role": "assistant", "content": "Earlier answer" },
+    { "role": "user", "content": "New question" }
   ]
 }
 ```
@@ -198,13 +263,13 @@ data: {"session_id":"session-1","request_id":"request-1","message_id":"<message_
 
 The `data` fields are exactly:
 
-| Event | JSON payload |
-| --- | --- |
-| `start` | `{session_id, request_id, message_id, time}` |
-| `session_title` | `{session_id, request_id, message_id, title}` |
-| `delta` | `{session_id, request_id, message_id, text}` |
-| `done` | `{session_id, request_id, message_id, time, status: "complete"}` |
-| `error` | `{session_id, request_id, message_id, code, message}` |
+| Event           | JSON payload                                                     |
+| --------------- | ---------------------------------------------------------------- |
+| `start`         | `{session_id, request_id, message_id, time}`                     |
+| `session_title` | `{session_id, request_id, message_id, title}`                    |
+| `delta`         | `{session_id, request_id, message_id, text}`                     |
+| `done`          | `{session_id, request_id, message_id, time, status: "complete"}` |
+| `error`         | `{session_id, request_id, message_id, code, message}`            |
 
 `session_id` and `request_id` echo the request. `message_id` is a backend-generated
 UUID, stable across all events for that reply. `time` is the reply-creation time in
@@ -262,7 +327,10 @@ may observe EOF without a terminal event and should preserve partial text. An
 immediately writable timeout error may still be delivered, but an expired send
 deadline never gains a new delivery budget.
 
-## Tests and checks
+## Test/check commands
+
+All verification results and evidence are maintained only in the
+[root checklist](../AGENT_MODE_CHECKLIST.md).
 
 Run from `bff`:
 
@@ -299,6 +367,12 @@ acquisition serialization and lifespan draining. No real subprocess is started.
 - `app/agent.py`, `app/agent_schemas.py`, `app/agent_routes.py`: isolated Agent
   coordinator, strict commands/durable models, planner injection and HTTP/SSE endpoints.
 - `app/agent_views.py`: public v2 headers, run controls, selected bodies and paged events.
+- `app/agent_llm.py`: canonical request, injected recorded planner, one-send transport
+  contract, and attempt/recording/cleanup ownership.
+- `app/agent_responses.py`: production direct HTTPX planning/revision adapter,
+  versioned strict proposal contract, exact wire bytes and raw response ownership.
+- `app/llm_schemas.py`, `app/llm_journal.py`: strict private audit lifecycle,
+  committed-reference indexes/readers and unmatched-intent recovery.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.
 - `app/agent_files.py`: fail-closed v4 workspace policy and no-follow UTF-8 EOF scans
   with bounded page previews; narrow same-access v3 approval compatibility.

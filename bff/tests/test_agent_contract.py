@@ -1,7 +1,7 @@
 """Public BFF wire fixtures consumed by Angular, with no live services.
 
 From bff/, explicitly regenerate only the checked-in public JSON with:
-    UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline pytest tests/test_agent_contract.py -q
+    UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline --frozen pytest tests/test_agent_contract.py -q
 Normal runs compare all snapshots and parsed SSE fields without rewriting files.
 """
 
@@ -24,6 +24,7 @@ import app.agent as agent_module
 import app.sessions as sessions_module
 from app.agent import AgentService
 from app.agent_files import FilePolicy, canonical_digest
+from app.agent_llm import CanonicalRequest, Observation, RecordedPlanner
 from app.agent_schemas import Proposal, StepResult
 from app.agent_views import EventV2
 from app.main import create_app
@@ -35,6 +36,15 @@ BASE = "/api/agent/sessions"
 NOW = "2026-10-16T09:00:00.123456Z"
 EARLIER = "2026-10-16T08:59:59.123456Z"
 CONTENT = "Read the public fixture"
+PRIVATE_CANARIES = (
+    "SYNTHETIC-private-user-message",
+    "SYNTHETIC-private-instructions",
+    "SYNTHETIC-private-output",
+    "SYNTHETIC-private-continuation",
+    "SYNTHETIC-private-usage",
+    "SYNTHETIC-client-credential",
+    "SYNTHETIC-provider-model",
+)
 
 
 def proposal():
@@ -79,7 +89,16 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
     monkeypatch.setattr(FilePolicy, "projection", stable_projection)
 
     @asynccontextmanager
-    async def opened(suffix, *, blocked=False, backwards=False, enabled=True, fetched=False):
+    async def opened(
+        suffix,
+        *,
+        blocked=False,
+        backwards=False,
+        enabled=True,
+        fetched=False,
+        recorded=False,
+        journal="journal",
+    ):
         directory = tmp_path / suffix
         workspace = directory / "workspace"
         workspace.mkdir(parents=True, exist_ok=True)
@@ -111,6 +130,47 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
             return proposal()
 
         planner = SimpleNamespace(plan=AsyncMock(side_effect=plan))
+        transport = SimpleNamespace(credential=PRIVATE_CANARIES[5])
+        requests = []
+
+        def build_request(context):
+            request = CanonicalRequest(
+                {
+                    "model": context.model,
+                    "reasoning": {"effort": context.reasoning_effort},
+                    "instructions": context.instructions + PRIVATE_CANARIES[1],
+                    "input": [
+                        {"role": "user", "content": context.request + PRIVATE_CANARIES[0]},
+                        {"type": "opaque_continuation", "body": PRIVATE_CANARIES[3]},
+                    ],
+                    "store": False,
+                    "stream": True,
+                },
+                instructions_version="contract-instructions-v1",
+            )
+            requests.append(request)
+            return request
+
+        async def send_once(raw, observe):
+            assert raw is requests[-1].body_bytes
+            assert json.loads(raw) == requests[-1].body
+            await observe(Observation("event", {"delta": PRIVATE_CANARIES[2]}))
+            return Observation(
+                "response",
+                {"proposal": proposal().model_dump(), "opaque": PRIVATE_CANARIES[3]},
+                reported_model=PRIVATE_CANARIES[6],
+                provider_status="completed",
+                usage={"input_tokens": 11, "output_tokens": 23, "opaque": PRIVATE_CANARIES[4]},
+            )
+
+        transport.send_once = AsyncMock(side_effect=send_once)
+        decode = Mock(
+            side_effect=lambda result: Proposal.model_validate(result.outputs[-1].body["proposal"])
+        )
+        if recorded:
+            planner = RecordedPlanner(
+                build_request=build_request, transport=transport, decode=decode
+            )
         files = FilePolicy({"public": workspace})
         entered, release = threading.Event(), threading.Event()
         real_read = files.read
@@ -123,7 +183,7 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
 
         files.read = Mock(side_effect=read)
         store = SessionStore(
-            directory / "journal",
+            directory / journal,
             clock=lambda: clock.value,
             id_factory=lambda: f"20261016T090000123456Z-{suffix}",
         )
@@ -167,6 +227,8 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
                         planner=planner,
                         entered=entered,
                         release=release,
+                        transport=transport,
+                        decode=decode,
                     )
                 finally:
                     release.set()
@@ -333,6 +395,53 @@ async def startup_recovery(opened):
             "body": response.json(),
             "terminal": terminal,
             "terminal_run": terminal_run,
+            "runs_page": runs.json(),
+            "results_page": results.json(),
+        }
+
+
+async def llm_startup_recovery(opened, prefix):
+    """Replay an actual coordinator-generated synthetic prefix into a fresh tmp store."""
+    async with opened("ct08", journal="recovery") as setup:
+        created = await create(setup.client)
+        assert created["id"] == prefix[0].event.session_id
+        for record in prefix[1:]:
+            event = record.event
+            await setup.owner.commit(
+                event.session.model_copy(update={"sequence": event.sequence - 1}),
+                event.type,
+                event.request_id,
+                run_id=event.run_id,
+                operation_id=event.operation_id,
+                claim=record.claim,
+                audit=record.audit,
+            )
+        baseline = await get(setup.client, created["id"])
+        baseline_run = await detail(setup.client, baseline)
+        assert baseline_run["status"] == "planning" and baseline_run["plan"] is None
+
+    async with opened("ct08", journal="recovery") as setup:
+        sid, rid = baseline["id"], baseline_run["id"]
+        url = f"{BASE}/{sid}/events?after={baseline['sequence']}&limit=50"
+        response = await setup.client.get(url)
+        assert response.status_code == 200
+        terminal = await get(setup.client, sid)
+        runs = await setup.client.get(f"{BASE}/{sid}/runs?limit=10")
+        results = await setup.client.get(f"{BASE}/{sid}/runs/{rid}/results?limit=20")
+        assert runs.status_code == results.status_code == 200
+        setup.planner.plan.assert_not_awaited()
+        setup.transport.send_once.assert_not_awaited()
+        setup.files.read.assert_not_called()
+        setup.owner.fetcher.fetch.assert_not_awaited()
+        return {
+            "name": "llm_startup_recovery",
+            "baseline": baseline,
+            "baseline_run": baseline_run,
+            "http": {"method": "GET", "url": url},
+            "status": response.status_code,
+            "body": response.json(),
+            "terminal": terminal,
+            "terminal_run": await detail(setup.client, terminal),
             "runs_page": runs.json(),
             "results_page": results.json(),
         }
@@ -510,11 +619,52 @@ async def generate_contract(opened):
         setup.owner.fetcher.fetch.assert_awaited_once_with("https://example.com/public")
         setup.files.read.assert_not_called()
 
+    async with opened("ct08", recorded=True) as setup:
+        case = await stream(
+            setup.client,
+            "recorded_planning",
+            await create(setup.client),
+            "plan",
+            {"action": "runs", "content": CONTENT},
+        )
+        sid = case["baseline"]["id"]
+        replay = await setup.client.get(
+            f"{BASE}/{sid}/events?after={case['baseline']['sequence']}&limit=50"
+        )
+        assert replay.status_code == 200
+        assert replay.json()["events"] == [frame["data"] for frame in events(case["sse"])]
+        streams.append(case)
+        setup.transport.send_once.assert_awaited_once()
+        setup.decode.assert_called_once()
+        setup.files.read.assert_not_called()
+        setup.owner.fetcher.fetch.assert_not_awaited()
+        records = list(setup.owner.store.records[sid])
+        intent = next(record for record in records if record.event.type == "llm.intent")
+        llm_prefix = records[: intent.event.sequence]
+        assert intent.audit["data"]["request"] == json.loads(
+            setup.transport.send_once.call_args.args[0]
+        )
+        validation = next(record for record in records if record.event.type == "llm.validation")
+        assert validation.audit["data"] == {"status": "valid", "error_code": None}
+        outcome = next(record for record in records if record.event.type == "llm.outcome")
+        assert outcome.audit["data"] == {
+            "status": "completed",
+            "dispatched": True,
+            "output_count": 2,
+            "reported_model": PRIVATE_CANARIES[6],
+            "provider_status": "completed",
+            "usage": {"input_tokens": 11, "output_tokens": 23, "opaque": PRIVATE_CANARIES[4]},
+            "error_code": None,
+        }
+
     return {
         "version": 2,
         "streams": streams,
         "errors": errors,
-        "recoveries": [await startup_recovery(opened)],
+        "recoveries": [
+            await startup_recovery(opened),
+            await llm_startup_recovery(opened, llm_prefix),
+        ],
     }
 
 
@@ -528,6 +678,7 @@ def assert_representative(contract):
         "cancellation_archive",
         "backwards_clock",
         "fetch_execution",
+        "recorded_planning",
     }
     for case in contract["streams"]:
         assert all(frame["data"]["invalidates_runs"] is False for frame in events(case["sse"]))
@@ -587,7 +738,31 @@ def assert_representative(contract):
     assert result["content"] + continuation["content"] == (
         "Public evidence 🌱\nContinuation from durable storage."
     )
-    (recovery,) = contract["recoveries"]
+    recorded = cases["recorded_planning"]
+    frames = events(recorded["sse"])
+    assert [frame["data"]["type"] for frame in frames] == [
+        "run.planning",
+        "llm.intent",
+        "llm.dispatched",
+        "llm.output",
+        "llm.output",
+        "llm.outcome",
+        "llm.validation",
+        "planner.result",
+        "run.awaiting_approval",
+    ]
+    initial = frames[0]["data"]["run"]
+    for frame in frames[1:-1]:
+        event = frame["data"]
+        assert event["run"]["status"] == "planning"
+        assert event["run"]["plan_identity"] is None
+        assert event["run"]["result_count"] == event["run"]["completed_steps"] == 0
+        assert (event["run_id"], event["operation_id"]) == (initial["id"], initial["operation_id"])
+        assert all(event[key] is None for key in ("request", "plan", "result", "answer", "error"))
+    assert recorded["terminal_run"]["status"] == "awaiting_approval"
+    assert recorded["terminal_run"]["plan"]["model"] == "deployment-a"
+
+    recovery, llm_recovery = contract["recoveries"]
     assert recovery["name"] == "startup_recovery"
     page = recovery["body"]
     (event,) = page["events"]
@@ -618,6 +793,23 @@ def assert_representative(contract):
     assert recovery["runs_page"]["runs"] == [{**event["run"], "request_preview": CONTENT}]
     assert recovery["results_page"]["results"] == [event["result"]]
     assert event["request"] is event["plan"] is event["answer"] is None
+    outcome, interrupted = llm_recovery["body"]["events"]
+    for event in (outcome, interrupted):
+        EventV2.model_validate(event)
+    assert outcome["type"] == "llm.outcome" and outcome["request_id"] == "recovery"
+    assert (outcome["run_id"], outcome["operation_id"]) == (
+        llm_recovery["baseline_run"]["id"],
+        llm_recovery["baseline_run"]["operation_id"],
+    )
+    assert outcome["invalidates_runs"] is False and outcome["run"]["status"] == "planning"
+    assert all(outcome[key] is None for key in ("request", "plan", "result", "answer", "error"))
+    assert interrupted["type"] == "run.interrupted" and interrupted["invalidates_runs"] is True
+    assert interrupted["run_id"] is interrupted["operation_id"] is None
+    assert interrupted["sequence"] == outcome["sequence"] + 1
+    assert interrupted["sequence"] == llm_recovery["baseline"]["sequence"] + 2
+    assert interrupted["session"] == llm_recovery["terminal"]
+    assert llm_recovery["terminal_run"]["plan"] is None
+    assert llm_recovery["terminal_run"]["results"] == []
 
 
 def semantic(contract):
@@ -638,12 +830,14 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
     assert len(serialized.encode()) < 150_000, "Keep this representative fixture small"
     assert str(tmp_path) not in serialized
     assert "audit" not in serialized
+    for canary in PRIVATE_CANARIES:
+        assert canary not in serialized
     if os.environ.get("UPDATE_AGENT_CONTRACT_FIXTURE") == "1":
         assert FIXTURE.parent.is_dir(), "Verify the known UI fixture parent before regenerating"
         FIXTURE.write_text(serialized, encoding="utf-8")
     checked = json.loads(FIXTURE.read_text(encoding="utf-8"))
     assert semantic(checked) == semantic(generated), (
         "Public Agent wire fixture drifted. Review the change, then explicitly regenerate "
-        "with UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline pytest "
+        "with UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline --frozen pytest "
         "tests/test_agent_contract.py -q"
     )

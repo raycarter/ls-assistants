@@ -243,15 +243,8 @@ async def test_default_startup_does_not_open_session_root(app_factory, monkeypat
             transport=httpx.ASGITransport(app=application), base_url="http://test"
         ) as client:
             assert (await client.get("/health")).status_code == 200
-            response = await client.post(
-                BASE + "/unused/runs",
-                json={
-                    "request_id": "disabled",
-                    "content": "No provider call",
-                },
-            )
-            assert response.status_code == 503
-            assert response.json()["error"]["code"] == "agent_not_configured"
+            assert (await client.get("/api/models")).status_code == 200
+            assert application.state.agent_service.planner is not None
     forbidden.assert_not_called()
 
 

@@ -1,6 +1,6 @@
 # Agent mode: research and design plan
 
-Research date: 2026-10-15. Implementation update: 2026-10-20. Policy clarification: 2026-10-19. Status: the quota-free injected-planner slice supports approved file reads, public-page fetching, incremental storage, and paged public views; the full Agent release is not complete.
+Research date: 2026-10-15. Policy clarification: 2026-10-19. Architecture clarification: 2026-10-23.
 
 Implementation progress is tracked only in [AGENT_MODE_CHECKLIST.md](AGENT_MODE_CHECKLIST.md). This document owns the design and contract decisions, not a second completion ledger.
 
@@ -16,7 +16,7 @@ Add an Agent workflow beside the completed Chat workflow:
 6. Sequential execution with visible step results and cancellation.
 7. A durable, reviewable record under `bff/sessions/<timestamp>-<4-random-chars>/`, excluded from Git.
 
-**Recommendation:** build a small, backend-owned coordinator using the existing Responses SDK, not a new agent framework or an embedded OpenCode process. Keep `/api/chat` and Chat persistence behavior unchanged.
+**Architecture:** use a small, backend-owned coordinator with a recorded Responses boundary. Planning/revision uses dedicated direct HTTPX transport; Chat retains its existing Responses SDK. No Agent SDK, new agent framework, or embedded OpenCode process is involved. Keep `/api/chat` and Chat persistence behavior unchanged.
 
 Out of scope initially: file writes, shell execution, browser/JavaScript automation, private/internal-network fetching, non-HTTP(S) URLs, arbitrary file downloads, autonomous subagents, parallel steps, MCP/plugin loading, unattended execution, automatic restart/resume, and a generic workflow language.
 
@@ -32,30 +32,22 @@ These rules replace the earlier exact-query approval and run-budget proposals. L
 
 ### Historical first increment — 2026-10-16
 
-This snapshot records the first slice, not current capabilities. Later increments supersede it; see the checklist's latest verification record and the current backend API document.
-
-- Implemented Chat/Agent navigation, independent histories/drafts/preferences, read-only legacy Agent preservation, and Agent-mode Settings catalogue management without Chat prompt selection.
-- Implemented durable BFF sessions, injected tool-free planning, immutable revision-bound approval/rejection/feedback, committed-sequence progress events, targeted Stop/settlement, and one to three approved bounded `read_file` steps.
-- Verified the mocked request → review → approve → fixture read → result → reload path, including rejection, duplicate/stale approval, concurrent control events, and interruption recovery. Shared backend-generated wire fixtures are consumed by the real UI decoder; no live services are involved.
-- Current storage keeps bounded full snapshots and internal logical audit data inside `events.jsonl`; separate snapshot/artifact files in the target layout below are not implemented. Existing append-only records preserve prior plan revisions. Prototype step/call/session/journal caps and overall planning/execution deadlines are not the clarified product policy and must be migrated away; see the actual current contract.
-- The default planner is intentionally **not configured** and returns `503 agent_not_configured`. There is no production Responses planner, autonomous LLM/function-call loop, LLM synthesis, web-search provider, or folder-grep tool yet. Clarification commands return explicit `501`; history UI uses snapshots/manual reload rather than full event replay/polling. File roots are enabled only through explicit service composition and otherwise remain empty.
-- Actual first-slice contracts and bounds are documented in [bff/AGENT_API.md](bff/AGENT_API.md). The remaining sections describe the target design, not a claim that every capability already exists. User policy decisions and walkthroughs remain open in the checklist.
-- Verification: 197 backend tests and 543 frontend tests pass, including all 141/398 baseline tests. Independent review findings were fixed and rechecked. No real Azure/search calls, OpenCode source/runtime reuse, or Git commits were performed.
+The first-slice implementation snapshot and its dated test/review evidence are retained in the checklist's [2026-10-16 verification record](AGENT_MODE_CHECKLIST.md#verification-record--2026-10-16-first-mocked-slice), not repeated as a second progress ledger here. Later dated checklist records supersede that snapshot; [bff/AGENT_API.md](bff/AGENT_API.md) describes current runtime contracts. The design below is not a claim that every target capability exists.
 
 ## 2. Research findings: what to borrow from OpenCode
 
 Upstream researched: `anomalyco/opencode`, `dev`, commit [`4f31eb987dadde52ed986ab6434a00397d3b51a6`](https://github.com/anomalyco/opencode/commit/4f31eb987dadde52ed986ab6434a00397d3b51a6), dated 2026-10-15. These findings concern the inspected V2 implementation; older documentation can describe different defaults and architecture.
 
-| Pattern | Evidence and application here |
-| --- | --- |
-| Planning and execution use different policies | OpenCode's Plan profile constrains editing and instructs the model to ask the user to switch agents. That is **not** a version-bound approval of a structured plan. Implement our approval gate in backend code. [Plan source][oc-plan] |
-| Tool registration, validation, and authorization are separate | Register the four MVP tools; validate every argument; authorize every invocation. Hiding a tool from an LLM is not authorization. [Registry][oc-tool], [runtime][oc-runtime] |
-| File boundary checks precede file access | Use a shared filesystem policy for both reading and searching. Resolve allowed roots and prevent symlink escapes; a grep result can disclose the same secrets as a read. [File access][oc-files], [permissions][oc-permissions] |
-| A model iteration is not a reviewed plan step | OpenCode's runner iterates model/tool interactions and can execute calls concurrently. Our coordinator must additionally own step order and allow only the current step's capabilities. [Runner][oc-runner] |
-| Live updates and durable history are different | OpenCode distinguishes volatile bus subscriptions from durable events/projections. Its permission prompts are not themselves a complete durable approval ledger. Persist our approval and execution events explicitly before publishing them. [Bus][oc-bus], [permission events][oc-permission-events] |
-| Tools need bounded, structured results | Borrow line numbering, pagination, truncation metadata, search citations, and cancellation patterns. Do not reproduce image/PDF readers, code execution, or provider failover initially. [Built-in tools][oc-builtins], [web-search providers][oc-websearch] |
+| Pattern                                                       | Evidence and application here                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Planning and execution use different policies                 | OpenCode's Plan profile constrains editing and instructs the model to ask the user to switch agents. That is **not** a version-bound approval of a structured plan. Implement our approval gate in backend code. [Plan source][oc-plan]                                                                |
+| Tool registration, validation, and authorization are separate | Register the four MVP tools; validate every argument; authorize every invocation. Hiding a tool from an LLM is not authorization. [Registry][oc-tool], [runtime][oc-runtime]                                                                                                                           |
+| File boundary checks precede file access                      | Use a shared filesystem policy for both reading and searching. Resolve allowed roots and prevent symlink escapes; a grep result can disclose the same secrets as a read. [File access][oc-files], [permissions][oc-permissions]                                                                        |
+| A model iteration is not a reviewed plan step                 | OpenCode's runner iterates model/tool interactions and can execute calls concurrently. Our coordinator must additionally own step order and allow only the current step's capabilities. [Runner][oc-runner]                                                                                            |
+| Live updates and durable history are different                | OpenCode distinguishes volatile bus subscriptions from durable events/projections. Its permission prompts are not themselves a complete durable approval ledger. Persist our approval and execution events explicitly before publishing them. [Bus][oc-bus], [permission events][oc-permission-events] |
+| Tools need bounded, structured results                        | Borrow line numbering, pagination, truncation metadata, search citations, and cancellation patterns. Do not reproduce image/PDF readers, code execution, or provider failover initially. [Built-in tools][oc-builtins], [web-search providers][oc-websearch]                                           |
 
-**Firm implementation constraint:** OpenCode is a reference for architectural and behavioral ideas only. Do not copy, translate, vendor, or adapt its implementation code, and do not embed its runtime. Implement our coordinator, tools, permissions, and persistence independently in this application's Python/Angular architecture using the existing libraries and official provider SDKs. The upstream source links document research findings; they are not implementation templates.
+**Firm implementation constraint:** OpenCode is a reference for architectural and behavioral ideas only. Do not copy, translate, vendor, or adapt its implementation code, and do not embed its runtime. Implement our coordinator, tools, permissions, and persistence independently in this application's Python/Angular architecture using the existing libraries and provider protocols. The upstream source links document research findings; they are not implementation templates.
 
 Provider selection verified on 2026-10-19: the inspected V2 implementation supports Exa, Firecrawl, Parallel, Tavily, and TinyFish. It uses configured/remembered selection or asks the user; there is no single hardwired provider. Its consent flow also offers random provider selection. The user selected Tavily for our first adapter on the same date; that is our independent choice, not a claim about OpenCode's default. See [web-search documentation][oc-websearch] and the [selection implementation][oc-websearch-selection].
 
@@ -94,7 +86,8 @@ Angular shell
                                                │
                                          AgentCoordinator
                                            ├── SessionStore
-                                           ├── AgentResponses
+                                           ├── RecordedPlanner / AttemptRunner
+                                           │     └── ResponsesTransport → dedicated HTTPX → Responses API
                                            └── ToolRegistry + ToolPolicy
                                                  ├── web_search
                                                  ├── web_fetch
@@ -110,7 +103,23 @@ Angular shell
 - **LLM:** proposes plans, tool arguments, and summaries. It cannot approve its own plan or expand its own permissions.
 - **Files/search results/fetched pages:** untrusted evidence, never instructions that override the reviewed plan or grant approval. Do not automatically load instructions found in arbitrary files or web pages.
 
-Suggested backend modules: `agent_schemas.py`, `agent.py`, `agent_responses.py`, `agent_routes.py`, `sessions.py`, and `tools/` with a fixed registry, shared filesystem/network policies, and four implementations. Keep functions/components small; use composition rather than subclassing `ChatService`.
+Backend boundaries map to `agent_schemas.py`, `agent.py`, `agent_llm.py`, `agent_responses.py`, `llm_schemas.py`, `llm_journal.py`, `agent_routes.py`, `sessions.py`, and `tools/`. `main.py` composes the production planning/revision adapter behind `SingleDispatchTransport`; the four-tool registry and shared filesystem/network policies remain separate from model dispatch. Keep functions/components small; use composition rather than subclassing `ChatService`.
+
+### Shared LLM boundary: mechanism and authority
+
+The coordinator owns candidate plan identity/revision and a planning/revision stage ID, allocated and durably bound to the operation before the call. Validated execution step IDs and the plan digest follow proposal validation. Each interaction has its own ID; each explicit attempt has a unique ID, ordinal, predecessor (`retry_of`), and backoff metadata. Execution/synthesis identities can use the same primitives with a known approved plan and step/stage; this does not itself implement a model-driven execution loop.
+
+`RecordedPlanner` composes a request builder, `SingleDispatchTransport`, and decoder with coordinator-owned proposal validation. `CanonicalRequest` validates a reviewed application JSON allowlist, enforces `store=False`, serializes immutable UTF-8 bytes, and passes those exact bytes to `send_once`. The requested model and explicit reasoning effort must match the frozen run selection. `AttemptRunner` owns dispatch, observations, outcome recording, validation recording, and cleanup. This explicit boundary is required for observable provider-attempt coverage; an opaque injected `Planner.plan(context)` fixture has only `logical_only` coverage and cannot establish the actual provider request or hidden retries.
+
+The private audit retains the exact application JSON input, every observable event/full response/explicit error body, and per-observation reported model, provider status, usage, and failure metadata. A provider outcome and application proposal validation are distinct records: a completed response can still be an invalid plan. Full actual content, including opaque continuation, is retained without substring redaction. Transport/client/settings/credential fields are structurally excluded; permitted user/source text and opaque bodies are not guaranteed secret-scrubbed. Generic exception objects/text and HTTP headers are not audit bodies. Opaque continuation is protocol evidence, not a request for hidden chain-of-thought.
+
+Intent and dispatch authorization must be fsynced before entering the transport; the scheduled send owner rechecks Stop and storage health immediately before entry. The adapter must await each independent observation's durable immutable payload before advancing its stream. Outcomes and applicable validation must commit before plan publication or another send advances. Stop/revocation before authorization is normal cancellation, not a recording failure; already-started recording and transport cleanup remain owned. Actual recording failure poisons recording, revokes dispatch/advancement, and retains cleanup ownership until settlement. Restart settles unmatched committed intents as `interrupted/outcome_unknown`, preserving output count and known metadata from exact committed output references without inferring unseen bodies or replaying work.
+
+Attempt lineage permits explicit sequential attempts after durable failure or completed-but-invalid validation. There is no automatic retry policy; cancellation and timeout revoke the runner. The production adapter sends exact `CanonicalRequest.body_bytes` via a fresh HTTPX request with `auth=None`, no ambient cookies/default headers/client auth, `trust_env=False`, redirects disabled, and lower-level `AsyncHTTPTransport(retries=0)`. It shares Chat's bearer credential provider, not Chat's SDK transport; Chat SDK `max_retries=0` is unchanged.
+
+The request contract is `agent-responses-planning-v1`: pure, tool-free construction with frozen model/explicit reasoning effort, `store=False`, `stream=False`, and configured `max_output_tokens`. A manually reviewed strict closed schema describes objective, assumptions, and at least one `read_file`/`web_fetch` step; expected outcomes belong in step descriptions. Revision input includes feedback but no old-plan history in the current interface. No-tool plans remain a target contract beyond this adapter. Allowed file roots default to none.
+
+HTTP streaming owns raw reads and cleanup, not provider event streaming. Request identity encoding only; reject other encodings while retaining raw bytes. Persist complete response observations before proposal decoding; retain partial failed bodies as reversible UTF-8/base64 representations. Unsafe or excessively deep JSON falls back to raw evidence rather than losing the body. Response close and repeated cancellation retain ownership. `main.py` retains one exit-stack cleanup task closing Agent → Agent HTTP → Chat SDK → credential after settlement. Default run/revise commands call the provider; `503 agent_not_configured` applies to an explicitly injected service with no planner. Startup, health, and model listing perform no provider/token calls or session reads. Provider compatibility is not live-validated; evidence belongs only in the checklist. Model-driven execution, continuation replay, synthesis, clarification, Tavily, grep, root wiring, and full audit UI remain separate delivery requirements.
 
 Planner/executor instructions belong to the BFF and are versioned separately from the editable Chat system-prompt catalogue. Agent mode neither consumes that catalogue nor adds prompt-editing controls to Settings.
 
@@ -165,18 +174,18 @@ Use `parallel_tool_calls=False` where supported, but enforce serial execution in
 
 Use per-provider/request timeouts, paged file/search results, and supported model context/output controls where technically necessary. These must not become hidden run quotas or discard the retained LLM input/output. Report provider constraints or actual failures explicitly. Usage/cost metadata is informational, not an execution allowance or guaranteed currency ceiling.
 
-Build shared AgentResponses audit/retry instrumentation **before the first planner call**. Disable SDK-managed retries for Agent requests using Agent-only client options; the coordinator owns and journals permitted attempts for planning, revisions, and execution alike. For reasoning deployments requiring encrypted stateless continuation, request `include=['reasoning.encrypted_content']` where supported, retain the required canonical output items, and replay them with the corresponding function-call outputs. Keep opaque continuation data separate from sanitized display projections; fail clearly for unsupported combinations.
+Use the shared recorded boundary for production model calls. The planning/revision adapter uses direct HTTPX with lower transport retries disabled; one dispatch per recorded attempt and actual transport configuration require scoped verification, not an Agent SDK claim. The coordinator owns any future explicit retry policy and journals permitted attempts for planning, revisions, and execution alike; there is no automatic retry today. For future execution on reasoning deployments requiring encrypted stateless continuation, request `include=['reasoning.encrypted_content']` where supported, retain the required canonical output items, and replay them with the corresponding function-call outputs. Keep opaque continuation data private and separate from display projections; fail clearly for unsupported combinations. Retention primitives alone do not implement continuation replay or a function loop.
 
 Do not silently execute a new plan, repeat ambiguous operations, or compact away audit evidence. A hung/failed request or unavailable storage is an operational error, not a fabricated task-budget-exhaustion result.
 
 ## 5. Tool contracts and safety policy
 
-| Tool | Initial contract | Paging and result shape |
-| --- | --- | --- |
-| `read_file` | `workspace_id`, relative `path`, one-based `offset`, page size | Text-only regular files; numbered lines, continuation/truncation metadata, safe errors. Further pages remain available within the same approved plan; a page size is not a task-wide read allowance. |
-| `grep_in_folder` | `workspace_id`, relative `folder`, literal `pattern`, optional file glob, page size | Literal search initially; incremental traversal and paged path/line/excerpt results. Report partial pages honestly and permit continuation rather than imposing a cumulative match/scan quota. |
-| `web_search` | Task-dependent `query`, provider-supported result-page size | Tavily results include title, URL, snippet, and available date/source metadata. Record actual queries. There is no required search step, minimum number of searches, or per-run search-call cap. |
-| `web_fetch` | Public HTTP(S) `url`, optional content-page selection | GET the page and return extracted HTML main text or plain text, requested/final URL, title when available, HTTP status/content type, and retrieval timestamp. Preserve fetched evidence and expose continuation for long text; no browser/JavaScript execution or implicit file download. |
+| Tool             | Initial contract                                                                    | Paging and result shape                                                                                                                                                                                                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read_file`      | `workspace_id`, relative `path`, one-based `offset`, page size                      | Text-only regular files; numbered lines, continuation/truncation metadata, safe errors. Further pages remain available within the same approved plan; a page size is not a task-wide read allowance.                                                                                      |
+| `grep_in_folder` | `workspace_id`, relative `folder`, literal `pattern`, optional file glob, page size | Literal search initially; incremental traversal and paged path/line/excerpt results. Report partial pages honestly and permit continuation rather than imposing a cumulative match/scan quota.                                                                                            |
+| `web_search`     | Task-dependent `query`, provider-supported result-page size                         | Tavily results include title, URL, snippet, and available date/source metadata. Record actual queries. There is no required search step, minimum number of searches, or per-run search-call cap.                                                                                          |
+| `web_fetch`      | Public HTTP(S) `url`, optional content-page selection                               | GET the page and return extracted HTML main text or plain text, requested/final URL, title when available, HTTP status/content type, and retrieval timestamp. Preserve fetched evidence and expose continuation for long text; no browser/JavaScript execution or implicit file download. |
 
 Filesystem policy is shared by read and grep:
 
@@ -222,7 +231,7 @@ Persisted entries differ from public projections. Use private versioned journal 
 
 Payload references carry server-owned identity, SHA-256, and byte length. Reuse unchanged bodies without reserializing/hashing them; preserve explicit null clearing, run/result order, and multi-run archive/recovery changes. Keep committed claim/attempt/operation indexes available without replay; Stop's initial conflict check must remain lock-free and I/O-free. Verify committed payloads, including superseded and audit-only bodies, before trusting cached state or replay. Anchor live reads to the pinned storage root, never a replacement at the same pathname. History iterators must not retain the store lock while a consumer is paused.
 
-The current integrity strategy verifies the full journal prefix at commit, checks all committed payload metadata on cached operations, and replays prefixes for diagnostic historical views. Each session still has a hydrated latest internal baseline and reference/index state proportional to retained history. These are known scaling costs, not hidden product quotas or a constant-memory storage guarantee. Full LLM instrumentation, fully paged persistent current state, and future compaction remain separately tracked in the checklist.
+The integrity strategy verifies the full journal prefix at commit, checks all committed payload metadata on cached operations, and replays prefixes for diagnostic historical views. Each session still has a hydrated latest internal baseline and reference/index state proportional to retained history. Independent stream observations have separate immutable audit payloads, but the runner retains one active call's observations and the JSON codec serializes each complete record in memory. These are known scaling costs, not hidden product quotas or a constant-memory storage guarantee. Model-driven execution integration, fully paged persistent current state, and future compaction/garbage collection remain separately tracked in the checklist.
 
 Generate names on the server using a UTC timestamp and four cryptographically random lowercase alphanumeric characters. Create directories exclusively and retry collisions. A short suffix is not a security token. Never use a client title/path as a directory name; validate session IDs before resolving existing folders. Use restrictive file/directory permissions and reject symlinked storage/artifact paths.
 
@@ -233,7 +242,7 @@ Each LLM interaction record must retain: `session_id`, `plan_id`, `plan_revision
 Record all observable lifecycle and work:
 
 - User requests, clarification/feedback, plans/revisions, approval/rejection and scope.
-- Every LLM attempt: the full observable prompt/input and response/output, required identities/timestamps/model names, instructions/version, options, status, usage when available, retry/backoff, and errors. Include invalid/refused/partial/failed/cancelled attempts, not only valid successful outputs. Adjacent text deltas may be coalesced losslessly; unavailable responses must be marked unavailable rather than invented.
+- Every LLM attempt: the full observable prompt/input and response/output, required identities/timestamps/model names, instructions/version, options, status, usage when available, retry/backoff, and errors. Include invalid/refused/partial/failed/cancelled attempts, not only valid successful outputs. Each independent stream observation is an immutable audit payload, not a cumulative stream snapshot; unavailable responses must be marked unavailable rather than invented.
 - Every tool request, validated arguments, access-policy decision, start, result/error or paged-result reference, and cancellation outcome.
 - Step transitions/results, final answer, stop/disconnect, per-request timeout, crash-recovery findings, and archive actions.
 
@@ -243,7 +252,9 @@ For idempotent session creation, the first committed `session.created` record co
 
 On journal/artifact failure, prohibit further dispatch, advancement, and publication of uncommitted output. Signal cancellation and retain operation ownership/capacity until already-started work settles; do not report settled cancellation prematurely. If the terminal outcome cannot be persisted, recovery treats the unmatched durable intent as interrupted with outcome unknown. A failed disk cannot guarantee a final log entry.
 
-Do not record HTTP authorization headers, bearer tokens, credential objects, or settings dumps. Credential-field exclusion is not guaranteed secret-content removal from permitted user/source text. Retain actual observable LLM requests/results, user content, permitted tool excerpts, and query data; make that retention visible. Do not request or expose hidden chain-of-thought. Required encrypted continuation is opaque protocol data, not human-readable reasoning. UI previews may be shortened, but the retained prompt/response must not be silently truncated; stream large payloads into session-local artifacts instead of holding or repeating them all in memory.
+Do not record HTTP authorization headers, bearer tokens, credential objects, or settings dumps. Enforce that boundary structurally rather than substring-redacting canonical content. Credential-field exclusion is not guaranteed secret-content removal from permitted user/source text or opaque response/error bodies. Retain actual observable LLM requests/results, user content, permitted tool excerpts, and query data; make that retention visible. Do not request or expose hidden chain-of-thought. Required encrypted continuation is opaque protocol data, not human-readable reasoning. UI previews may be shortened, but the retained prompt/response must not be silently truncated. Independent audit payloads avoid repeated cumulative snapshots; active-call observations and per-record JSON serialization still consume memory.
+
+Private store readers are `llm_attempts(sid, rid, limit=25, before=None)` (newest-first compact summaries, exclusive run ordinal) and `llm_records(sid, attempt_id, after=0, limit=50)` (ascending committed records, exclusive journal sequence). Limits `1..100` bound record counts, not body bytes or retained history. These are internal store methods, not HTTP endpoints. Raw canonical/opaque bodies stay private; public v2 `llm.intent`, `llm.dispatched`, `llm.output`, `llm.outcome`, and `llm.validation` events carry neutral controls only. They cannot approve a plan, settle a run, or advance a step. The frozen v1 fixture remains read-only compatibility evidence. A full interaction-audit UI is a separate delivery requirement.
 
 On restart, rebuild projections from the journal, tolerate/quarantine an incomplete final JSONL record, and mark unfinished operations interrupted with any external outcome recorded as unknown. Do not infer success or automatically replay work. Existing plans remain reviewable; recovery alone does not require another approval of an unchanged plan. If a new executable plan is created, obtain its approval before execution. Automatic resume remains out of scope.
 
@@ -253,23 +264,23 @@ Do not impose artificial retained-session, journal-event, or interaction-payload
 
 Keep existing `/api/chat`, `/api/models`, and `/health` contracts unchanged. Agent reads use explicit public projection version 2, independently of private journal versions:
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/agent/sessions?include_archived=true&limit=25&cursor=...` | List small journal-backed session headers using stable keyset pagination and an archive filter. |
-| `POST /api/agent/sessions` | Create an empty session; idempotent, no LLM call. |
-| `GET /api/agent/sessions/{sid}` | Return metadata/counts/current-run control plus committed sequence, not the entire session history; no inference. |
-| `PATCH /api/agent/sessions/{sid}` | Persist title/next-run preferences; reject model/thinking changes while a run is planning, awaiting clarification/approval, executing, or cancelling. |
-| `POST /api/agent/sessions/{sid}/runs` | Record a user request and stream planning; finish at review/clarification, without tools. |
-| `GET /api/agent/sessions/{sid}/runs?limit=10&before=...` | Read a newest-first run-summary page using stable append ordinals. |
-| `GET /api/agent/sessions/{sid}/runs/{rid}` | Read one run's full request/plan/answer and a recent result window; complete plan content is required for approval. |
-| `GET /api/agent/sessions/{sid}/runs/{rid}/results?limit=20&before=...` | Read an ascending result window, with older-page continuation and authoritative progress counts. |
-| `POST /api/agent/sessions/{sid}/runs/{rid}/revise` | Accept a clarification answer bound to its question ID or plan feedback bound to its revision; start a new planning operation. |
-| `POST /api/agent/sessions/{sid}/runs/{rid}/reject` | Reject the matching clarification/plan waiting state without execution; no nonexistent plan digest is required for clarification. |
-| `POST /api/agent/sessions/{sid}/runs/{rid}/execute` | Validate submitted plan ID/revision/digest, durably approve, then stream sequential execution. |
-| `POST /api/agent/sessions/{sid}/runs/{rid}/cancel` | Request Stop for the supplied `operation_id`; return `202` while cancelling or its known settled outcome, never target a newer operation. |
-| `GET /api/agent/sessions/{sid}/events?after={sequence}&limit=50&through=...` | Page compact committed v2 events through a fixed catch-up sequence, not an indefinitely moving tail. |
-| `GET /api/agent/sessions/{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Read a character page of committed, same-session extracted-text evidence without fetching again or executing tools. |
-| `POST /api/agent/sessions/{sid}/archive` | Record archive intent, request targeted cancellation if needed, and archive after settlement; `202` while pending. |
+| Endpoint                                                                     | Purpose                                                                                                                                               |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/agent/sessions?include_archived=true&limit=25&cursor=...`          | List small journal-backed session headers using stable keyset pagination and an archive filter.                                                       |
+| `POST /api/agent/sessions`                                                   | Create an empty session; idempotent, no LLM call.                                                                                                     |
+| `GET /api/agent/sessions/{sid}`                                              | Return metadata/counts/current-run control plus committed sequence, not the entire session history; no inference.                                     |
+| `PATCH /api/agent/sessions/{sid}`                                            | Persist title/next-run preferences; reject model/thinking changes while a run is planning, awaiting clarification/approval, executing, or cancelling. |
+| `POST /api/agent/sessions/{sid}/runs`                                        | Record a user request and stream planning; finish at review/clarification, without tools.                                                             |
+| `GET /api/agent/sessions/{sid}/runs?limit=10&before=...`                     | Read a newest-first run-summary page using stable append ordinals.                                                                                    |
+| `GET /api/agent/sessions/{sid}/runs/{rid}`                                   | Read one run's full request/plan/answer and a recent result window; complete plan content is required for approval.                                   |
+| `GET /api/agent/sessions/{sid}/runs/{rid}/results?limit=20&before=...`       | Read an ascending result window, with older-page continuation and authoritative progress counts.                                                      |
+| `POST /api/agent/sessions/{sid}/runs/{rid}/revise`                           | Accept a clarification answer bound to its question ID or plan feedback bound to its revision; start a new planning operation.                        |
+| `POST /api/agent/sessions/{sid}/runs/{rid}/reject`                           | Reject the matching clarification/plan waiting state without execution; no nonexistent plan digest is required for clarification.                     |
+| `POST /api/agent/sessions/{sid}/runs/{rid}/execute`                          | Validate submitted plan ID/revision/digest, durably approve, then stream sequential execution.                                                        |
+| `POST /api/agent/sessions/{sid}/runs/{rid}/cancel`                           | Request Stop for the supplied `operation_id`; return `202` while cancelling or its known settled outcome, never target a newer operation.             |
+| `GET /api/agent/sessions/{sid}/events?after={sequence}&limit=50&through=...` | Page compact committed v2 events through a fixed catch-up sequence, not an indefinitely moving tail.                                                  |
+| `GET /api/agent/sessions/{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Read a character page of committed, same-session extracted-text evidence without fetching again or executing tools.                                   |
+| `POST /api/agent/sessions/{sid}/archive`                                     | Record archive intent, request targeted cancellation if needed, and archive after settlement; `202` while pending.                                    |
 
 Mutation requests use a client request ID/idempotency key bound to the request payload; reusing a key with different content is a conflict. Persist accepted commands and outcomes. Use a per-session operation lock and an explicit single-BFF-worker constraint initially; multiple workers require inter-process coordination, not just an asyncio lock.
 
@@ -311,17 +322,17 @@ Include rejection, duplicate approval, and Stop checks. Durable approval, bounde
 
 Then complete the remaining tools, multi-step execution, error/recovery paths, and full history UI. This validates the user's interaction early without relaxing the release gates.
 
-| Phase | Capability and required completion evidence |
-| --- | --- |
-| 0 | Explicit product/contracts decisions and a clean Chat baseline. |
-| 1 | Complete session-local recording, creation idempotency, paged history, and crash recovery. |
-| 2 | Four task-dependent tools with enforced filesystem/network policy and paged I/O. |
-| 3 | Tool-free planning, shared LLM audit/retries, clarification, and exact-version approval. |
-| 4 | Sequential current-step execution with complete logical interaction records. |
-| 5 | Idempotent Agent APIs, replay, and truthful cancellation/settlement status. |
-| 6 | Isolated mode navigation, histories, drafts, and Settings behavior. |
-| 7 | Reviewable scope, step progress, clarification/Stop, and archived history. |
-| 8 | Mocked integration, optional-search scenarios, realistic-task evaluation, full regressions, and documentation. |
+| Phase | Capability and required completion evidence                                                                    |
+| ----- | -------------------------------------------------------------------------------------------------------------- |
+| 0     | Explicit product/contracts decisions and a clean Chat baseline.                                                |
+| 1     | Complete session-local recording, creation idempotency, paged history, and crash recovery.                     |
+| 2     | Four task-dependent tools with enforced filesystem/network policy and paged I/O.                               |
+| 3     | Tool-free planning, shared LLM audit/retries, clarification, and exact-version approval.                       |
+| 4     | Sequential current-step execution with complete logical interaction records.                                   |
+| 5     | Idempotent Agent APIs, replay, and truthful cancellation/settlement status.                                    |
+| 6     | Isolated mode navigation, histories, drafts, and Settings behavior.                                            |
+| 7     | Reviewable scope, step progress, clarification/Stop, and archived history.                                     |
+| 8     | Mocked integration, optional-search scenarios, realistic-task evaluation, full regressions, and documentation. |
 
 Real Azure/search smoke testing remains optional and requires explicit authorization/configuration. Do not confuse passing mocks with verified live deployment compatibility.
 

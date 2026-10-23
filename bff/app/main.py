@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import anyio
+import httpx
 from azure.core.credentials_async import AsyncTokenCredential
 from fastapi import FastAPI
 from openai import AsyncOpenAI
@@ -9,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from app.agent import AgentService
 from app.agent_files import AgentFault
+from app.agent_responses import build_recorded_planner, create_http_client
 from app.agent_routes import router as agent_router
 from app.auth import create_bearer_provider, create_credential
 from app.responses import ChatService
@@ -21,6 +24,7 @@ def create_app(
     *,
     credential_factory: Callable[[Settings], AsyncTokenCredential] = create_credential,
     client_factory: Callable[..., AsyncOpenAI] = AsyncOpenAI,
+    agent_http_client_factory: Callable[..., httpx.AsyncClient] = create_http_client,
     agent_service_factory: Callable[[Settings], AgentService] | None = None,
 ) -> FastAPI:
     @asynccontextmanager
@@ -40,18 +44,40 @@ def create_app(
             stack.push_async_callback(client.close)
             application.state.settings = configuration
             application.state.chat_service = ChatService(client, configuration)
-            agent_service = (
-                agent_service_factory(configuration)
-                if agent_service_factory is not None
-                else AgentService(models=configuration.available_models, eager=False)
-            )
+            if agent_service_factory is not None:
+                agent_service = agent_service_factory(configuration)
+            else:
+                agent_client = agent_http_client_factory(
+                    timeout=configuration.provider_timeout_seconds
+                )
+                stack.push_async_callback(agent_client.aclose)
+                agent_service = AgentService(
+                    planner=build_recorded_planner(
+                        agent_client,
+                        configuration.openai_base_url,
+                        bearer_provider,
+                        configuration.max_output_tokens,
+                    ),
+                    models=configuration.available_models,
+                    eager=False,
+                )
             application.state.agent_service = agent_service
             stack.push_async_callback(agent_service.close)
             await agent_service.start()
             yield
         finally:
             with anyio.CancelScope(shield=True):
-                await stack.aclose()
+                cleanup = asyncio.create_task(stack.aclose())
+                cancelled = False
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        cancelled = True
+                # Retrieve cleanup errors only after every registered owner settles.
+                cleanup.result()
+                if cancelled:
+                    raise asyncio.CancelledError
 
     application = FastAPI(title="Assistant Responses API", lifespan=lifespan)
     application.include_router(router)

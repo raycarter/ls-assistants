@@ -201,6 +201,25 @@ export function sameControl(a: RunControl, b: RunControl): boolean {
     return a[key as keyof RunControl] === b[key as keyof RunControl];
   });
 }
+export function isLlmEvent(event: AgentEvent): boolean {
+  return event.type.startsWith('llm.');
+}
+/** Private observations may change recording clocks, never the loaded coordinator controls. */
+export function validateLlmProgress(previous: RunControl, event: AgentEvent): void {
+  if (
+    isLlmEvent(event) &&
+    (!event.run ||
+      !sameControl(
+        {
+          ...previous,
+          updated_at: event.run.updated_at,
+          version_sequence: event.run.version_sequence,
+        },
+        event.run,
+      ))
+  )
+    return invalidAgent();
+}
 export function controlOf(run: AgentRun): RunControl {
   const {
     id,
@@ -540,6 +559,22 @@ export function parseAgentEvent(value: unknown): AgentEvent {
   const event = value as unknown as AgentEvent;
   const session = parseAgentSession(event.session);
   const run = event.run === null ? null : parseRunControl(event.run);
+  if (
+    isLlmEvent(event) &&
+    (!['llm.intent', 'llm.dispatched', 'llm.output', 'llm.outcome', 'llm.validation'].includes(
+      event.type,
+    ) ||
+      event.invalidates_runs ||
+      !run ||
+      !(
+        ['llm.intent', 'llm.dispatched'].includes(event.type)
+          ? ['planning', 'approved', 'executing']
+          : ['planning', 'approved', 'executing', 'cancelling']
+      ).includes(run.status) ||
+      event.error?.code !== run.error?.code ||
+      event.error?.message !== run.error?.message)
+  )
+    return invalidAgent();
   if (
     session.id !== event.session_id ||
     session.sequence !== event.sequence ||

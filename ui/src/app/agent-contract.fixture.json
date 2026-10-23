@@ -30,7 +30,7 @@
           "content": "Read the public fixture"
         }
       },
-      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":4,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":5,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000004\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":4,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000002\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":5,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000002\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000005\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct01",
@@ -54,7 +54,7 @@
           "plan_identity": {
             "id": "00000000000000000000000000000003",
             "revision": 1,
-            "digest": "5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99",
+            "digest": "95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -86,7 +86,7 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99",
+          "digest": "95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399",
           "id": "00000000000000000000000000000003",
           "model": "deployment-a",
           "objective": "Read the public fixture",
@@ -101,7 +101,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "00000000000000000000000000000004",
+              "id": "00000000000000000000000000000005",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -142,7 +142,7 @@
           "plan_identity": {
             "id": "00000000000000000000000000000003",
             "revision": 1,
-            "digest": "5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99",
+            "digest": "95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -156,7 +156,7 @@
         "run_id": "00000000000000000000000000000001",
         "plan_id": "00000000000000000000000000000003",
         "revision": 1,
-        "digest": "5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99",
+        "digest": "95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399",
         "kind": "feedback",
         "content": "Keep the two-line page."
       },
@@ -167,12 +167,12 @@
           "request_id": "revise",
           "plan_id": "00000000000000000000000000000003",
           "revision": 1,
-          "digest": "5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99",
+          "digest": "95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399",
           "kind": "feedback",
           "content": "Keep the two-line page."
         }
       },
-      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000005\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"5dea73a11c732872bd2b96820d8ec58d92a6ece32e3bf7635b43a1ee0258de99\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000005\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000006\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000006\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000006\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000006\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000006\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":1,\"digest\":\"95e627744285f4ef17cc10c6347958ec9201b1665b3e2d5be81f43d154b3a399\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"revise\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000006\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000008\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct01",
@@ -196,7 +196,7 @@
           "plan_identity": {
             "id": "00000000000000000000000000000003",
             "revision": 2,
-            "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8",
+            "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -228,7 +228,7 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8",
+          "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed",
           "id": "00000000000000000000000000000003",
           "model": "deployment-a",
           "objective": "Read the public fixture",
@@ -243,7 +243,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "00000000000000000000000000000006",
+              "id": "00000000000000000000000000000008",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -284,7 +284,7 @@
           "plan_identity": {
             "id": "00000000000000000000000000000003",
             "revision": 2,
-            "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8",
+            "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -298,7 +298,7 @@
         "run_id": "00000000000000000000000000000001",
         "plan_id": "00000000000000000000000000000003",
         "revision": 2,
-        "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8"
+        "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed"
       },
       "http": {
         "method": "POST",
@@ -307,10 +307,10 @@
           "request_id": "execute",
           "plan_id": "00000000000000000000000000000003",
           "revision": 2,
-          "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8"
+          "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed"
         }
       },
-      "sse": "id: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":12,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":12,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":12,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000006\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":13,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000007\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000006\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 14\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":14,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000007\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":14,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":null},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":14,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000009\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000009\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000009\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":12,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":12,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":12,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000008\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000009\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":13,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000009\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000008\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 14\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":14,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct01\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000001\",\"operation_id\":\"00000000000000000000000000000009\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct01\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":14,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000001\",\"current_run\":null},\"run\":{\"id\":\"00000000000000000000000000000001\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":14,\"plan_identity\":{\"id\":\"00000000000000000000000000000003\",\"revision\":2,\"digest\":\"8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct01",
@@ -349,7 +349,7 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8",
+          "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed",
           "id": "00000000000000000000000000000003",
           "model": "deployment-a",
           "objective": "Read the public fixture",
@@ -364,7 +364,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "00000000000000000000000000000006",
+              "id": "00000000000000000000000000000008",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -379,7 +379,7 @@
             "path": "public.txt",
             "returned_lines": 2,
             "status": "completed",
-            "step_id": "00000000000000000000000000000006",
+            "step_id": "00000000000000000000000000000008",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": true
           }
@@ -407,18 +407,18 @@
         "archive_pending": false,
         "sequence": 5,
         "run_count": 1,
-        "latest_run_id": "00000000000000000000000000000008",
+        "latest_run_id": "0000000000000000000000000000000b",
         "current_run": {
-          "id": "00000000000000000000000000000008",
+          "id": "0000000000000000000000000000000b",
           "status": "awaiting_approval",
           "operation_id": null,
           "created_at": "2026-10-16T09:00:00.123456Z",
           "updated_at": "2026-10-16T09:00:00.123456Z",
           "version_sequence": 5,
           "plan_identity": {
-            "id": "0000000000000000000000000000000a",
+            "id": "0000000000000000000000000000000d",
             "revision": 1,
-            "digest": "b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c",
+            "digest": "4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -429,22 +429,22 @@
       },
       "command": {
         "action": "execute",
-        "run_id": "00000000000000000000000000000008",
-        "plan_id": "0000000000000000000000000000000a",
+        "run_id": "0000000000000000000000000000000b",
+        "plan_id": "0000000000000000000000000000000d",
         "revision": 1,
-        "digest": "b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c"
+        "digest": "4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6"
       },
       "http": {
         "method": "POST",
-        "url": "/api/agent/sessions/20261016T090000123456Z-ct02/runs/00000000000000000000000000000008/execute",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct02/runs/0000000000000000000000000000000b/execute",
         "body": {
           "request_id": "execute",
-          "plan_id": "0000000000000000000000000000000a",
+          "plan_id": "0000000000000000000000000000000d",
           "revision": 1,
-          "digest": "b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c"
+          "digest": "4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6"
         }
       },
-      "sse": "id: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000008\",\"current_run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"approved\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"approved\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000008\",\"current_run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000008\",\"current_run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"0000000000000000000000000000000b\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000008\",\"current_run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000000c\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"0000000000000000000000000000000b\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000008\",\"operation_id\":\"0000000000000000000000000000000c\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000008\",\"current_run\":null},\"run\":{\"id\":\"00000000000000000000000000000008\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"0000000000000000000000000000000a\",\"revision\":1,\"digest\":\"b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000b\",\"operation_id\":\"00000000000000000000000000000010\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000b\",\"current_run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000b\",\"operation_id\":\"00000000000000000000000000000010\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000b\",\"current_run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000b\",\"operation_id\":\"00000000000000000000000000000010\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000b\",\"current_run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"0000000000000000000000000000000f\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000b\",\"operation_id\":\"00000000000000000000000000000010\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000b\",\"current_run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000010\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"0000000000000000000000000000000f\",\"status\":\"completed\",\"content\":\"1: alpha 🌱\\n2: beta\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":\"public.txt\",\"offset\":1,\"returned_lines\":2,\"truncated\":true,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct02\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000b\",\"operation_id\":\"00000000000000000000000000000010\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct02\",\"title\":\"A title committed before admission\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000b\",\"current_run\":null},\"run\":{\"id\":\"0000000000000000000000000000000b\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":11,\"plan_identity\":{\"id\":\"0000000000000000000000000000000d\",\"revision\":1,\"digest\":\"4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved file read(s). See the recorded excerpts.\",\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct02",
@@ -457,12 +457,12 @@
         "archive_pending": false,
         "sequence": 11,
         "run_count": 1,
-        "latest_run_id": "00000000000000000000000000000008",
+        "latest_run_id": "0000000000000000000000000000000b",
         "current_run": null
       },
       "terminal_run": {
         "projection_version": 2,
-        "id": "00000000000000000000000000000008",
+        "id": "0000000000000000000000000000000b",
         "request": "Read the public fixture",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T09:00:00.123456Z",
@@ -483,8 +483,8 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c",
-          "id": "0000000000000000000000000000000a",
+          "digest": "4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6",
+          "id": "0000000000000000000000000000000d",
           "model": "deployment-a",
           "objective": "Read the public fixture",
           "reasoning_effort": "medium",
@@ -498,7 +498,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "0000000000000000000000000000000b",
+              "id": "0000000000000000000000000000000f",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -513,7 +513,7 @@
             "path": "public.txt",
             "returned_lines": 2,
             "status": "completed",
-            "step_id": "0000000000000000000000000000000b",
+            "step_id": "0000000000000000000000000000000f",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": true
           }
@@ -549,18 +549,18 @@
             "archive_pending": false,
             "sequence": 6,
             "run_count": 1,
-            "latest_run_id": "00000000000000000000000000000008",
+            "latest_run_id": "0000000000000000000000000000000b",
             "current_run": {
-              "id": "00000000000000000000000000000008",
+              "id": "0000000000000000000000000000000b",
               "status": "awaiting_approval",
               "operation_id": null,
               "created_at": "2026-10-16T09:00:00.123456Z",
               "updated_at": "2026-10-16T09:00:00.123456Z",
               "version_sequence": 5,
               "plan_identity": {
-                "id": "0000000000000000000000000000000a",
+                "id": "0000000000000000000000000000000d",
                 "revision": 1,
-                "digest": "b153ed8475f0843928571d8073d6edab335b5e2f93361a75b91b8dc1889f873c",
+                "digest": "4aefc412f8d3e6e5a29dd12cd1d934a5ff6d6fd00295c2c3729a35738fbe2fa6",
                 "model": "deployment-a",
                 "reasoning_effort": "medium"
               },
@@ -586,18 +586,18 @@
         "archive_pending": false,
         "sequence": 5,
         "run_count": 1,
-        "latest_run_id": "0000000000000000000000000000000d",
+        "latest_run_id": "00000000000000000000000000000012",
         "current_run": {
-          "id": "0000000000000000000000000000000d",
+          "id": "00000000000000000000000000000012",
           "status": "awaiting_approval",
           "operation_id": null,
           "created_at": "2026-10-16T09:00:00.123456Z",
           "updated_at": "2026-10-16T09:00:00.123456Z",
           "version_sequence": 5,
           "plan_identity": {
-            "id": "0000000000000000000000000000000f",
+            "id": "00000000000000000000000000000014",
             "revision": 1,
-            "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980",
+            "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -608,29 +608,29 @@
       },
       "command": {
         "action": "execute",
-        "run_id": "0000000000000000000000000000000d",
-        "plan_id": "0000000000000000000000000000000f",
+        "run_id": "00000000000000000000000000000012",
+        "plan_id": "00000000000000000000000000000014",
         "revision": 1,
-        "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980"
+        "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5"
       },
       "http": {
         "method": "POST",
-        "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/execute",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/00000000000000000000000000000012/execute",
         "body": {
           "request_id": "execute",
-          "plan_id": "0000000000000000000000000000000f",
+          "plan_id": "00000000000000000000000000000014",
           "revision": 1,
-          "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980"
+          "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5"
         }
       },
       "controls": [
         {
           "http": {
             "method": "POST",
-            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/cancel",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/00000000000000000000000000000012/cancel",
             "body": {
               "request_id": "old-stop",
-              "operation_id": "0000000000000000000000000000000e"
+              "operation_id": "00000000000000000000000000000013"
             }
           },
           "status": 200,
@@ -646,18 +646,18 @@
             "archive_pending": false,
             "sequence": 9,
             "run_count": 1,
-            "latest_run_id": "0000000000000000000000000000000d",
+            "latest_run_id": "00000000000000000000000000000012",
             "current_run": {
-              "id": "0000000000000000000000000000000d",
+              "id": "00000000000000000000000000000012",
               "status": "executing",
-              "operation_id": "00000000000000000000000000000011",
+              "operation_id": "00000000000000000000000000000017",
               "created_at": "2026-10-16T09:00:00.123456Z",
               "updated_at": "2026-10-16T09:00:00.123456Z",
               "version_sequence": 8,
               "plan_identity": {
-                "id": "0000000000000000000000000000000f",
+                "id": "00000000000000000000000000000014",
                 "revision": 1,
-                "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980",
+                "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5",
                 "model": "deployment-a",
                 "reasoning_effort": "medium"
               },
@@ -670,10 +670,10 @@
         {
           "http": {
             "method": "POST",
-            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/0000000000000000000000000000000d/cancel",
+            "url": "/api/agent/sessions/20261016T090000123456Z-ct03/runs/00000000000000000000000000000012/cancel",
             "body": {
               "request_id": "stop",
-              "operation_id": "00000000000000000000000000000011"
+              "operation_id": "00000000000000000000000000000017"
             }
           },
           "status": 202,
@@ -689,18 +689,18 @@
             "archive_pending": false,
             "sequence": 11,
             "run_count": 1,
-            "latest_run_id": "0000000000000000000000000000000d",
+            "latest_run_id": "00000000000000000000000000000012",
             "current_run": {
-              "id": "0000000000000000000000000000000d",
+              "id": "00000000000000000000000000000012",
               "status": "cancelling",
-              "operation_id": "00000000000000000000000000000011",
+              "operation_id": "00000000000000000000000000000017",
               "created_at": "2026-10-16T09:00:00.123456Z",
               "updated_at": "2026-10-16T09:00:00.123456Z",
               "version_sequence": 10,
               "plan_identity": {
-                "id": "0000000000000000000000000000000f",
+                "id": "00000000000000000000000000000014",
                 "revision": 1,
-                "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980",
+                "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5",
                 "model": "deployment-a",
                 "reasoning_effort": "medium"
               },
@@ -731,18 +731,18 @@
             "archive_pending": true,
             "sequence": 12,
             "run_count": 1,
-            "latest_run_id": "0000000000000000000000000000000d",
+            "latest_run_id": "00000000000000000000000000000012",
             "current_run": {
-              "id": "0000000000000000000000000000000d",
+              "id": "00000000000000000000000000000012",
               "status": "cancelling",
-              "operation_id": "00000000000000000000000000000011",
+              "operation_id": "00000000000000000000000000000017",
               "created_at": "2026-10-16T09:00:00.123456Z",
               "updated_at": "2026-10-16T09:00:00.123456Z",
               "version_sequence": 10,
               "plan_identity": {
-                "id": "0000000000000000000000000000000f",
+                "id": "00000000000000000000000000000014",
                 "revision": 1,
-                "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980",
+                "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5",
                 "model": "deployment-a",
                 "reasoning_effort": "medium"
               },
@@ -753,7 +753,7 @@
           }
         }
       ],
-      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"old-stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.cancelling\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"archive\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.archive_pending\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":true,\"sequence\":12,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000011\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000000d\",\"operation_id\":\"00000000000000000000000000000011\",\"type\":\"run.cancelled\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":true,\"archive_pending\":false,\"sequence\":13,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000000d\",\"current_run\":null},\"run\":{\"id\":\"0000000000000000000000000000000d\",\"status\":\"cancelled\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"0000000000000000000000000000000f\",\"revision\":1,\"digest\":\"c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"}},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000010\",\"status\":\"failed\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"invalidates_runs\":false}\n\n",
+      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000017\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000017\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000017\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000016\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"old-stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000017\",\"type\":\"run.cancelling\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 11\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":11,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"stop\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.updated\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":11,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 12\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":12,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"archive\",\"run_id\":null,\"operation_id\":null,\"type\":\"session.archive_pending\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":true,\"sequence\":12,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"cancelling\",\"operation_id\":\"00000000000000000000000000000017\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":null,\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 13\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":13,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct03\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000017\",\"type\":\"run.cancelled\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct03\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":true,\"archive_pending\":false,\"sequence\":13,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":null},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"cancelled\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":13,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"}},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000016\",\"status\":\"failed\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":{\"code\":\"operation_stopped\",\"message\":\"The read operation stopped.\"},\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct03",
@@ -766,12 +766,12 @@
         "archive_pending": false,
         "sequence": 13,
         "run_count": 1,
-        "latest_run_id": "0000000000000000000000000000000d",
+        "latest_run_id": "00000000000000000000000000000012",
         "current_run": null
       },
       "terminal_run": {
         "projection_version": 2,
-        "id": "0000000000000000000000000000000d",
+        "id": "00000000000000000000000000000012",
         "request": "Read the public fixture",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T09:00:00.123456Z",
@@ -792,8 +792,8 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "c23672e7362bcd40a6660e04755a4562fb342d7c6af76695cfcfb0a3f553c980",
-          "id": "0000000000000000000000000000000f",
+          "digest": "c7182d7cf05aef5e4074c2ce9e8311112446a37d0e8c59080c58c64a8c82f4c5",
+          "id": "00000000000000000000000000000014",
           "model": "deployment-a",
           "objective": "Read the public fixture",
           "reasoning_effort": "medium",
@@ -807,7 +807,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "00000000000000000000000000000010",
+              "id": "00000000000000000000000000000016",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -825,7 +825,7 @@
             "path": null,
             "returned_lines": null,
             "status": "failed",
-            "step_id": "00000000000000000000000000000010",
+            "step_id": "00000000000000000000000000000016",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": false
           }
@@ -871,7 +871,7 @@
           "content": "Read the public fixture"
         }
       },
-      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":4,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":4,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000013\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":4,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":5,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000012\",\"operation_id\":\"00000000000000000000000000000013\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000012\",\"current_run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"fa91e3dd40ff2ca29aeb9e7491daee39f9694541bef8f6d8b455526a37554a95\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000012\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"fa91e3dd40ff2ca29aeb9e7491daee39f9694541bef8f6d8b455526a37554a95\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000014\",\"revision\":1,\"digest\":\"fa91e3dd40ff2ca29aeb9e7491daee39f9694541bef8f6d8b455526a37554a95\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"00000000000000000000000000000015\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000019\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000019\",\"current_run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000019\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"planner.attempt\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000019\",\"current_run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":4,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000019\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000019\",\"current_run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":4,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"planning\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":4,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":5,\"time\":\"2026-10-16T08:59:59.123456Z\",\"session_id\":\"20261016T090000123456Z-ct04\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000019\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct04\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000019\",\"current_run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"0000000000000000000000000000001b\",\"revision\":1,\"digest\":\"e10e44e34d6f94bd5d81bac2cbde542cf60e26ca286a2ffc742d6e7e04857eb4\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000019\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T08:59:59.123456Z\",\"version_sequence\":5,\"plan_identity\":{\"id\":\"0000000000000000000000000000001b\",\"revision\":1,\"digest\":\"e10e44e34d6f94bd5d81bac2cbde542cf60e26ca286a2ffc742d6e7e04857eb4\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"0000000000000000000000000000001b\",\"revision\":1,\"digest\":\"e10e44e34d6f94bd5d81bac2cbde542cf60e26ca286a2ffc742d6e7e04857eb4\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000001d\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct04",
@@ -884,18 +884,18 @@
         "archive_pending": false,
         "sequence": 5,
         "run_count": 1,
-        "latest_run_id": "00000000000000000000000000000012",
+        "latest_run_id": "00000000000000000000000000000019",
         "current_run": {
-          "id": "00000000000000000000000000000012",
+          "id": "00000000000000000000000000000019",
           "status": "awaiting_approval",
           "operation_id": null,
           "created_at": "2026-10-16T09:00:00.123456Z",
           "updated_at": "2026-10-16T08:59:59.123456Z",
           "version_sequence": 5,
           "plan_identity": {
-            "id": "00000000000000000000000000000014",
+            "id": "0000000000000000000000000000001b",
             "revision": 1,
-            "digest": "fa91e3dd40ff2ca29aeb9e7491daee39f9694541bef8f6d8b455526a37554a95",
+            "digest": "e10e44e34d6f94bd5d81bac2cbde542cf60e26ca286a2ffc742d6e7e04857eb4",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -906,7 +906,7 @@
       },
       "terminal_run": {
         "projection_version": 2,
-        "id": "00000000000000000000000000000012",
+        "id": "00000000000000000000000000000019",
         "request": "Read the public fixture",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T08:59:59.123456Z",
@@ -927,8 +927,8 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "fa91e3dd40ff2ca29aeb9e7491daee39f9694541bef8f6d8b455526a37554a95",
-          "id": "00000000000000000000000000000014",
+          "digest": "e10e44e34d6f94bd5d81bac2cbde542cf60e26ca286a2ffc742d6e7e04857eb4",
+          "id": "0000000000000000000000000000001b",
           "model": "deployment-a",
           "objective": "Read the public fixture",
           "reasoning_effort": "medium",
@@ -942,7 +942,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "00000000000000000000000000000015",
+              "id": "0000000000000000000000000000001d",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -972,18 +972,18 @@
         "archive_pending": false,
         "sequence": 5,
         "run_count": 1,
-        "latest_run_id": "00000000000000000000000000000016",
+        "latest_run_id": "0000000000000000000000000000001e",
         "current_run": {
-          "id": "00000000000000000000000000000016",
+          "id": "0000000000000000000000000000001e",
           "status": "awaiting_approval",
           "operation_id": null,
           "created_at": "2026-10-16T09:00:00.123456Z",
           "updated_at": "2026-10-16T09:00:00.123456Z",
           "version_sequence": 5,
           "plan_identity": {
-            "id": "00000000000000000000000000000018",
+            "id": "00000000000000000000000000000020",
             "revision": 1,
-            "digest": "7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2",
+            "digest": "a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -994,22 +994,22 @@
       },
       "command": {
         "action": "execute",
-        "run_id": "00000000000000000000000000000016",
-        "plan_id": "00000000000000000000000000000018",
+        "run_id": "0000000000000000000000000000001e",
+        "plan_id": "00000000000000000000000000000020",
         "revision": 1,
-        "digest": "7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2"
+        "digest": "a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de"
       },
       "http": {
         "method": "POST",
-        "url": "/api/agent/sessions/20261016T090000123456Z-ct06/runs/00000000000000000000000000000016/execute",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct06/runs/0000000000000000000000000000001e/execute",
         "body": {
           "request_id": "execute",
-          "plan_id": "00000000000000000000000000000018",
+          "plan_id": "00000000000000000000000000000020",
           "revision": 1,
-          "digest": "7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2"
+          "digest": "a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de"
         }
       },
-      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000016\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000016\",\"current_run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"approved\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"approved\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000016\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000016\",\"current_run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000016\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000016\",\"current_run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000019\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000016\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000016\",\"current_run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"executing\",\"operation_id\":\"0000000000000000000000000000001a\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000019\",\"status\":\"completed\",\"content\":\"Public evidence 🌱\\n\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":{\"artifact_id\":\"0000000000000000000000000000001b\",\"requested_url\":\"https://example.com/public\",\"final_url\":\"https://example.com/public-text\",\"title\":\"Public evidence\",\"status_code\":200,\"content_type\":\"text/html\",\"fetched_at\":\"2026-10-16T09:00:00.123456Z\",\"redirects\":[\"https://example.com/public-text\"],\"total_chars\":52,\"offset\":0,\"returned_chars\":18,\"next_offset\":18}},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"00000000000000000000000000000016\",\"operation_id\":\"0000000000000000000000000000001a\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000016\",\"current_run\":null},\"run\":{\"id\":\"00000000000000000000000000000016\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000018\",\"revision\":1,\"digest\":\"7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved tool call(s). See the recorded evidence.\",\"error\":null,\"invalidates_runs\":false}\n\n",
+      "sse": "id: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000001e\",\"operation_id\":\"00000000000000000000000000000023\",\"type\":\"run.approved\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000001e\",\"current_run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"approved\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":6,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000001e\",\"operation_id\":\"00000000000000000000000000000023\",\"type\":\"run.executing\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000001e\",\"current_run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":7,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000001e\",\"operation_id\":\"00000000000000000000000000000023\",\"type\":\"tool.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000001e\",\"current_run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":8,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000022\",\"status\":\"running\",\"content\":\"\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":null},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000001e\",\"operation_id\":\"00000000000000000000000000000023\",\"type\":\"tool.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000001e\",\"current_run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null}},\"run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"executing\",\"operation_id\":\"00000000000000000000000000000023\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":9,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":{\"step_id\":\"00000000000000000000000000000022\",\"status\":\"completed\",\"content\":\"Public evidence 🌱\\n\",\"time\":\"2026-10-16T09:00:00.123456Z\",\"error\":null,\"path\":null,\"offset\":null,\"returned_lines\":null,\"truncated\":false,\"fetch\":{\"artifact_id\":\"00000000000000000000000000000025\",\"requested_url\":\"https://example.com/public\",\"final_url\":\"https://example.com/public-text\",\"title\":\"Public evidence\",\"status_code\":200,\"content_type\":\"text/html\",\"fetched_at\":\"2026-10-16T09:00:00.123456Z\",\"redirects\":[\"https://example.com/public-text\"],\"total_chars\":52,\"offset\":0,\"returned_chars\":18,\"next_offset\":18}},\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct06\",\"request_id\":\"execute\",\"run_id\":\"0000000000000000000000000000001e\",\"operation_id\":\"00000000000000000000000000000023\",\"type\":\"run.completed\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct06\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"0000000000000000000000000000001e\",\"current_run\":null},\"run\":{\"id\":\"0000000000000000000000000000001e\",\"status\":\"completed\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000020\",\"revision\":1,\"digest\":\"a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":1,\"completed_steps\":1,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":\"Completed 1 approved tool call(s). See the recorded evidence.\",\"error\":null,\"invalidates_runs\":false}\n\n",
       "terminal": {
         "projection_version": 2,
         "id": "20261016T090000123456Z-ct06",
@@ -1022,12 +1022,12 @@
         "archive_pending": false,
         "sequence": 10,
         "run_count": 1,
-        "latest_run_id": "00000000000000000000000000000016",
+        "latest_run_id": "0000000000000000000000000000001e",
         "current_run": null
       },
       "terminal_run": {
         "projection_version": 2,
-        "id": "00000000000000000000000000000016",
+        "id": "0000000000000000000000000000001e",
         "request": "Read https://example.com/public",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T09:00:00.123456Z",
@@ -1045,8 +1045,8 @@
             "workspaces": "public"
           },
           "assumptions": ["Workspace assumptions are unverified; planning performs no reads."],
-          "digest": "7ba6bafc9ef01e4ffca6a4c5ae6f196e89ef3cfcc02d71ef7a7b70bb445e66f2",
-          "id": "00000000000000000000000000000018",
+          "digest": "a63eefb6a2b0f5e2864a0d1a4d85f8cb5249265a162ec8d92496b16f27db33de",
+          "id": "00000000000000000000000000000020",
           "model": "deployment-a",
           "objective": "Read the supplied public URL",
           "reasoning_effort": "medium",
@@ -1059,7 +1059,7 @@
                 "url": "https://example.com/public"
               },
               "description": "Preserve full text; return the first page.",
-              "id": "00000000000000000000000000000019",
+              "id": "00000000000000000000000000000022",
               "title": "Fetch public evidence",
               "tool": "web_fetch"
             }
@@ -1070,7 +1070,7 @@
             "content": "Public evidence 🌱\n",
             "error": null,
             "fetch": {
-              "artifact_id": "0000000000000000000000000000001b",
+              "artifact_id": "00000000000000000000000000000025",
               "content_type": "text/html",
               "fetched_at": "2026-10-16T09:00:00.123456Z",
               "final_url": "https://example.com/public-text",
@@ -1087,7 +1087,7 @@
             "path": null,
             "returned_lines": null,
             "status": "completed",
-            "step_id": "00000000000000000000000000000019",
+            "step_id": "00000000000000000000000000000022",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": false
           }
@@ -1103,17 +1103,133 @@
       "artifact_page": {
         "http": {
           "method": "GET",
-          "url": "/api/agent/sessions/20261016T090000123456Z-ct06/artifacts/0000000000000000000000000000001b?offset=18&limit=12000"
+          "url": "/api/agent/sessions/20261016T090000123456Z-ct06/artifacts/00000000000000000000000000000025?offset=18&limit=12000"
         },
         "status": 200,
         "body": {
-          "artifact_id": "0000000000000000000000000000001b",
+          "artifact_id": "00000000000000000000000000000025",
           "content": "Continuation from durable storage.",
           "offset": 18,
           "returned_chars": 34,
           "total_chars": 52,
           "next_offset": null
         }
+      }
+    },
+    {
+      "name": "recorded_planning",
+      "baseline": {
+        "projection_version": 2,
+        "id": "20261016T090000123456Z-ct08",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 1,
+        "run_count": 0,
+        "latest_run_id": null,
+        "current_run": null
+      },
+      "command": {
+        "action": "runs",
+        "content": "Read the public fixture"
+      },
+      "http": {
+        "method": "POST",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct08/runs",
+        "body": {
+          "request_id": "plan",
+          "content": "Read the public fixture"
+        }
+      },
+      "sse": "id: 2\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":2,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"run.planning\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":2,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":\"Read the public fixture\",\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 3\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":3,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.intent\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":3,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 4\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":4,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.dispatched\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":4,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 5\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":5,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.output\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":5,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 6\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":6,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.output\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":6,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 7\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":7,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.outcome\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":7,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 8\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":8,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"llm.validation\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":8,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 9\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":9,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"planner.result\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":9,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"planning\",\"operation_id\":\"00000000000000000000000000000027\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":2,\"plan_identity\":null,\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":null,\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\nid: 10\nevent: agent\ndata: {\"schema_version\":2,\"sequence\":10,\"time\":\"2026-10-16T09:00:00.123456Z\",\"session_id\":\"20261016T090000123456Z-ct08\",\"request_id\":\"plan\",\"run_id\":\"00000000000000000000000000000026\",\"operation_id\":\"00000000000000000000000000000027\",\"type\":\"run.awaiting_approval\",\"session\":{\"projection_version\":2,\"id\":\"20261016T090000123456Z-ct08\",\"title\":\"New Agent session\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"archived\":false,\"archive_pending\":false,\"sequence\":10,\"run_count\":1,\"latest_run_id\":\"00000000000000000000000000000026\",\"current_run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000028\",\"revision\":1,\"digest\":\"ec6ec1c4e028ffbd35c51cd0e645693360e7d9ace934492b659de80d4bfd4d0a\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null}},\"run\":{\"id\":\"00000000000000000000000000000026\",\"status\":\"awaiting_approval\",\"operation_id\":null,\"created_at\":\"2026-10-16T09:00:00.123456Z\",\"updated_at\":\"2026-10-16T09:00:00.123456Z\",\"version_sequence\":10,\"plan_identity\":{\"id\":\"00000000000000000000000000000028\",\"revision\":1,\"digest\":\"ec6ec1c4e028ffbd35c51cd0e645693360e7d9ace934492b659de80d4bfd4d0a\",\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\"},\"result_count\":0,\"completed_steps\":0,\"error\":null},\"request\":null,\"plan\":{\"id\":\"00000000000000000000000000000028\",\"revision\":1,\"digest\":\"ec6ec1c4e028ffbd35c51cd0e645693360e7d9ace934492b659de80d4bfd4d0a\",\"objective\":\"Read the public fixture\",\"assumptions\":[\"Workspace assumptions are unverified; planning performs no reads.\",\"The public file is unverified.\"],\"model\":\"deployment-a\",\"reasoning_effort\":\"medium\",\"steps\":[{\"title\":\"Read public text\",\"description\":\"Read the first two lines only.\",\"tool\":\"read_file\",\"arguments\":{\"workspace_id\":\"public\",\"path\":\"public.txt\",\"offset\":1,\"limit\":2},\"id\":\"0000000000000000000000000000002c\"}],\"access_policy\":{\"enabled_tools\":\"read_file,web_fetch\",\"network_policy_version\":\"public-web-v1\",\"roots_digest\":\"de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f\",\"rules_digest\":\"24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda\",\"storage_digest\":\"77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d\",\"tool_registry_version\":\"agent-tools-v1\",\"version\":\"read-text-v4\",\"workspaces\":\"public\"}},\"result\":null,\"answer\":null,\"error\":null,\"invalidates_runs\":false}\n\n",
+      "terminal": {
+        "projection_version": 2,
+        "id": "20261016T090000123456Z-ct08",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 10,
+        "run_count": 1,
+        "latest_run_id": "00000000000000000000000000000026",
+        "current_run": {
+          "id": "00000000000000000000000000000026",
+          "status": "awaiting_approval",
+          "operation_id": null,
+          "created_at": "2026-10-16T09:00:00.123456Z",
+          "updated_at": "2026-10-16T09:00:00.123456Z",
+          "version_sequence": 10,
+          "plan_identity": {
+            "id": "00000000000000000000000000000028",
+            "revision": 1,
+            "digest": "ec6ec1c4e028ffbd35c51cd0e645693360e7d9ace934492b659de80d4bfd4d0a",
+            "model": "deployment-a",
+            "reasoning_effort": "medium"
+          },
+          "result_count": 0,
+          "completed_steps": 0,
+          "error": null
+        }
+      },
+      "terminal_run": {
+        "projection_version": 2,
+        "id": "00000000000000000000000000000026",
+        "request": "Read the public fixture",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "status": "awaiting_approval",
+        "operation_id": null,
+        "plan": {
+          "access_policy": {
+            "enabled_tools": "read_file,web_fetch",
+            "network_policy_version": "public-web-v1",
+            "roots_digest": "de8e7d13ae1c1e90749193bb76d5723e68f55c1eff973e299da543887b78a65f",
+            "rules_digest": "24d3731e39148c15636a832b4aab2755ffdc43ef21cee42ab3ce0f0c00c81fda",
+            "storage_digest": "77eeafe572f21aaa2295f66c042736d54b50ec0a003bcfa25116034853f1ea9d",
+            "tool_registry_version": "agent-tools-v1",
+            "version": "read-text-v4",
+            "workspaces": "public"
+          },
+          "assumptions": [
+            "Workspace assumptions are unverified; planning performs no reads.",
+            "The public file is unverified."
+          ],
+          "digest": "ec6ec1c4e028ffbd35c51cd0e645693360e7d9ace934492b659de80d4bfd4d0a",
+          "id": "00000000000000000000000000000028",
+          "model": "deployment-a",
+          "objective": "Read the public fixture",
+          "reasoning_effort": "medium",
+          "revision": 1,
+          "steps": [
+            {
+              "arguments": {
+                "limit": 2,
+                "offset": 1,
+                "path": "public.txt",
+                "workspace_id": "public"
+              },
+              "description": "Read the first two lines only.",
+              "id": "0000000000000000000000000000002c",
+              "title": "Read public text",
+              "tool": "read_file"
+            }
+          ]
+        },
+        "results": [],
+        "answer": null,
+        "error": null,
+        "clarification": null,
+        "version_sequence": 10,
+        "result_count": 0,
+        "completed_steps": 0,
+        "results_before": null
       }
     }
   ],
@@ -1140,7 +1256,7 @@
         "run_id": "00000000000000000000000000000001",
         "plan_id": "00000000000000000000000000000003",
         "revision": 2,
-        "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8"
+        "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed"
       },
       "http": {
         "method": "POST",
@@ -1149,7 +1265,7 @@
           "request_id": "execute",
           "plan_id": "00000000000000000000000000000003",
           "revision": 2,
-          "digest": "cab5d43c45d2901688ed89a80e3802aecb25d94efa3c364150afba90dba1b4d8"
+          "digest": "8b6e1e46879fc93ace132517cfec7e5ccf98c2dc29729defa83c251cc822f0ed"
         }
       },
       "status": 409,
@@ -1213,18 +1329,18 @@
         "archive_pending": false,
         "sequence": 8,
         "run_count": 1,
-        "latest_run_id": "0000000000000000000000000000001c",
+        "latest_run_id": "0000000000000000000000000000002d",
         "current_run": {
-          "id": "0000000000000000000000000000001c",
+          "id": "0000000000000000000000000000002d",
           "status": "executing",
           "operation_id": "execution-before-restart",
           "created_at": "2026-10-16T09:00:00.123456Z",
           "updated_at": "2026-10-16T09:00:00.123456Z",
           "version_sequence": 8,
           "plan_identity": {
-            "id": "0000000000000000000000000000001e",
+            "id": "0000000000000000000000000000002f",
             "revision": 1,
-            "digest": "0b18042bbe8af4ebc1e486f35626eebead0b612e0b098e2ca0734dc7511e4465",
+            "digest": "ae8d66f51810b1a66732c6436eed73bf1ec98ee6a0ad63300131ad90a458b6ff",
             "model": "deployment-a",
             "reasoning_effort": "medium"
           },
@@ -1235,7 +1351,7 @@
       },
       "baseline_run": {
         "projection_version": 2,
-        "id": "0000000000000000000000000000001c",
+        "id": "0000000000000000000000000000002d",
         "request": "Read the public fixture",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T09:00:00.123456Z",
@@ -1256,8 +1372,8 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "0b18042bbe8af4ebc1e486f35626eebead0b612e0b098e2ca0734dc7511e4465",
-          "id": "0000000000000000000000000000001e",
+          "digest": "ae8d66f51810b1a66732c6436eed73bf1ec98ee6a0ad63300131ad90a458b6ff",
+          "id": "0000000000000000000000000000002f",
           "model": "deployment-a",
           "objective": "Read the public fixture",
           "reasoning_effort": "medium",
@@ -1271,7 +1387,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "0000000000000000000000000000001f",
+              "id": "00000000000000000000000000000031",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -1286,7 +1402,7 @@
             "path": null,
             "returned_lines": null,
             "status": "running",
-            "step_id": "0000000000000000000000000000001f",
+            "step_id": "00000000000000000000000000000031",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": false
           }
@@ -1328,20 +1444,20 @@
               "archive_pending": false,
               "sequence": 9,
               "run_count": 1,
-              "latest_run_id": "0000000000000000000000000000001c",
+              "latest_run_id": "0000000000000000000000000000002d",
               "current_run": null
             },
             "run": {
-              "id": "0000000000000000000000000000001c",
+              "id": "0000000000000000000000000000002d",
               "status": "interrupted",
               "operation_id": null,
               "created_at": "2026-10-16T09:00:00.123456Z",
               "updated_at": "2026-10-16T09:00:00.123456Z",
               "version_sequence": 9,
               "plan_identity": {
-                "id": "0000000000000000000000000000001e",
+                "id": "0000000000000000000000000000002f",
                 "revision": 1,
-                "digest": "0b18042bbe8af4ebc1e486f35626eebead0b612e0b098e2ca0734dc7511e4465",
+                "digest": "ae8d66f51810b1a66732c6436eed73bf1ec98ee6a0ad63300131ad90a458b6ff",
                 "model": "deployment-a",
                 "reasoning_effort": "medium"
               },
@@ -1355,7 +1471,7 @@
             "request": null,
             "plan": null,
             "result": {
-              "step_id": "0000000000000000000000000000001f",
+              "step_id": "00000000000000000000000000000031",
               "status": "failed",
               "content": "",
               "time": "2026-10-16T09:00:00.123456Z",
@@ -1393,12 +1509,12 @@
         "archive_pending": false,
         "sequence": 9,
         "run_count": 1,
-        "latest_run_id": "0000000000000000000000000000001c",
+        "latest_run_id": "0000000000000000000000000000002d",
         "current_run": null
       },
       "terminal_run": {
         "projection_version": 2,
-        "id": "0000000000000000000000000000001c",
+        "id": "0000000000000000000000000000002d",
         "request": "Read the public fixture",
         "created_at": "2026-10-16T09:00:00.123456Z",
         "updated_at": "2026-10-16T09:00:00.123456Z",
@@ -1419,8 +1535,8 @@
             "Workspace assumptions are unverified; planning performs no reads.",
             "The public file is unverified."
           ],
-          "digest": "0b18042bbe8af4ebc1e486f35626eebead0b612e0b098e2ca0734dc7511e4465",
-          "id": "0000000000000000000000000000001e",
+          "digest": "ae8d66f51810b1a66732c6436eed73bf1ec98ee6a0ad63300131ad90a458b6ff",
+          "id": "0000000000000000000000000000002f",
           "model": "deployment-a",
           "objective": "Read the public fixture",
           "reasoning_effort": "medium",
@@ -1434,7 +1550,7 @@
                 "workspace_id": "public"
               },
               "description": "Read the first two lines only.",
-              "id": "0000000000000000000000000000001f",
+              "id": "00000000000000000000000000000031",
               "title": "Read public text",
               "tool": "read_file"
             }
@@ -1452,7 +1568,7 @@
             "path": null,
             "returned_lines": null,
             "status": "failed",
-            "step_id": "0000000000000000000000000000001f",
+            "step_id": "00000000000000000000000000000031",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": false
           }
@@ -1475,16 +1591,16 @@
         "total": 1,
         "runs": [
           {
-            "id": "0000000000000000000000000000001c",
+            "id": "0000000000000000000000000000002d",
             "status": "interrupted",
             "operation_id": null,
             "created_at": "2026-10-16T09:00:00.123456Z",
             "updated_at": "2026-10-16T09:00:00.123456Z",
             "version_sequence": 9,
             "plan_identity": {
-              "id": "0000000000000000000000000000001e",
+              "id": "0000000000000000000000000000002f",
               "revision": 1,
-              "digest": "0b18042bbe8af4ebc1e486f35626eebead0b612e0b098e2ca0734dc7511e4465",
+              "digest": "ae8d66f51810b1a66732c6436eed73bf1ec98ee6a0ad63300131ad90a458b6ff",
               "model": "deployment-a",
               "reasoning_effort": "medium"
             },
@@ -1502,7 +1618,7 @@
       "results_page": {
         "projection_version": 2,
         "session_id": "20261016T090000123456Z-ct07",
-        "run_id": "0000000000000000000000000000001c",
+        "run_id": "0000000000000000000000000000002d",
         "at_sequence": 9,
         "total": 1,
         "completed_steps": 0,
@@ -1518,11 +1634,245 @@
             "path": null,
             "returned_lines": null,
             "status": "failed",
-            "step_id": "0000000000000000000000000000001f",
+            "step_id": "00000000000000000000000000000031",
             "time": "2026-10-16T09:00:00.123456Z",
             "truncated": false
           }
         ],
+        "next_before": null
+      }
+    },
+    {
+      "name": "llm_startup_recovery",
+      "baseline": {
+        "projection_version": 2,
+        "id": "20261016T090000123456Z-ct08",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 3,
+        "run_count": 1,
+        "latest_run_id": "00000000000000000000000000000026",
+        "current_run": {
+          "id": "00000000000000000000000000000026",
+          "status": "planning",
+          "operation_id": "00000000000000000000000000000027",
+          "created_at": "2026-10-16T09:00:00.123456Z",
+          "updated_at": "2026-10-16T09:00:00.123456Z",
+          "version_sequence": 2,
+          "plan_identity": null,
+          "result_count": 0,
+          "completed_steps": 0,
+          "error": null
+        }
+      },
+      "baseline_run": {
+        "projection_version": 2,
+        "id": "00000000000000000000000000000026",
+        "request": "Read the public fixture",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "status": "planning",
+        "operation_id": "00000000000000000000000000000027",
+        "plan": null,
+        "results": [],
+        "answer": null,
+        "error": null,
+        "clarification": null,
+        "version_sequence": 2,
+        "result_count": 0,
+        "completed_steps": 0,
+        "results_before": null
+      },
+      "http": {
+        "method": "GET",
+        "url": "/api/agent/sessions/20261016T090000123456Z-ct08/events?after=3&limit=50"
+      },
+      "status": 200,
+      "body": {
+        "projection_version": 2,
+        "events": [
+          {
+            "schema_version": 2,
+            "sequence": 4,
+            "time": "2026-10-16T09:00:00.123456Z",
+            "session_id": "20261016T090000123456Z-ct08",
+            "request_id": "recovery",
+            "run_id": "00000000000000000000000000000026",
+            "operation_id": "00000000000000000000000000000027",
+            "type": "llm.outcome",
+            "session": {
+              "projection_version": 2,
+              "id": "20261016T090000123456Z-ct08",
+              "title": "New Agent session",
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "created_at": "2026-10-16T09:00:00.123456Z",
+              "updated_at": "2026-10-16T09:00:00.123456Z",
+              "archived": false,
+              "archive_pending": false,
+              "sequence": 4,
+              "run_count": 1,
+              "latest_run_id": "00000000000000000000000000000026",
+              "current_run": {
+                "id": "00000000000000000000000000000026",
+                "status": "planning",
+                "operation_id": "00000000000000000000000000000027",
+                "created_at": "2026-10-16T09:00:00.123456Z",
+                "updated_at": "2026-10-16T09:00:00.123456Z",
+                "version_sequence": 2,
+                "plan_identity": null,
+                "result_count": 0,
+                "completed_steps": 0,
+                "error": null
+              }
+            },
+            "run": {
+              "id": "00000000000000000000000000000026",
+              "status": "planning",
+              "operation_id": "00000000000000000000000000000027",
+              "created_at": "2026-10-16T09:00:00.123456Z",
+              "updated_at": "2026-10-16T09:00:00.123456Z",
+              "version_sequence": 2,
+              "plan_identity": null,
+              "result_count": 0,
+              "completed_steps": 0,
+              "error": null
+            },
+            "request": null,
+            "plan": null,
+            "result": null,
+            "answer": null,
+            "error": null,
+            "invalidates_runs": false
+          },
+          {
+            "schema_version": 2,
+            "sequence": 5,
+            "time": "2026-10-16T09:00:00.123456Z",
+            "session_id": "20261016T090000123456Z-ct08",
+            "request_id": "recovery",
+            "run_id": null,
+            "operation_id": null,
+            "type": "run.interrupted",
+            "session": {
+              "projection_version": 2,
+              "id": "20261016T090000123456Z-ct08",
+              "title": "New Agent session",
+              "model": "deployment-a",
+              "reasoning_effort": "medium",
+              "created_at": "2026-10-16T09:00:00.123456Z",
+              "updated_at": "2026-10-16T09:00:00.123456Z",
+              "archived": false,
+              "archive_pending": false,
+              "sequence": 5,
+              "run_count": 1,
+              "latest_run_id": "00000000000000000000000000000026",
+              "current_run": null
+            },
+            "run": {
+              "id": "00000000000000000000000000000026",
+              "status": "interrupted",
+              "operation_id": null,
+              "created_at": "2026-10-16T09:00:00.123456Z",
+              "updated_at": "2026-10-16T09:00:00.123456Z",
+              "version_sequence": 5,
+              "plan_identity": null,
+              "result_count": 0,
+              "completed_steps": 0,
+              "error": {
+                "code": "outcome_unknown",
+                "message": "Interrupted during restart; work was not replayed."
+              }
+            },
+            "request": null,
+            "plan": null,
+            "result": null,
+            "answer": null,
+            "error": {
+              "code": "outcome_unknown",
+              "message": "Interrupted during restart; work was not replayed."
+            },
+            "invalidates_runs": true
+          }
+        ],
+        "next_after": 5,
+        "through_sequence": 5,
+        "has_more": false
+      },
+      "terminal": {
+        "projection_version": 2,
+        "id": "20261016T090000123456Z-ct08",
+        "title": "New Agent session",
+        "model": "deployment-a",
+        "reasoning_effort": "medium",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "archived": false,
+        "archive_pending": false,
+        "sequence": 5,
+        "run_count": 1,
+        "latest_run_id": "00000000000000000000000000000026",
+        "current_run": null
+      },
+      "terminal_run": {
+        "projection_version": 2,
+        "id": "00000000000000000000000000000026",
+        "request": "Read the public fixture",
+        "created_at": "2026-10-16T09:00:00.123456Z",
+        "updated_at": "2026-10-16T09:00:00.123456Z",
+        "status": "interrupted",
+        "operation_id": null,
+        "plan": null,
+        "results": [],
+        "answer": null,
+        "error": {
+          "code": "outcome_unknown",
+          "message": "Interrupted during restart; work was not replayed."
+        },
+        "clarification": null,
+        "version_sequence": 5,
+        "result_count": 0,
+        "completed_steps": 0,
+        "results_before": null
+      },
+      "runs_page": {
+        "projection_version": 2,
+        "session_id": "20261016T090000123456Z-ct08",
+        "at_sequence": 5,
+        "total": 1,
+        "runs": [
+          {
+            "id": "00000000000000000000000000000026",
+            "status": "interrupted",
+            "operation_id": null,
+            "created_at": "2026-10-16T09:00:00.123456Z",
+            "updated_at": "2026-10-16T09:00:00.123456Z",
+            "version_sequence": 5,
+            "plan_identity": null,
+            "result_count": 0,
+            "completed_steps": 0,
+            "error": {
+              "code": "outcome_unknown",
+              "message": "Interrupted during restart; work was not replayed."
+            },
+            "request_preview": "Read the public fixture"
+          }
+        ],
+        "next_before": null
+      },
+      "results_page": {
+        "projection_version": 2,
+        "session_id": "20261016T090000123456Z-ct08",
+        "run_id": "00000000000000000000000000000026",
+        "at_sequence": 5,
+        "total": 0,
+        "completed_steps": 0,
+        "results": [],
         "next_before": null
       }
     }

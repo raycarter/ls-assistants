@@ -1,6 +1,7 @@
 import {
   identityMatches,
   invalidAgent,
+  validateLlmProgress,
   validateResultWindow,
   type AgentEvent,
   type AgentPlan,
@@ -20,6 +21,7 @@ export function advanceResults(
   frontier: ResultFrontier | null,
 ): ResultFrontier | null {
   const run = event.run!;
+  if (previous) validateLlmProgress(previous, event);
   if (!identityMatches(plan, run.plan_identity)) return invalidAgent();
   validateResultWindow(
     event.result ? [event.result] : [],
