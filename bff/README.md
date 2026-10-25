@@ -28,9 +28,31 @@ version 2; cached v1 clients must reload the updated UI. Normal public reads sel
 references directly, but one internal hydrated baseline/index per session, reference
 metadata checks and append-prefix hashing still grow with retained history. There is
 no compaction/GC. Typed LLM audit covers production planning/revision and final synthesis through the
-recorded boundary; full audit-history UI is pending. File roots default to none;
-`/tmp/ls-assistants` remains the sole approved scope with root/platform-alias wiring
-pending. See the Agent API document for exact DTOs, paging, recovery and policy rules.
+recorded boundary; full audit-history UI is pending. Default `main.py` passes
+`files=agent_workspace.build_file_policy()` for the sole approved workspace described
+below. Bare `FilePolicy()` still has no roots, and custom `agent_service_factory`
+injection is unchanged. See the Agent API document for exact DTOs, paging, recovery and policy rules.
+
+### Agent filesystem workspace
+
+The fixed ID `workspace` maps logical `/tmp/ls-assistants` to physical
+`/private/tmp/ls-assistants` on Darwin, and to the logical path on other platforms.
+The helper is pure mapping: no `resolve`, probing, mkdir, discovery, or configuration
+override. There is no fallback or widening to repository, home, `/`, `/tmp`, or
+`/private/tmp`. Strict descriptor-based no-follow checks still cover every physical
+ancestor, the root and descendants.
+
+**Create and populate `/tmp/ls-assistants` yourself with nonsecret UTF-8 files.**
+Then request **“Read note.txt in workspace and summarize”**. Paths are relative to
+the fixed workspace; requests do not select roots. A missing directory leaves startup
+and plan preflight usable; an approved read fails with generic `file_unavailable`
+and no synthesis.
+
+Existing case-folded `.env`/secret/private/archive/dependency/session exclusions and
+the actual storage directory's inode exclusion remain enforced. They are not
+secret-content detection or hardlink isolation. Approval binds the path mapping and
+policy, not the workspace root inode or file contents. Changed scope rejects old
+approval and requires a fresh plan and approval without rewriting journals.
 
 ### Agent LLM boundary
 
@@ -104,7 +126,7 @@ compatibility. Default `main.py` supplies both planner and synthesizer; no new s
 or public API shape is introduced.
 
 No-tool plans, clarification, autonomous model/tool execution, continuation replay,
-model-driven step results, revision prior context, Tavily, grep, approved-root wiring
+model-driven step results, revision prior context, Tavily, grep
 and full audit UI remain pending.
 Implementation status, all test counts/evidence and remaining checks are
 recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
@@ -395,4 +417,5 @@ acquisition serialization and lifespan draining. No real subprocess is started.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.
 - `app/agent_files.py`: fail-closed v4 workspace policy and no-follow UTF-8 EOF scans
   with bounded page previews; narrow same-access v3 approval compatibility.
+- `app/agent_workspace.py`: pure fixed logical/physical workspace mapping for default composition.
 - `main.py`: thin compatibility entry point.

@@ -14,6 +14,7 @@ from app.agent_files import AgentFault
 from app.agent_responses import build_recorded_planner, create_http_client
 from app.agent_routes import router as agent_router
 from app.agent_synthesis import build_recorded_synthesizer
+from app.agent_workspace import build_file_policy
 from app.auth import create_bearer_provider, create_credential
 from app.responses import ChatService
 from app.routes import router
@@ -53,6 +54,7 @@ def create_app(
                 )
                 stack.push_async_callback(agent_client.aclose)
                 agent_service = AgentService(
+                    files=build_file_policy(),
                     planner=build_recorded_planner(
                         agent_client,
                         configuration.openai_base_url,

@@ -7,7 +7,7 @@ and final synthesis through the recorded LLM boundary, sharing a controlled dedi
 HTTPX client.
 No Agent SDK is used. Provider/deployment compatibility has not been live-validated.
 Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
-replay, grep, approved-root wiring, revision prior context, and full audit UI remain deferred.
+replay, grep, revision prior context, and full audit UI remain deferred.
 Implementation progress and all verification evidence are tracked only in
 [the root checklist](../AGENT_MODE_CHECKLIST.md).
 Chat's schemas, API and credential selection are unchanged.
@@ -22,7 +22,7 @@ AgentService(
     SessionStore(explicit_storage_path),
     planner=my_recorded_planner,
     synthesizer=my_recorded_synthesizer,
-    files=FilePolicy(),  # File access stays disabled until approved-root wiring lands.
+    files=FilePolicy(),  # Bare policy has no roots; custom injection remains explicit.
     models=settings.available_models,
 )
 ```
@@ -49,9 +49,9 @@ currency ceiling.
 The default application calls the provider on run/revise commands and for final synthesis
 after approved tool results commit. HTTP
 `503 agent_not_configured` before run admission applies only to an explicitly
-injected service with no planner. Allowed file roots default to none;
-configuration is explicit Python composition, with no changes to identity settings
-or `.env` loading. Default storage is `bff/sessions`, **lazily opened on the first
+injected service with no planner. Default composition passes
+`files=agent_workspace.build_file_policy()`; bare `FilePolicy()` still has no roots
+and custom `agent_service_factory` injection is unchanged. Default storage is `bff/sessions`, **lazily opened on the first
 storage endpoint**, never read/created at default application startup. An
 explicitly injected store is recovered during lifespan startup. Tests always inject
 temporary paths. Startup, health, and model listing make no provider/token calls
@@ -61,8 +61,23 @@ Construction failures unwind already-registered resources in the same order.
 
 `fetcher=WebFetcher(...)` is an optional injection seam; the default is the safe
 public-network implementation. It opens connections only during approved execution.
-`/tmp/ls-assistants` is the sole approved filesystem scope, but its root/platform-alias
-wiring is still pending; default file roots remain empty.
+The fixed workspace ID is `workspace`, with logical root `/tmp/ls-assistants`.
+`agent_workspace.build_file_policy()` maps it to physical `/private/tmp/ls-assistants`
+on Darwin and to the logical path elsewhere. This is pure mapping: no `resolve`,
+probe, mkdir, discovery, or configuration override. It provides no fallback or
+widening to repository, home, `/`, `/tmp`, or `/private/tmp` access.
+
+The user must explicitly create and populate `/tmp/ls-assistants` themselves with
+nonsecret UTF-8 files. Example request: **“Read note.txt in workspace and summarize”**.
+File arguments use `workspace_id:"workspace"` and relative `path:"note.txt"`;
+the request does not choose a root. A missing directory leaves startup and plan
+preflight usable. Only the approved read attempts access, returning generic
+`file_unavailable` on failure and preventing final synthesis.
+
+Strict descriptor-based no-follow checks remain in force for every physical
+ancestor, the root and descendants. Approval binds the path mapping and policy,
+not the workspace root inode or file contents. A changed scope rejects old approval;
+create a fresh plan and obtain approval without rewriting historical journals.
 
 The coordinator binds the actual `SessionStore.root` into the supplied file
 policy, including custom storage directory names. That exclusion is part of the
@@ -110,7 +125,7 @@ all properties required). It requires objective, assumptions, and at least one
 `read_file`/`web_fetch` step, with expected outcomes in descriptions. Strict local
 shape/domain checks and coordinator capability/policy validation remain authoritative;
 provider structured-output acceptance is not authorization. No-tool plans are not
-supported by this adapter. File roots still default to none.
+supported by this adapter. Default file scope is the fixed `workspace` mapping above.
 
 `create_http_client` owns a dedicated `AsyncHTTPTransport(retries=0, trust_env=False)`
 with `trust_env=False` and redirects disabled. Each send constructs a fresh
@@ -677,7 +692,9 @@ uses the live store fd after opening or metadata-only checks in the read worker,
 not unconfigured application startup. These exclusions participate in policy v4's
 digest. Symlink aliases remain denied by no-follow opens.
 These filename rules are not complete
-secret-content detection and cannot detect hardlink aliases of permitted files.
+secret-content detection or hardlink isolation. Mandatory component exclusions are
+case-folded; the separate actual-storage inode exclusion is not a binding of the
+workspace root inode.
 
 Retained content includes user requests/feedback, logical fixture inputs/valid outputs,
 reviewed plans, approval/rejection, allowed file excerpts and results/errors,

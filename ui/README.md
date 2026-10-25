@@ -196,9 +196,23 @@ long lines when `truncated` is true; an excerpt is not presented as evidence of 
 The BFF scans regular UTF-8 text through EOF in 8 KiB chunks, retaining a preview of at most 200
 lines/16,000 UTF-8 bytes and 1,000 characters per displayed line. There is no 256 KB file allowance
 or 10,000-line offset ceiling. Invalid text beyond the preview still fails the read, and each read
-has its own timeout. File roots still default to none; `/tmp/ls-assistants` is the sole approved
-scope, with its root/platform-alias wiring pending. The v4 file policy narrowly accepts known v3
-approval material only at the same access scope.
+has its own timeout. Default BFF composition uses `agent_workspace.build_file_policy()`:
+fixed ID `workspace`, logical root `/tmp/ls-assistants`, physical root
+`/private/tmp/ls-assistants` on Darwin and the logical path elsewhere. This pure mapping performs
+no `resolve`, probing, mkdir, discovery or configuration override. Bare `FilePolicy()` has no roots;
+custom `agent_service_factory` injection remains unchanged. There is no fallback or widening to
+repository, home, `/`, `/tmp` or `/private/tmp` access.
+
+**Create and populate `/tmp/ls-assistants` yourself with nonsecret UTF-8 files.** Then request
+**“Read note.txt in workspace and summarize”**. `note.txt` is relative to the fixed workspace;
+the request does not choose a root. A missing directory leaves startup and plan preflight usable;
+the approved read returns generic `file_unavailable` and no synthesis. Every physical ancestor,
+the root and descendants retain strict descriptor-based no-follow checks. Existing case-folded
+`.env`/secret/private/archive/dependency/session exclusions and actual-storage inode exclusion
+remain enforced; these are not secret-content detection or hardlink isolation.
+Approval binds the path mapping and policy, not the workspace root inode or file contents.
+Changed scope rejects old approval and needs a fresh plan and approval without rewriting journals.
+The v4 file policy narrowly accepts known v3 approval material only at the same access scope.
 
 Fetch review displays the exact public URL and zero-based character-page arguments. Successful fetch
 cards distinguish actual retrieved text from file excerpts, showing title, requested/final URL,
@@ -378,8 +392,8 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 - The `agent-responses-planning-v1` request builder is pure and tool-free, uses frozen model/effort,
   `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
   strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
-  Revision supplies feedback without old-plan history in the current interface. File roots remain
-  empty by default; no-tool plans and approved-root wiring remain open.
+  Revision supplies feedback without old-plan history in the current interface. Default file scope
+  is the fixed `workspace` mapping above; no-tool plans remain open.
 - Recorded intent/authorization precedes dispatch durably; outcomes and applicable proposal validation
   precede advancement. Provider outcome is separate from valid/invalid proposal validation. Stop/revocation
   is normal cancellation; true recording failure poisons/revokes work while retaining cleanup ownership.
@@ -427,8 +441,7 @@ reads select body references without full-session hydration/replay; selecting a 
 parse one old full record. Compaction, garbage collection and orphan cleanup are not implemented.
 Independent stream chunks are immutable audit payloads, but the runner retains one active call's
 observations and the codec serializes each complete JSON record in memory. Those costs remain in
-addition to the baseline/index/linear-verification costs above. Production planning/revision
-does not add approved-root wiring. Implementation status and verification evidence belong only
+addition to the baseline/index/linear-verification costs above. Implementation status and verification evidence belong only
 in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
 
 ## Build, test, and scaffold

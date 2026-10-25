@@ -2,7 +2,7 @@
 
 Design and research: [AGENT_MODE_TODO.md](AGENT_MODE_TODO.md).
 
-This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, Step 3 recorded LLM foundation, production planning/revision adapter, and MVP tool-free final synthesis are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
+This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, Step 3 recorded LLM foundation, production planning/revision adapter, MVP tool-free final synthesis, and scoped approved filesystem root/read wiring are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
 
 **Firm constraint:** Borrow OpenCode's architectural/behavioral ideas only. Write the implementation independently; do not copy, translate, vendor, or adapt OpenCode implementation code or embed its runtime.
 
@@ -14,7 +14,7 @@ This is the only implementation progress/evidence ledger; use the plan for archi
 - [ ] **P0-02 — Provider decision and setup:**
   - [x] User selected **Tavily** as the first web-search provider on 2026-10-19.
   - [ ] Configure credentials locally; real-provider verification by this assistant still requires separate authorization. No additional quota-policy decision is needed to implement the selected provider.
-- [x] **P0-03 — User decision:** Approved `/tmp/ls-assistants` as the sole filesystem-tool root for this implementation phase; retain mandatory exclusions and keep access disabled until configured.
+- [x] **P0-03 — User decision:** Approved `/tmp/ls-assistants` as the sole filesystem-tool root for this implementation phase; retain mandatory exclusions. Default read wiring is recorded under P2-02.
 - [ ] **P0-04** Finalize schemas/transitions for one approval per plan, clarification replies/rejection, nonterminal cancelling, and renewed approval only when a new/revised executable plan is created.
 - [x] **P0-05 — User decision:** Approve each plan once; approve any new/revised plan again; impose no product-level quotas; use web search only if needed; record every LLM interaction with plan/step/timestamp/model/prompt/response in its session folder.
 - [x] **P0-06** Run the existing frontend/backend checks and record a clean Chat regression baseline.
@@ -56,6 +56,7 @@ Depends on Phase 1 schemas and recording primitives.
 - [ ] **P2-01** Add a fixed registry for `web_search`, `web_fetch`, `read_file`, and `grep_in_folder`, with strict argument/result validation.
   - [x] Recognize all four names; enable and strictly validate `read_file`/`web_fetch`, expose descriptions to the injected planner, and bind availability/network policy to approval. Search/grep remain explicitly unavailable, not successful stubs.
 - [ ] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
+  - [x] Scoped default root/read wiring: pure `agent_workspace.build_file_policy()` mapping for fixed `workspace`, Darwin physical `/private/tmp/ls-assistants` and non-Darwin logical `/tmp/ls-assistants`; unchanged descriptor no-follow and exclusion policy. Root unit/API verification is recorded below. Shared grep remains unimplemented, so the broad parent stays partial.
 - [x] **P2-03** Implement bounded text `read_file`: relative paths, numbered lines, pagination, safe errors, and truncation metadata.
 - [ ] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas.
 - [ ] **P2-05** Move blocking filesystem work off the event loop; add cooperative cancellation and retain ownership until workers settle.
@@ -147,7 +148,7 @@ Bring the slice's review/result UI forward with the minimal API/navigation piece
 
 - [ ] **P7-01** Build clarification answer/reject and plan-feedback flows bound to their current question/plan identities; rejection must release the waiting session.
 - [ ] **P7-02** Show assumptions, steps, intended tools, filesystem scope, and model/thinking for one plan-level approval; submit its displayed revision/digest without per-query prompts or mandatory task-budget controls.
-  - [x] Require the complete loaded plan to match authoritative identity/model/effort before approval; show every step description and remove task-budget controls. Approved-root wiring and the broader review walkthrough remain open.
+  - [x] Require the complete loaded plan to match authoritative identity/model/effort before approval; show every step description and remove task-budget controls. Default root/read wiring is tracked under P2-02; the broader review walkthrough remains open.
 - [x] **P7-03** Decode Agent events independently of Chat; reconcile committed sequences and reject stale session/run/operation/revision callbacks.
 - [ ] **P7-04** Render paged step/tool results, citations, and final output safely; distinguish search snippets, fetched page text with final URL/time, and filesystem evidence. Never claim page retrieval without a successful recorded `web_fetch` result.
 - [ ] **P7-05** Add targeted Stop, visible Stopping/pending-archive status, partial results and typed scope/information errors; prevent double-click execution or automatic resume after reload.
@@ -165,7 +166,7 @@ Depends on Phases 0–7.
 
 Checked P8-04/P8-05/P8-06/P8-10 have dated evidence for each increment. Step 3's completed full checks and scoped independent reviews are recorded in its verification record; they do not certify the unfinished broader release gates.
 
-The production planning/revision adapter has completed full checks at the committed `fcf7308` checkpoint. The later uncommitted MVP synthesis increment also passed full regression checks and scoped independent review, recorded in its own verification record. These checks do not complete the broader release gates below.
+The production planning/revision adapter completed full checks at `fcf7308`. MVP synthesis subsequently passed full regression checks and scoped independent review and was committed as `024c5e5`. The new root/read wiring remains uncommitted on that checkpoint and also passed full regression checks and scoped independent review, recorded below. These checkpoints do not complete the broader release gates below.
 
 - [ ] **P8-01** Run mocked end-to-end scenarios covering all four tools, a reasoning-only/no-search task, a filesystem-only task, and fetch of a directly supplied URL without search; four-tool coverage is a test case, not a requirement for every plan.
 - [ ] **P8-02** Verify rejection, stale approval, duplicate commands, delayed Stop, disconnect, and restart never trigger unauthorized or repeated execution.
@@ -298,6 +299,8 @@ Subsequent commit checkpoint: this milestone and Step 3 were committed as **`fcf
 
 ## Verification record — 2026-10-23, MVP tool-free final synthesis
 
+Subsequent commit checkpoint: MVP synthesis was committed as **`024c5e5` — `add agent final answer synthesis`**. The uncommitted statements and pending-root scope below describe the original checkpoint; the following root-wiring record supersedes them.
+
 **Status: MVP synthesis implemented; mocked end-to-end verification, scoped independent review, and full regression checks passed. New work remains unstaged and uncommitted on `fcf7308`.** This completes the synthesis subitem, not the full MVP or broad Agent release gates. Priority is the useful MVP path; revision edge cases remain follow-up work.
 
 - `bff/app/agent_synthesis.py` supplies `RecordedSynthesizer` and `agent-responses-synthesis-v1`. Default `main.py` composes planner and synthesizer with the same controlled dedicated HTTPX client, bearer provider, no lower transport retries, and retained cleanup ownership.
@@ -310,3 +313,16 @@ Subsequent commit checkpoint: this milestone and Step 3 were committed as **`fcf
 - The first frontend regression run exposed an existing order-dependent Markdown fallback test failure (748 passed/1 failed). A separate investigation reproduced module-level highlighter reuse with the runner's default shared-module setting. `ui/angular.json` now explicitly enables per-file `isolate:true`; security assertions and application rendering code are unchanged. The full suite then passed with isolation configured. No dependencies changed.
 - The user-requested commit of previous work is `fcf7308`; this subsequent MVP increment remains uncommitted. No actual Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, or push were performed.
 - Open scope: model-driven step results/function loop and continuation replay, search/Tavily, grep, approved filesystem-root wiring, no-tool plans, revision prior context, clarification and full audit UI. Broad P4-08 remains partial; no full MVP completion is claimed.
+
+## Verification record — 2026-10-23, MVP approved filesystem root/read wiring
+
+**Status: scoped root/read wiring implemented and mock-verified; independent review and full regression checks passed. Changes remain unstaged and uncommitted on synthesis checkpoint `024c5e5`.** P2-02's read subitem is complete; its shared-grep parent remains partial.
+
+- Default `main.py` passes `files=agent_workspace.build_file_policy()`: fixed ID `workspace`, logical `/tmp/ls-assistants`, Darwin physical `/private/tmp/ls-assistants`, and logical physical path elsewhere. Pure mapping performs no `resolve`, probe, mkdir, discovery or configuration override. Bare `FilePolicy()` still has no roots; custom `agent_service_factory` remains injectable and unchanged.
+- Strict descriptor no-follow checks remain unchanged for every physical ancestor, root and descendant, with no fallback or repository/home/root widening. Existing case-folded environment/secret/private/archive/dependency/session exclusions and actual-storage inode exclusion remain enforced; these are not secret-content detection or hardlink isolation.
+- Missing workspace leaves startup and plan preflight usable; approved read fails with generic `file_unavailable` and no synthesis. Approval binds path mapping/policy, not workspace root inode or file contents. Changed scope rejects old approval and needs a fresh plan and approval, without rewriting journals.
+- User setup is explicit: create/populate `/tmp/ls-assistants` themselves with nonsecret UTF-8 files, then request “Read note.txt in workspace and summarize” using a relative path. No root selection is introduced. Chat and UI/API contracts are unchanged.
+- Independent read-only root/composition review **PASS**, with no material P1/P2 findings in scope. Its **47 focused tests** and an additional pure-policy probe verify that current and legacy empty-scope approvals cannot authorize the newly configured root. Root coverage includes **20 unit cases + 14 API cases** in `bff/tests/test_agent_workspace.py` and `bff/tests/test_agent_workspace_api.py`, plus the shared composition regressions. Actual host root/alias availability and all possible races remain unverified.
+- Final main regression verification: **1,619 backend tests** and **749 frontend tests across 22 files** passed. Ruff lint/format (56 Python files), offline/frozen lock validation, app/spec TypeScript checks, production build, Prettier, generated v2 contract comparison, frozen-v1 baseline equality, Git-ignore and whitespace checks passed. The two existing nonfatal critical-CSS selector warnings remain. No dependencies changed.
+- The previous synthesis work was committed at the user's request as `024c5e5`; this following root-wiring increment remains uncommitted. No actual approved-workspace creation or content inspection, Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, or push were performed. All read fixtures and journals used synthetic temporary paths.
+- Remaining scope: grep/shared search traversal, Tavily/search, no-tool plans, model-driven step results/full function loop and continuation replay, revision prior context, clarification, full audit UI and broader release gates.

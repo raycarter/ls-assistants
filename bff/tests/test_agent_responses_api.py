@@ -98,11 +98,14 @@ def wired(tmp_path, monkeypatch, settings_factory, mock_client):
         owners=owners,
         fetcher=fetcher,
         files=files,
+        file_policy_factory=Mock(return_value=files),
         handler=lambda request: httpx.Response(200, json=provider_body()),
     )
 
     def service(**kwargs):
-        owner = AgentService(store=SessionStore(root), files=files, fetcher=fetcher, **kwargs)
+        assert kwargs["files"] is files
+        result.file_policy_factory.assert_called_once_with()
+        owner = AgentService(store=SessionStore(root), fetcher=fetcher, **kwargs)
         original_close = owner.close
 
         async def close():
@@ -114,6 +117,7 @@ def wired(tmp_path, monkeypatch, settings_factory, mock_client):
         return owner
 
     result.service_factory = Mock(side_effect=service)
+    monkeypatch.setattr(main, "build_file_policy", result.file_policy_factory)
     monkeypatch.setattr(main, "AgentService", result.service_factory)
 
     def http_factory(*, timeout):
@@ -139,6 +143,7 @@ def wired(tmp_path, monkeypatch, settings_factory, mock_client):
     result.http_factory = Mock(side_effect=http_factory)
 
     def application(**overrides):
+        result.file_policy_factory.reset_mock()
         return main.create_app(
             settings,
             credential_factory=Mock(return_value=credential),
