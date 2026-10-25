@@ -316,6 +316,8 @@ Subsequent commit checkpoint: MVP synthesis was committed as **`024c5e5` — `ad
 
 ## Verification record — 2026-10-23, MVP approved filesystem root/read wiring
 
+Subsequent commit checkpoint: this root/read milestone was committed as **`d9ae98f` — `wire approved agent filesystem workspace`**. The uncommitted statements below describe the original verification checkpoint, not the current implementation's commit status.
+
 **Status: scoped root/read wiring implemented and mock-verified; independent review and full regression checks passed. Changes remain unstaged and uncommitted on synthesis checkpoint `024c5e5`.** P2-02's read subitem is complete; its shared-grep parent remains partial.
 
 - Default `main.py` passes `files=agent_workspace.build_file_policy()`: fixed ID `workspace`, logical `/tmp/ls-assistants`, Darwin physical `/private/tmp/ls-assistants`, and logical physical path elsewhere. Pure mapping performs no `resolve`, probe, mkdir, discovery or configuration override. Bare `FilePolicy()` still has no roots; custom `agent_service_factory` remains injectable and unchanged.
@@ -326,3 +328,12 @@ Subsequent commit checkpoint: MVP synthesis was committed as **`024c5e5` — `ad
 - Final main regression verification: **1,619 backend tests** and **749 frontend tests across 22 files** passed. Ruff lint/format (56 Python files), offline/frozen lock validation, app/spec TypeScript checks, production build, Prettier, generated v2 contract comparison, frozen-v1 baseline equality, Git-ignore and whitespace checks passed. The two existing nonfatal critical-CSS selector warnings remain. No dependencies changed.
 - The previous synthesis work was committed at the user's request as `024c5e5`; this following root-wiring increment remains uncommitted. No actual approved-workspace creation or content inspection, Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, or push were performed. All read fixtures and journals used synthetic temporary paths.
 - Remaining scope: grep/shared search traversal, Tavily/search, no-tool plans, model-driven step results/full function loop and continuation replay, revision prior context, clarification, full audit UI and broader release gates.
+
+## Next MVP priorities
+
+1. User walkthrough of the file → plan → approval → read → synthesis → reload path; live end-to-end compatibility remains unverified. Fix any primary-path defects before expanding features.
+2. Implement `grep_in_folder` with the shared workspace boundary, relative paths/line numbers, and paged literal matches. This does not by itself implement dependent follow-up reads chosen from matches.
+3. Implement optional Tavily web search.
+4. Support no-tool/reasoning-only tasks without unnecessary file or web access.
+
+Targeted revision refinements and a larger autonomous execution loop are not the next MVP slice.
