@@ -286,6 +286,45 @@ async def test_invalid_scope_proposal_never_reads_or_synthesizes(workspace_api, 
         assert len(fixture.calls) == 1 and len(audits(owner, sid)) == 1
 
 
+@pytest.mark.parametrize("offset,limit,valid", [(0, 12000, False), (1, 200, True)])
+async def test_reported_read_paging_is_audited_without_repair_retry_or_execution(
+    workspace_api, offset, limit, valid
+):
+    fixture = workspace_api
+    arguments = {"workspace_id": "workspace", "path": "note.txt", "offset": offset, "limit": limit}
+    fixture.arguments = dict(arguments)
+    expected_body = proposal(arguments)
+    async with fixture.opened() as (client, owner):
+        sid, run = await plan(client)
+        assert fixture.arguments == arguments
+        fixture.files.read.assert_not_called()
+        assert len(fixture.calls) == 1
+        (records,) = audits(owner, sid)
+        assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v2"
+        wire = records[0]["data"]["request"]
+        assert wire == json.loads(fixture.calls[0].content)
+        assert wire["text"]["format"]["name"] == "agent_plan_v2"
+        assert json.loads(wire["input"][0]["content"])["workspace_ids"] == ["workspace"]
+        assert not {"tools", "tool_choice"} & wire.keys()
+        output = next(r["data"] for r in records if r["kind"] == "output")
+        assert output["body"] == expected_body
+        retained = json.loads(output["body"]["output"][1]["content"][0]["text"])
+        assert retained["steps"][0]["arguments"] == arguments
+        assert records[-2]["data"]["status"] == "completed"
+        assert records[-1]["data"]["status"] == ("valid" if valid else "invalid")
+        if valid:
+            assert run["status"] == "awaiting_approval"
+            assert run["plan"]["steps"][0]["arguments"] == arguments
+        else:
+            assert run["status"] == "failed" and run["plan"] is None
+            assert run["error"]["code"] == "invalid_plan"
+    async with fixture.opened() as (client, owner):
+        assert await run_detail(client, sid, run["id"]) == run
+        assert audits(owner, sid) == [records]
+        fixture.files.read.assert_not_called()
+        assert len(fixture.calls) == 1
+
+
 @pytest.mark.parametrize("change", ["id", "root"])
 async def test_old_approval_rejected_after_workspace_mapping_changes(workspace_api, change):
     fixture = workspace_api

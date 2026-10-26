@@ -329,6 +329,14 @@ Subsequent commit checkpoint: this root/read milestone was committed as **`d9ae9
 - The previous synthesis work was committed at the user's request as `024c5e5`; this following root-wiring increment remains uncommitted. No actual approved-workspace creation or content inspection, Azure/Tavily/public-web calls, credential/private/runtime-session reads or migration, browser walkthrough, or push were performed. All read fixtures and journals used synthetic temporary paths.
 - Remaining scope: grep/shared search traversal, Tavily/search, no-tool plans, model-driven step results/full function loop and continuation replay, revision prior context, clarification, full audit UI and broader release gates.
 
+## Verification record — 2026-10-26, planner paging contract correction
+
+- User-reported remote walkthrough on `347ddc6` reached `invalid_plan`. The shared proposal used correct `workspace` / `note.txt` targeting but mixed web paging into `read_file`: `offset:0, limit:12000`, violating one-based offsets and the 200-line excerpt bound. This establishes the argument rejection, not the status of later file reading or synthesis on that machine.
+- Planning instructions/schema are now version 2. Provider-facing numeric bounds and tool descriptions explicitly distinguish file lines (`offset>=1`, `limit:1..200`, normal first page `1,200`) from web characters (`offset>=0`, `limit:1..16000`, normal first page `0,12000`). Workspace-relative path guidance is explicit. Local wire-shape checks enforce the same ranges before domain/policy validation. Invalid output is retained unchanged and rejected, never repaired, retried, or executed automatically.
+- Added 21 regression cases covering the reported arguments, corrected arguments reaching review, schema/domain agreement, range boundaries, uncapped offsets, instructions/version recording, and tool-specific paging. Independent read-only review passed with no material P1/P2 findings; 111 focused offline tests passed.
+- Full backend verification: **1,640 tests passed**. Ruff lint/format (56 Python files), offline/frozen lock validation, documentation formatting, generated contract comparison, unchanged dependency/contract fixtures, and whitespace checks passed. No frontend code changed; frontend suites were not rerun for this backend-only correction.
+- Changes remain uncommitted on `347ddc6`. No actual provider calls or real session/workspace reads were performed by the assistant; tests used synthetic fixtures. A live retry of ordinary plan generation on the user's machine remains pending.
+
 ## Next MVP priorities
 
 1. User walkthrough of the file → plan → approval → read → synthesis → reload path; live end-to-end compatibility remains unverified. Fix any primary-path defects before expanding features.

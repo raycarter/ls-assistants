@@ -114,7 +114,7 @@ evidence; the production adapter sends those exact bytes directly over HTTPX.
 ### Production Responses planning/revision adapter
 
 `agent_responses.py` builds `RecordedPlanner` with `ResponsesTransport` and version
-`agent-responses-planning-v1`. Request construction is pure and tool-free. The
+`agent-responses-planning-v2`. Request construction is pure and tool-free. The
 request uses frozen model/explicit reasoning effort, `store:false`, `stream:false`,
 and `Settings.max_output_tokens`. Its input contains the request, workspace IDs,
 available-tool descriptions, and revision feedback; the current interface provides
@@ -126,6 +126,12 @@ all properties required). It requires objective, assumptions, and at least one
 shape/domain checks and coordinator capability/policy validation remain authoritative;
 provider structured-output acceptance is not authorization. No-tool plans are not
 supported by this adapter. Default file scope is the fixed `workspace` mapping above.
+The provider schema and local wire validation both enforce `read_file.offset >= 1`
+and `read_file.limit` in `1..200` lines, versus `web_fetch.offset >= 0` and
+`web_fetch.limit` in `1..16000` characters. Instructions specify normal starting
+pages (`1,200` for reads; `0,12000` for fetches), exact workspace IDs and relative
+file paths. Neither offset has an artificial maximum; invalid arguments are not
+silently coerced or repaired.
 
 `create_http_client` owns a dedicated `AsyncHTTPTransport(retries=0, trust_env=False)`
 with `trust_env=False` and redirects disabled. Each send constructs a fresh

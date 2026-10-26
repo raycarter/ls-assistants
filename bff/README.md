@@ -92,9 +92,12 @@ remains read-only. The runner retains one active call's observations, and JSON
 serialization still materializes each complete record, in addition to the existing
 baseline/index/linear-verification costs. No constant-memory guarantee is implied.
 
-`agent_responses.py` supplies `agent-responses-planning-v1`: pure request construction
+`agent_responses.py` supplies `agent-responses-planning-v2`: pure request construction
 with `stream=False`, configured `max_output_tokens`, and a manually reviewed strict
 closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
+The schema and instructions distinguish one-based file line offsets and 1–200-line
+excerpts from zero-based web character offsets and 1–16000-character pages. File
+paths must be workspace-relative. Invalid arguments are rejected, not repaired.
 Revision input includes feedback but no old-plan history in the current interface.
 The adapter sends exact canonical bytes via fresh HTTPX requests with `auth=None`,
 no ambient cookies/default headers/client auth, `trust_env=False`, redirects disabled,

@@ -16,12 +16,15 @@ from app.agent_llm import AttemptRunner
 from app.agent_responses import (
     INSTRUCTIONS_VERSION,
     ResponsesTransport,
+    _check_shape,
     build_recorded_planner,
     build_request,
     create_http_client,
     proposal_schema,
 )
+from app.agent_schemas import FetchArguments, ReadArguments
 from app.llm_schemas import LLMIdentity, LLMRecord
+from app.tools.registry import ToolRegistry
 
 
 def context():
@@ -32,7 +35,7 @@ def context():
         workspaces=("workspace_a",),
         feedback="修改 🌱",
         instructions="Backend rules",
-        available_tools=("read_file: read workspace text", "web_fetch: fetch a public URL"),
+        available_tools=tuple(ToolRegistry.descriptions[name] for name in ToolRegistry.enabled),
     )
 
 
@@ -134,7 +137,8 @@ async def run_planner(handler, *, provider=bearer, validate=lambda p: p):
 def test_request_and_manually_reviewed_schema():
     request = build_request(context(), 2048)
     wire = request.body
-    assert request.instructions_version == INSTRUCTIONS_VERSION
+    assert request.instructions_version == INSTRUCTIONS_VERSION == "agent-responses-planning-v2"
+    assert wire["text"]["format"]["name"] == "agent_plan_v2"
     assert wire["model"] == "frozen-deployment"
     assert wire["reasoning"] == {"effort": "high"}
     assert wire["store"] is wire["stream"] is False
@@ -167,6 +171,133 @@ def test_request_and_manually_reviewed_schema():
     assert schema == proposal_schema()
     assert schema["properties"]["steps"]["minItems"] == 1
     assert len(schema["properties"]["steps"]["items"]["anyOf"]) == 2
+
+
+def test_request_explains_relative_paths_and_distinct_paging_units_and_defaults():
+    wire = build_request(context(), 2048).body
+    instructions = wire["instructions"]
+    for text in (
+        "exact supplied workspace ID",
+        "workspace-relative path",
+        "note.txt",
+        "never an absolute path or a workspace-ID prefix",
+        "one-based line",
+        "start at 1",
+        "1..200 (normally 200)",
+        "zero-based character",
+        "start at 0",
+        "1..16000 (normally 12000)",
+    ):
+        assert text in instructions
+    descriptions = json.loads(wire["input"][0]["content"])["available_tool_descriptions"]
+    read, fetch = descriptions
+    for text in (
+        "exact supplied workspace ID",
+        "workspace-relative path",
+        "note.txt",
+        "never an absolute path",
+        "one-based line number (normally 1)",
+        "1..200 lines (normally 200)",
+    ):
+        assert text in read
+    for text in (
+        "zero-based character position (normally 0)",
+        "1..16000 characters (normally 12000)",
+    ):
+        assert text in fetch
+
+
+@pytest.mark.parametrize(
+    "tool,model,minimum,maximum,unit,offset_default,limit_default",
+    [
+        ("read_file", ReadArguments, 1, 200, "line", 1, 200),
+        ("web_fetch", FetchArguments, 0, 16000, "character", 0, 12000),
+    ],
+)
+def test_provider_paging_schema_matches_argument_models(
+    tool, model, minimum, maximum, unit, offset_default, limit_default
+):
+    variants = proposal_schema()["properties"]["steps"]["items"]["anyOf"]
+    variant = next(v for v in variants if v["properties"]["tool"]["enum"] == [tool])
+    fields = variant["properties"]["arguments"]["properties"]
+    domain = model.model_json_schema()["properties"]
+    for name, lower, upper, default in (
+        ("offset", minimum, None, offset_default),
+        ("limit", 1, maximum, limit_default),
+    ):
+        assert fields[name]["type"] == domain[name]["type"] == "integer"
+        assert fields[name]["minimum"] == domain[name]["minimum"] == lower
+        assert fields[name].get("maximum") == domain[name].get("maximum") == upper
+        assert unit in fields[name]["description"]
+        assert f"normally {default}" in fields[name]["description"]
+        assert model.model_fields[name].default == default
+    if tool == "read_file":
+        assert "Workspace-relative" in fields["path"]["description"]
+        assert "not an absolute path" in fields["path"]["description"]
+        assert "exact supplied workspace ID" in fields["workspace_id"]["description"]
+
+
+@pytest.mark.parametrize(
+    "tool,offset,limit,valid",
+    [
+        ("read_file", 0, 200, False),
+        ("read_file", -1, 200, False),
+        ("read_file", 1, 0, False),
+        ("read_file", 1, 1, True),
+        ("read_file", 1, 200, True),
+        ("read_file", 1, 201, False),
+        ("read_file", 1, 12000, False),
+        ("read_file", 0, 12000, False),
+        ("read_file", 10**30, 200, True),
+        ("web_fetch", 0, 12000, True),
+        ("web_fetch", 0, 16000, True),
+        ("web_fetch", 0, 1, True),
+        ("web_fetch", -1, 12000, False),
+        ("web_fetch", 0, 0, False),
+        ("web_fetch", 0, 16001, False),
+        ("web_fetch", 10**30, 16000, True),
+    ],
+)
+async def test_paging_bounds_enforced_locally_and_at_recorded_boundary(tool, offset, limit, valid):
+    plan = proposal()
+    arguments = (
+        {"workspace_id": "workspace_a", "path": "note.txt"}
+        if tool == "read_file"
+        else {"url": "https://example.invalid/note.txt"}
+    ) | {"offset": offset, "limit": limit}
+    plan["steps"][0].update(tool=tool, arguments=arguments)
+    unchanged = copy.deepcopy(plan)
+    model = ReadArguments if tool == "read_file" else FetchArguments
+    if valid:
+        _check_shape(plan, proposal_schema())
+        assert model.model_validate(arguments).model_dump() == arguments
+    else:
+        with pytest.raises(ValueError):
+            _check_shape(plan, proposal_schema())
+        with pytest.raises(ValueError):
+            model.model_validate(arguments)
+    full = body()
+    full["output"][1]["content"][0]["text"] = json.dumps(plan)
+    calls, validated = [], []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json=full)
+
+    result, records = await run_planner(handler, validate=lambda p: validated.append(p) or p)
+    assert len(calls) == 1
+    assert plan == unchanged
+    assert next(r["data"]["body"] for r in records if r["kind"] == "output") == full
+    assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v2"
+    assert records[-2]["data"]["status"] == "completed"
+    if valid:
+        assert result.steps[0].arguments.model_dump() == arguments
+        assert validated == [result]
+        assert records[-1]["data"]["status"] == "valid"
+    else:
+        assert result.code == "invalid_plan"
+        assert validated == []
+        assert records[-1]["data"]["status"] == "invalid"
 
 
 async def test_exact_wire_unicode_full_body_metadata_and_coordinator_validation():
