@@ -13,12 +13,19 @@ import {
   text,
   time,
   unique,
-  validPlan,
-  validResult,
-  type AgentPlan,
   type RunStatus,
-  type StepResult,
 } from './agent-legacy.models';
+import { validPlan, validResult, type AgentPlan, type StepResult } from './agent-tool.models';
+export { validPlan, validResult } from './agent-tool.models';
+export type {
+  AgentPlan,
+  AgentStep,
+  StepResult,
+  GrepArguments,
+  GrepMetadata,
+  BackendGrepArguments,
+  BackendGrepMetadata,
+} from './agent-tool.models';
 
 export {
   AgentApiError,
@@ -29,24 +36,25 @@ export {
   invalidAgent,
   object,
   parseArtifactPage,
-  planIdentity,
   safeHttpUrl,
   settled,
   text,
   time,
 } from './agent-legacy.models';
+export function planIdentity(plan: Pick<AgentPlan, 'id' | 'revision' | 'digest'>) {
+  return { plan_id: plan.id, revision: plan.revision, digest: plan.digest };
+}
 export type {
   AgentCommand,
-  AgentPlan,
-  AgentStep,
   ArtifactPage,
   FetchMetadata,
+  FetchArguments,
+  ReadArguments,
   ReadMetadata,
   PlanIdentity,
   ReviewIdentity,
   Revision,
   RunStatus,
-  StepResult,
 } from './agent-legacy.models';
 
 export interface AgentError {

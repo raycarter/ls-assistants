@@ -189,7 +189,7 @@ async def test_real_fetcher_no_dns_http_or_tools_before_exact_approval(fetch_set
         resolver.assert_not_called()
         assert not backend.calls and not network.writes
         context = fetch_setup.planner.plan.call_args.args[0]
-        assert len(context.available_tools) == 2
+        assert len(context.available_tools) == 3
         assert "web_fetch:" in context.available_tools[1]
         assert "Planning performs no tool execution" in context.instructions
         assert "only the configured LLM provider is contacted" in context.instructions
@@ -534,7 +534,7 @@ async def test_full_evidence_fsynced_before_result_and_pages_never_refetch(
 async def test_policy_binding_rechecked_before_dispatch(fetch_setup, monkeypatch, changed):
     async with fetch_setup.opened() as (client, owner, _):
         sid, run = await planned_fetch(client)
-        assert run["plan"]["access_policy"]["enabled_tools"] == "read_file,web_fetch"
+        assert run["plan"]["access_policy"]["enabled_tools"] == "read_file,web_fetch,grep_in_folder"
         assert run["plan"]["access_policy"]["network_policy_version"] == "public-web-v1"
         if changed == "network":
             fetch_setup.fetcher.policy_version = "changed"
@@ -559,7 +559,7 @@ async def test_policy_binding_rechecked_before_dispatch(fetch_setup, monkeypatch
         fetch_setup.fetcher.fetch.assert_not_awaited()
 
 
-@pytest.mark.parametrize("name", ["web_search", "grep_in_folder"])
+@pytest.mark.parametrize("name", ["web_search"])
 async def test_known_disabled_capability_fails_before_approval(fetch_setup, name):
     # Even an adapter bypassing Pydantic construction cannot make a stub approvable.
     proposed = fetch_proposal()

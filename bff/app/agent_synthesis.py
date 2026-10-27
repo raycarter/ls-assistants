@@ -12,7 +12,7 @@ from app.agent_llm import AttemptResult, AttemptRunner, CanonicalRequest, Single
 from app.agent_responses import ResponsesTransport, _output_text, _strict_json
 from app.llm_schemas import LLMIdentity
 
-INSTRUCTIONS_VERSION = "agent-responses-synthesis-v2"
+INSTRUCTIONS_VERSION = "agent-responses-synthesis-v3"
 INSTRUCTIONS = (
     INSTRUCTIONS_VERSION + ": Answer the original request with a useful final answer using only "
     "the evidence in the supplied approved_plan and results. The plan describes approved work; "
@@ -24,6 +24,11 @@ INSTRUCTIONS = (
     "missing results, uncertainty and unverified claims; do not claim unseen content was checked. "
     "Adaptive read results contain accumulated model findings, not verbatim complete source. "
     "Their read coverage metadata is authoritative; an early stop is not complete file coverage. "
+    "Grep results contain a character excerpt of retained JSONL matches, not entire source files. "
+    "A complete grep scan is distinct from complete match evidence supplied to you: nonzero "
+    "offset or next_offset means some retained evidence is omitted. Skipped binary/unreadable "
+    "files mean incomplete search coverage. Qualify conclusions using these authoritative fields; "
+    "do not claim exhaustive evidence or no matches in files that were not searched. "
     "If evidence is insufficient, explain what can and cannot be concluded. Return ordinary "
     "answer text, not a JSON proposal. Do not include hidden reasoning, execute tools, or request "
     "additional tool calls."

@@ -24,16 +24,21 @@ from app.agent_schemas import Proposal
 if TYPE_CHECKING:
     from app.agent import PlanningInput
 
-INSTRUCTIONS_VERSION = "agent-responses-planning-v3"
+INSTRUCTIONS_VERSION = "agent-responses-planning-v4"
 INSTRUCTIONS = (
     INSTRUCTIONS_VERSION + ": Return a structured proposal with at least one tool step. "
-    "Propose only read_file and web_fetch using the supplied available tool descriptions. "
+    "Propose only read_file, web_fetch and grep_in_folder using supplied tool descriptions. "
     "Do not execute tools. Workspace IDs identify available workspaces, not filesystem paths. "
     "For read_file, use an exact supplied workspace ID and a workspace-relative path such as "
     "note.txt, never an absolute path or a workspace-ID prefix. Read offsets are one-based line "
     "numbers (start at 1); limits count lines and must be 1..200 (normally 200). "
     "For web_fetch, offsets are zero-based character positions (start at 0); limits count "
     "characters and must be 1..16000 (normally 12000). Never interchange these paging rules. "
+    "For grep_in_folder use a supplied workspace ID, a relative folder path ('.' for its root), "
+    "a nonempty case-sensitive single-line literal pattern and file_glob=null unless a filename "
+    "filter is needed. Grep offset/limit page retained evidence characters (normally 0/12000), "
+    "not matches or source lines; search scans all permitted files. It does not read matches "
+    "automatically. Do not invent filenames for a subsequent read from unknown grep results. "
     "A read_file step authorizes that named file; internal reading may continue without "
     "another approval. Use offset=1 and limit=200 as internal read hints, not a total scope. "
     "Describe the read's purpose only. Do not mention chunks, line ranges, whole-file versus "
@@ -99,6 +104,35 @@ def proposal_schema() -> dict:
             },
         }
     )
+    grep = _object(
+        {
+            "workspace_id": {"type": "string", "description": "An exact supplied workspace ID."},
+            "path": {
+                "type": "string",
+                "description": "Relative folder path; '.' for workspace root.",
+            },
+            "pattern": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Case-sensitive single-line literal; not a regex.",
+            },
+            "file_glob": {
+                "type": ["string", "null"],
+                "description": "Optional relative filename filter; normally null.",
+            },
+            "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Retained evidence character offset; normally 0.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16000,
+                "description": "Retained evidence page characters; normally 12000.",
+            },
+        }
+    )
     variants = [
         _object(
             {
@@ -108,7 +142,7 @@ def proposal_schema() -> dict:
                 "arguments": arguments,
             }
         )
-        for tool, arguments in (("read_file", read), ("web_fetch", fetch))
+        for tool, arguments in (("read_file", read), ("web_fetch", fetch), ("grep_in_folder", grep))
     ]
     return _object(
         {
@@ -140,7 +174,7 @@ def build_request(context: PlanningInput, max_output_tokens: int) -> CanonicalRe
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "agent_plan_v3",
+                    "name": "agent_plan_v4",
                     "strict": True,
                     "schema": proposal_schema(),
                 }
@@ -229,6 +263,12 @@ def _check_shape(value, schema):
                 pass
         raise ValueError("Invalid tool step")
     kind = schema["type"]
+    if isinstance(kind, list):
+        if value is None and "null" in kind:
+            return
+        if isinstance(value, str) and "string" in kind:
+            return
+        raise ValueError("Invalid nullable proposal value")
     if kind == "object":
         if not isinstance(value, dict) or set(value) != set(schema["properties"]):
             raise ValueError("Invalid proposal object fields")
@@ -240,7 +280,11 @@ def _check_shape(value, schema):
         for item in value:
             _check_shape(item, schema["items"])
     elif kind == "string":
-        if not isinstance(value, str) or ("enum" in schema and value not in schema["enum"]):
+        if (
+            not isinstance(value, str)
+            or ("enum" in schema and value not in schema["enum"])
+            or ("minLength" in schema and len(value) < schema["minLength"])
+        ):
             raise ValueError("Invalid proposal string")
     elif kind == "integer":
         if (

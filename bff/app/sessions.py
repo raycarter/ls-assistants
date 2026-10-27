@@ -29,12 +29,14 @@ from app.agent_files import AgentFault, canonical_digest, open_directory
 from app.agent_schemas import (
     AgentError,
     AgentEvent,
+    AgentRun,
     AgentSession,
     ArtifactId,
     ArtifactPage,
     Claim,
     CreateSession,
     JournalRecord,
+    StepResult,
     Strict,
 )
 from app.agent_views import PublicIndex, PublicViews, index_record
@@ -61,6 +63,16 @@ class ArtifactReceipt(Strict):
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     bytes: int = Field(ge=0)
     total_chars: int = Field(ge=0)
+
+
+class ArtifactBinding(ArtifactReceipt):
+    """Private provenance, rebuilt from the first commit; never part of its proof."""
+
+    run_id: str = Field(exclude=True, frozen=True)
+    step_id: str = Field(exclude=True, frozen=True)
+    grep_arguments: tuple[str, str, str, str | None, int, int] | None = Field(
+        exclude=True, frozen=True
+    )
 
 
 class TextDocument(Protocol):
@@ -158,9 +170,9 @@ class SessionStore:
         self._root_identity: tuple[int, int] | None = None
         self.used = 0
         # Physical diagnostics only, including safe orphans; never admission quotas.
-        # Fetched TXT evidence retains separate accounting.
+        # Retained TXT evidence has separate accounting.
         self.artifact_bytes = 0
-        self.artifacts: dict[str, dict[str, ArtifactReceipt]] = {}
+        self.artifacts: dict[str, dict[str, ArtifactBinding]] = {}
         self._artifact_stamps: dict[str, dict[str, FileStamp]] = {}
         self._committed: dict[str, Committed] = {}
         self._verified: dict[str, VerifiedFiles] = {}
@@ -513,7 +525,35 @@ class SessionStore:
                     os.close(opened)
 
     @staticmethod
-    def _index_artifacts(record: JournalRecord, current: dict) -> dict[str, ArtifactReceipt]:
+    def _grep_arguments(
+        run: AgentRun, result: StepResult
+    ) -> tuple[str, str, str, str | None, int, int] | None:
+        metadata = result.grep
+        if metadata is None:
+            return None
+        steps = (
+            [step for step in run.plan.steps if step.id == result.step_id]
+            if run.plan is not None
+            else []
+        )
+        if (
+            len(steps) != 1
+            or steps[0].tool != "grep_in_folder"
+            or sum(item.step_id == result.step_id for item in run.results) != 1
+        ):
+            raise ValueError("unbound grep step")
+        args = steps[0].arguments
+        if any(
+            getattr(metadata, field) != getattr(args, field)
+            for field in ("workspace_id", "path", "pattern", "file_glob", "offset")
+        ) or metadata.returned_chars != min(args.limit, metadata.total_chars - args.offset):
+            raise ValueError("grep arguments changed")
+        return (args.workspace_id, args.path, args.pattern, args.file_glob, args.offset, args.limit)
+
+    @staticmethod
+    def _index_artifacts(
+        record: JournalRecord, current: dict[str, ArtifactBinding]
+    ) -> dict[str, ArtifactBinding]:
         index = dict(current)
         proof = record.audit.get("artifact")
         if proof is not None:
@@ -521,26 +561,38 @@ class SessionStore:
             if record.event.type != "tool.result" or receipt.artifact_id in index:
                 raise ValueError("invalid evidence commit")
             matches = [
-                result
+                (run, result)
                 for run in record.event.session.runs
-                if run.id == record.event.run_id
                 for result in run.results
-                if result.step_id == record.audit.get("step_id")
-                and result.status == "completed"
-                and result.fetch is not None
-                and result.fetch.artifact_id == receipt.artifact_id
+                for metadata in (result.fetch, result.grep)
+                if result.status == "completed"
+                and metadata is not None
+                and metadata.artifact_id == receipt.artifact_id
             ]
             if len(matches) != 1:
                 raise ValueError("unbound evidence commit")
-            index[receipt.artifact_id] = receipt
+            run, result = matches[0]
+            if (run.id, result.step_id) != (record.event.run_id, record.audit.get("step_id")):
+                raise ValueError("unbound evidence commit")
+            index[receipt.artifact_id] = ArtifactBinding(
+                **receipt.model_dump(),
+                run_id=run.id,
+                step_id=result.step_id,
+                grep_arguments=SessionStore._grep_arguments(run, result),
+            )
         for run in record.event.session.runs:
             for result in run.results:
-                if result.fetch is not None:
-                    receipt = index.get(result.fetch.artifact_id)
+                grep_arguments = SessionStore._grep_arguments(run, result)
+                for metadata in (result.fetch, result.grep):
+                    if metadata is None:
+                        continue
+                    receipt = index.get(metadata.artifact_id)
                     if (
                         result.status != "completed"
                         or receipt is None
-                        or receipt.total_chars != result.fetch.total_chars
+                        or receipt.total_chars != metadata.total_chars
+                        or (receipt.run_id, receipt.step_id) != (run.id, result.step_id)
+                        or receipt.grep_arguments != grep_arguments
                     ):
                         raise ValueError("uncommitted evidence reference")
         return index
@@ -549,9 +601,9 @@ class SessionStore:
         unchecked = set(index)
         for run in snapshot.runs:
             for result in run.results:
-                if result.fetch is None:
+                metadata = result.fetch if result.fetch is not None else result.grep
+                if metadata is None:
                     continue
-                metadata = result.fetch
                 receipt = index[metadata.artifact_id]
                 page = self._read_artifact(
                     sid, receipt, metadata.offset, max(1, metadata.returned_chars)

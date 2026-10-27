@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fixturePlan, fixtureRun, normalizeRun, FIXTURE_TIME } from './agent-api.testing';
-import { validResult } from './agent-legacy.models';
+import { validResult } from './agent.models';
 import {
   parseAgentRun,
   parseResultsPage,

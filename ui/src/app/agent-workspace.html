@@ -2,11 +2,11 @@
   <aside class="disclosure" aria-label="Agent capabilities and retained content">
     <strong>Agent · review the plan before execution</strong>
     <p>
-      Approved plans support read_file and web_fetch steps. Search and grep are unavailable.
+      Approved plans support read_file, web_fetch and grep_in_folder steps. Search is unavailable.
       Planning runs no tools. Planner availability and tool authorization are determined by the BFF.
-      File reads show workspace and path before approval; fetch steps show exact arguments. History
-      loads in fixed-size pages; page sizes are read windows, not retained-history or execution
-      allowances.
+      File reads show workspace and path before approval; fetch and grep steps show exact arguments.
+      History loads in fixed-size pages; page sizes are read windows, not retained-history or
+      execution allowances.
     </p>
     <p>
       User requests, reviewed plans, approved source excerpts, tool results and logical model
@@ -14,7 +14,9 @@
       read-only inspection. This is not a complete LLM audit. Archive preserves this history; there
       is no automatic expiry. Permitted source text may contain sensitive content; this is not
       guaranteed secret-content scrubbing. Approved web_fetch requests contact the supplied URL and
-      its redirects. Inspecting retained pages reads BFF storage without fetching again.
+      its redirects. Grep matches a literal pattern in the approved workspace folder; matching files
+      are not automatically opened. Inspecting retained pages reads BFF storage without running
+      tools again.
     </p>
   </aside>
   @if (state.globalError()) {
@@ -206,6 +208,24 @@
                       <h4>Exact tool arguments</h4>
                       <pre>{{ step.arguments | json }}</pre>
                     </section>
+                  } @else if (step.tool === 'grep_in_folder') {
+                    <h3>Grep folder · {{ step.arguments.path }}</h3>
+                    <p>
+                      Workspace: {{ step.arguments.workspace_id }} · Folder:
+                      <code>{{ step.arguments.path }}</code>
+                    </p>
+                    <p>
+                      Literal pattern: <code>{{ step.arguments.pattern }}</code>
+                    </p>
+                    @if (step.arguments.file_glob !== null) {
+                      <p>
+                        File glob: <code>{{ step.arguments.file_glob }}</code>
+                      </p>
+                    }
+                    <section aria-label="Exact tool arguments">
+                      <h4>Exact tool arguments · initial evidence page</h4>
+                      <pre>{{ step.arguments | json }}</pre>
+                    </section>
                   }
                   <p>Tool: {{ step.tool }}</p>
                   <p>Step: {{ step.id }} · {{ stepStatus(run, step.id) }}</p>
@@ -315,61 +335,99 @@
               {{ result.step_id }} · {{ result.status }}
               <time [attr.datetime]="result.time">{{ result.time | messageTime }}</time>
             </h2>
-            @if (result.fetch; as fetch) {
-              <div class="fetch-provenance" aria-label="Fetched page provenance">
-                <h3>Fetched page</h3>
-                @if (fetch.title !== null) {
-                  <h4>{{ fetch.title }}</h4>
-                }
-                <p>
-                  Requested URL:
-                  @if (safeHttpUrl(fetch.requested_url)) {
-                    <a [href]="fetch.requested_url" target="_blank" rel="noopener noreferrer">{{
-                      fetch.requested_url
-                    }}</a>
-                  } @else {
-                    {{ fetch.requested_url }}
+            @if (evidenceMetadata(result); as metadata) {
+              @if (result.fetch; as fetch) {
+                <div class="fetch-provenance" aria-label="Fetched page provenance">
+                  <h3>Fetched page</h3>
+                  @if (fetch.title !== null) {
+                    <h4>{{ fetch.title }}</h4>
                   }
-                </p>
-                <p>
-                  Final URL:
-                  @if (safeHttpUrl(fetch.final_url)) {
-                    <a [href]="fetch.final_url" target="_blank" rel="noopener noreferrer">{{
-                      fetch.final_url
-                    }}</a>
-                  } @else {
-                    {{ fetch.final_url }}
+                  <p>
+                    Requested URL:
+                    @if (safeHttpUrl(fetch.requested_url)) {
+                      <a [href]="fetch.requested_url" target="_blank" rel="noopener noreferrer">{{
+                        fetch.requested_url
+                      }}</a>
+                    } @else {
+                      {{ fetch.requested_url }}
+                    }
+                  </p>
+                  <p>
+                    Final URL:
+                    @if (safeHttpUrl(fetch.final_url)) {
+                      <a [href]="fetch.final_url" target="_blank" rel="noopener noreferrer">{{
+                        fetch.final_url
+                      }}</a>
+                    } @else {
+                      {{ fetch.final_url }}
+                    }
+                  </p>
+                  <p>
+                    Fetched at
+                    <time [attr.datetime]="fetch.fetched_at">{{ fetch.fetched_at }}</time>
+                  </p>
+                  <p>HTTP {{ fetch.status_code }} · {{ fetch.content_type }}</p>
+                  @if (fetch.redirects.length) {
+                    <details>
+                      <summary>Recorded redirects</summary>
+                      <ol>
+                        @for (url of fetch.redirects; track $index) {
+                          <li>{{ url }}</li>
+                        }
+                      </ol>
+                    </details>
                   }
-                </p>
-                <p>
-                  Fetched at <time [attr.datetime]="fetch.fetched_at">{{ fetch.fetched_at }}</time>
-                </p>
-                <p>HTTP {{ fetch.status_code }} · {{ fetch.content_type }}</p>
-                @if (fetch.redirects.length) {
-                  <details>
-                    <summary>Recorded redirects</summary>
-                    <ol>
-                      @for (url of fetch.redirects; track $index) {
-                        <li>{{ url }}</li>
-                      }
-                    </ol>
-                  </details>
-                }
-                <p>
-                  Artifact: <code>{{ fetch.artifact_id }}</code>
-                </p>
-              </div>
+                  <p>
+                    Artifact: <code>{{ fetch.artifact_id }}</code>
+                  </p>
+                </div>
+              }
+              @if (result.grep; as grep) {
+                <section aria-label="Grep coverage">
+                  <h3>Recorded folder grep · literal matching</h3>
+                  <p>
+                    Workspace: {{ grep.workspace_id }} · Folder: <code>{{ grep.path }}</code>
+                  </p>
+                  <p>
+                    Literal pattern: <code>{{ grep.pattern }}</code>
+                  </p>
+                  @if (grep.file_glob !== null) {
+                    <p>
+                      File glob: <code>{{ grep.file_glob }}</code>
+                    </p>
+                  }
+                  <p>{{ grep.total_matches }} matches · {{ grep.files_searched }} files searched</p>
+                  <p>
+                    Skipped binary: {{ grep.skipped_binary }} · Skipped unreadable:
+                    {{ grep.skipped_unreadable }}
+                  </p>
+                  <p>
+                    {{
+                      grep.complete
+                        ? 'Complete search coverage'
+                        : 'Partial search coverage: binary or unreadable files skipped'
+                    }}
+                  </p>
+                  @if (grep.next_offset !== null) {
+                    <p>Partial evidence preview: more retained matching text is available.</p>
+                  }
+                  <p>
+                    Artifact: <code>{{ grep.artifact_id }}</code>
+                  </p>
+                </section>
+              }
               <p role="note">Untrusted extracted source text · displayed as plain text.</p>
               <p class="preview-range">
-                Execution preview: offset {{ fetch.offset }} (zero-based) · returned
-                {{ fetch.returned_chars }} of {{ fetch.total_chars }} retained characters.
-                @if (fetch.offset > 0 || fetch.next_offset !== null) {
+                Execution preview: offset {{ metadata.offset }} (zero-based) · returned
+                {{ metadata.returned_chars }} of {{ metadata.total_chars }} retained characters.
+                @if (metadata.offset > 0 || metadata.next_offset !== null) {
                   This preview is only part of the retained text.
                 }
               </p>
-              <pre class="source-text" aria-label="Fetched source preview">{{
-                result.content
-              }}</pre>
+              <pre
+                class="source-text"
+                [attr.aria-label]="result.grep ? 'Grep JSONL preview' : 'Fetched source preview'"
+                >{{ result.content }}</pre>
               @let evidence = evidenceView(session.id, run.id, result);
               @if (evidence?.page; as page) {
                 <section aria-label="Retained evidence page" class="evidence-page">
@@ -400,7 +458,7 @@
                     Next retained page
                   </button>
                 }
-                @if (fetch.offset > 0 || evidence?.page) {
+                @if (metadata.offset > 0 || evidence?.page) {
                   <button
                     type="button"
                     [disabled]="evidence?.loading"

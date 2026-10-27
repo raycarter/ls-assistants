@@ -96,6 +96,7 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
         backwards=False,
         enabled=True,
         fetched=False,
+        grepped=False,
         recorded=False,
         journal="journal",
     ):
@@ -108,6 +109,28 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
         async def plan(context):
             if backwards:
                 clock.value = EARLIER
+            if grepped:
+                return Proposal.model_validate(
+                    {
+                        "objective": "Search the public workspace",
+                        "assumptions": [],
+                        "steps": [
+                            {
+                                "title": "Search public text",
+                                "description": "Find matching lines; return the first page.",
+                                "tool": "grep_in_folder",
+                                "arguments": {
+                                    "workspace_id": "public",
+                                    "path": ".",
+                                    "pattern": "alpha",
+                                    "file_glob": "*.txt",
+                                    "offset": 0,
+                                    "limit": 18,
+                                },
+                            }
+                        ],
+                    }
+                )
             if fetched:
                 return Proposal.model_validate(
                     {
@@ -657,6 +680,40 @@ async def generate_contract(opened):
             "error_code": None,
         }
 
+    async with opened("ct09", grepped=True) as setup:
+        planning = await stream(
+            setup.client,
+            "setup",
+            await create(setup.client),
+            "plan",
+            {"action": "runs", "content": "Search public text for alpha"},
+        )
+        setup.files.read.assert_not_called()
+        setup.owner.fetcher.fetch.assert_not_awaited()
+        case = await stream(
+            setup.client,
+            "grep_execution",
+            planning["terminal"],
+            "execute",
+            {"action": "execute", **await identity(setup.client, planning["terminal"])},
+        )
+        metadata = case["terminal_run"]["results"][0]["grep"]
+        url = (
+            f"{BASE}/{case['baseline']['id']}/artifacts/{metadata['artifact_id']}"
+            f"?offset={metadata['next_offset']}&limit=12000"
+        )
+        response = await setup.client.get(url)
+        assert response.status_code == 200
+        case["artifact_page"] = {
+            "http": {"method": "GET", "url": url},
+            "status": response.status_code,
+            "body": response.json(),
+        }
+        streams.append(case)
+        setup.planner.plan.assert_awaited_once()
+        setup.files.read.assert_not_called()
+        setup.owner.fetcher.fetch.assert_not_awaited()
+
     return {
         "version": 2,
         "streams": streams,
@@ -679,6 +736,7 @@ def assert_representative(contract):
         "backwards_clock",
         "fetch_execution",
         "recorded_planning",
+        "grep_execution",
     }
     for case in contract["streams"]:
         assert all(frame["data"]["invalidates_runs"] is False for frame in events(case["sse"]))
@@ -738,6 +796,47 @@ def assert_representative(contract):
     assert result["content"] + continuation["content"] == (
         "Public evidence 🌱\nContinuation from durable storage."
     )
+    grepped = cases["grep_execution"]
+    frames = events(grepped["sse"])
+    assert [frame["data"]["type"] for frame in frames] == execution_types
+    plan = grepped["terminal_run"]["plan"]
+    (step,) = plan["steps"]
+    assert step["tool"] == "grep_in_folder"
+    assert step["arguments"] == {
+        "workspace_id": "public",
+        "path": ".",
+        "pattern": "alpha",
+        "file_glob": "*.txt",
+        "offset": 0,
+        "limit": 18,
+    }
+    assert frames[0]["data"]["run"]["plan_identity"] == {
+        key: plan[key] for key in ("id", "revision", "digest", "model", "reasoning_effort")
+    }
+    (result,) = grepped["terminal_run"]["results"]
+    assert result["step_id"] == step["id"] and result["status"] == "completed"
+    assert result["truncated"] is True
+    metadata = result["grep"]
+    assert {key: metadata[key] for key in ("workspace_id", "path", "pattern", "file_glob")} == {
+        key: step["arguments"][key] for key in ("workspace_id", "path", "pattern", "file_glob")
+    }
+    assert metadata["offset"] == 0 and metadata["returned_chars"] == 18
+    assert metadata["total_matches"] == metadata["files_searched"] == 1
+    assert metadata["skipped_binary"] == metadata["skipped_unreadable"] == 0
+    assert metadata["complete"] is True
+    continuation = grepped["artifact_page"]["body"]
+    assert continuation["artifact_id"] == metadata["artifact_id"]
+    assert continuation["offset"] == metadata["next_offset"] == 18
+    assert continuation["total_chars"] == metadata["total_chars"]
+    assert continuation["next_offset"] is None
+    retained = result["content"] + continuation["content"]
+    assert len(retained) == metadata["total_chars"]
+    assert [json.loads(line) for line in retained.splitlines()] == [
+        {"path": "public.txt", "line": 1, "text": "alpha 🌱"}
+    ]
+    assert frames[3]["data"]["result"] == result
+    assert [frame["data"]["run"]["result_count"] for frame in frames] == [0, 0, 1, 1, 1]
+    assert [frame["data"]["run"]["completed_steps"] for frame in frames] == [0, 0, 0, 1, 1]
     recorded = cases["recorded_planning"]
     frames = events(recorded["sse"])
     assert [frame["data"]["type"] for frame in frames] == [
@@ -827,7 +926,7 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
     generated = await generate_contract(contract_setup)
     assert_representative(generated)
     serialized = json.dumps(generated, ensure_ascii=False, indent=2) + "\n"
-    assert len(serialized.encode()) < 150_000, "Keep this representative fixture small"
+    assert len(serialized.encode()) < 170_000, "Keep this representative fixture small"
     assert str(tmp_path) not in serialized
     assert "audit" not in serialized
     for canary in PRIVATE_CANARIES:

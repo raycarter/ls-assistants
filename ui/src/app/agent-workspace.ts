@@ -43,7 +43,7 @@ export class AgentWorkspace {
       const signatures = new Map(
         (session ? this.state.visibleRuns() : []).flatMap((run) =>
           run.results
-            .filter((result) => result.fetch)
+            .filter((result) => this.evidenceMetadata(result))
             .map(
               (result) =>
                 [this.evidenceKey(session!.id, run.id, result), this.signature(result)] as const,
@@ -70,7 +70,7 @@ export class AgentWorkspace {
   }
 
   evidenceKey(sid: string, rid: string, result: StepResult): string {
-    return JSON.stringify([sid, rid, result.step_id, result.fetch?.artifact_id]);
+    return JSON.stringify([sid, rid, result.step_id, this.evidenceMetadata(result)?.artifact_id]);
   }
   evidenceView(sid: string, rid: string, result: StepResult): EvidenceView | undefined {
     const view = this.evidence().get(this.evidenceKey(sid, rid, result));
@@ -78,10 +78,10 @@ export class AgentWorkspace {
   }
   nextOffset(sid: string, rid: string, result: StepResult): number | null {
     const page = this.evidenceView(sid, rid, result)?.page;
-    return page ? page.next_offset : (result.fetch?.next_offset ?? null);
+    return page ? page.next_offset : (this.evidenceMetadata(result)?.next_offset ?? null);
   }
   async readEvidence(sid: string, rid: string, result: StepResult, offset: number): Promise<void> {
-    const metadata = result.fetch;
+    const metadata = this.evidenceMetadata(result);
     const key = this.evidenceKey(sid, rid, result);
     if (!metadata || this.reads.has(key) || !this.currentEvidence(sid, rid, result)) return;
     // Only sequential continuation or an explicit restart can read retained text.
@@ -124,7 +124,10 @@ export class AgentWorkspace {
     }
   }
   private signature(result: StepResult): string {
-    return JSON.stringify([result.status, result.content, result.fetch]);
+    return JSON.stringify([result.status, result.content, result.fetch, result.grep]);
+  }
+  evidenceMetadata(result: StepResult) {
+    return result.fetch ?? result.grep;
   }
   private currentEvidence(sid: string, rid: string, result: StepResult): boolean {
     const session = this.state.activeSession();
@@ -136,7 +139,8 @@ export class AgentWorkspace {
       !this.destroyed &&
       !this.legacy() &&
       session?.id === sid &&
-      !!current?.fetch &&
+      !!current &&
+      !!this.evidenceMetadata(current) &&
       this.signature(current) === this.signature(result)
     );
   }

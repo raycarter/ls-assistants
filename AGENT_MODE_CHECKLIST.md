@@ -2,7 +2,7 @@
 
 Design and research: [AGENT_MODE_TODO.md](AGENT_MODE_TODO.md).
 
-This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, Step 3 recorded LLM foundation, production planning/revision adapter, MVP tool-free final synthesis, and scoped approved filesystem root/read wiring are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
+This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, recorded LLM foundation, production planning, final synthesis, approved filesystem wiring, adaptive file reads, and literal folder grep are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
 
 **Firm constraint:** Borrow OpenCode's architectural/behavioral ideas only. Write the implementation independently; do not copy, translate, vendor, or adapt OpenCode implementation code or embed its runtime.
 
@@ -54,11 +54,11 @@ Depends on Phase 0 contracts.
 Depends on Phase 1 schemas and recording primitives.
 
 - [ ] **P2-01** Add a fixed registry for `web_search`, `web_fetch`, `read_file`, and `grep_in_folder`, with strict argument/result validation.
-  - [x] Recognize all four names; enable and strictly validate `read_file`/`web_fetch`, expose descriptions to the injected planner, and bind availability/network policy to approval. Search/grep remain explicitly unavailable, not successful stubs.
-- [ ] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
-  - [x] Scoped default root/read wiring: pure `agent_workspace.build_file_policy()` mapping for fixed `workspace`, Darwin physical `/private/tmp/ls-assistants` and non-Darwin logical `/tmp/ls-assistants`; unchanged descriptor no-follow and exclusion policy. Root unit/API verification is recorded below. Shared grep remains unimplemented, so the broad parent stays partial.
+  - [x] Recognize all four names; enable and strictly validate `read_file`/`web_fetch`/`grep_in_folder`, expose descriptions to the planner, and bind availability/policy to approval. Search remains explicitly disabled. Scoped grep evidence is recorded below; the all-four-tool parent remains open.
+- [x] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
+  - [x] Scoped default root/read wiring: pure `agent_workspace.build_file_policy()` mapping for fixed `workspace`, Darwin physical `/private/tmp/ls-assistants` and non-Darwin logical `/tmp/ls-assistants`; unchanged descriptor no-follow and exclusion policy. Shared grep enforcement and focused tests now cover this scope; see the grep record below. Broader all-tool/release gates remain open.
 - [x] **P2-03** Implement bounded text `read_file`: relative paths, numbered lines, pagination, safe errors, and truncation metadata.
-- [ ] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas.
+- [x] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas. Scoped tests pass; final independent re-review and full checks remain pending in the grep record.
 - [ ] **P2-05** Move blocking filesystem work off the event loop; add cooperative cancellation and retain ownership until workers settle.
 - [ ] **P2-06** Implement task-dependent Tavily search with HTTPX, provider-supported result paging, citations, and per-request timeouts; no mandatory search step, per-run call quota, extra query approval, silent fallback, or implicit page fetching.
 - [ ] **P2-07** Add safe configuration examples in `bff/.env.example`; keep credentials out of UI, logs, and tool results.
@@ -74,7 +74,7 @@ Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implemen
 
 - [x] **P3-01** Add BFF-owned, versioned Agent instructions independent of the editable Chat prompt catalogue.
 - [ ] **P3-02** Implement tool-free structured planning with objective, unverified assumptions, ordered steps, intended tools, and expected results; allow no-tool/no-search plans and omit task-budget fields.
-  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch` step, with expected outcomes in descriptions; validate proposals in the coordinator. The original planning-v1 checkpoint and later paging-v2 evidence are recorded below; adaptive planning-v3 final checks remain pending. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
+  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions; validate proposals in the coordinator. Planning-v3 passed with adaptive reads; current planning-v4 grep focused evidence and pending final checks are recorded below. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
 - [ ] **P3-03** Validate capabilities; persist clarification question IDs and accept answers through discriminated `/revise` requests, with new planning operation IDs and stale-answer rejection.
 - [x] **P3-04** Persist immutable plan revisions, stable step IDs, canonical digests, and frozen model/thinking/policy settings.
 - [ ] **P3-05** Implement serialized clarification/review transitions and one approval before each plan's execution; steps, queries, tool calls, and ordinary retries must not ask for additional approval.
@@ -166,7 +166,7 @@ Depends on Phases 0–7.
 
 Checked P8-04/P8-05/P8-06/P8-10 have dated evidence for each increment. Step 3's completed full checks and scoped independent reviews are recorded in its verification record; they do not certify the unfinished broader release gates.
 
-The production planning/revision adapter completed full checks at `fcf7308`; synthesis was committed as `024c5e5`, root/read wiring as `d9ae98f`, and the paging correction as `0126f50`. Their dated evidence is preserved below. The subsequent adaptive-read work is uncommitted and passed independent re-review and full regression checks. These checkpoints do not complete the broader release gates below.
+The production planning/revision adapter completed full checks at `fcf7308`; synthesis was committed as `024c5e5`, root/read wiring as `d9ae98f`, and the paging correction as `0126f50`. Adaptive reads passed independent re-review/full checks and were user-committed at `f9e4f2b`; the user subsequently confirmed a live full read. Current grep work remains uncommitted and passed final re-review and full regression checks. These checkpoints do not complete the broader release gates below.
 
 - [ ] **P8-01** Run mocked end-to-end scenarios covering all four tools, a reasoning-only/no-search task, a filesystem-only task, and fetch of a directly supplied URL without search; four-tool coverage is a test case, not a requirement for every plan.
 - [ ] **P8-02** Verify rejection, stale approval, duplicate commands, delayed Stop, disconnect, and restart never trigger unauthorized or repeated execution.
@@ -339,7 +339,12 @@ Subsequent commit checkpoint: the paging correction was committed as `0126f50`. 
 - Full backend verification: **1,640 tests passed**. Ruff lint/format (56 Python files), offline/frozen lock validation, documentation formatting, generated contract comparison, unchanged dependency/contract fixtures, and whitespace checks passed. No frontend code changed; frontend suites were not rerun for this backend-only correction.
 - Changes remain uncommitted on `347ddc6`. No actual provider calls or real session/workspace reads were performed by the assistant; tests used synthetic fixtures. A live retry of ordinary plan generation on the user's machine remains pending.
 
-## Verification record — 2026-10-26, file-scoped adaptive read (uncommitted)
+## Verification record — 2026-10-26, file-scoped adaptive read
+
+Subsequent checkpoint: the user committed adaptive reads at **`f9e4f2b`** and confirmed a
+live full read. The uncommitted/live-retry-pending statements below describe the original
+checkpoint, not current status. This user-reported evidence does not establish live grep
+compatibility or a full release.
 
 **Status: file-scoped adaptive read implemented; full regression checks and independent re-reviews passed. Changes remain unstaged and uncommitted on `0126f50`.** This record does not certify the full Agent release or replace earlier passing checkpoint results.
 
@@ -353,11 +358,58 @@ Subsequent commit checkpoint: the paging correction was committed as `0126f50`. 
 - Final full verification: **1,792 backend tests** and **784 frontend tests across 23 files** passed. Ruff lint/format (61 Python files), offline/frozen lock validation, app/spec TypeScript checks, production build, full frontend/documentation Prettier, generated v2 contract comparison, unchanged frozen-v1/current contract fixtures, Git-ignore and whitespace checks passed. No dependencies changed; the two existing nonfatal critical-CSS selector warnings remain.
 - No environment, runtime/session/archive data or real workspace content was read; no live provider calls, migration, browser walkthrough, staging, commit or push were performed. All new read/assessment tests used synthetic temporary fixtures and mocked providers. New adaptive work remains uncommitted, and the user's larger-file live retry remains pending.
 
+## Verification record — 2026-10-27, literal folder grep (uncommitted)
+
+**Status: scoped P2-04 and shared-root P2-02 implemented and mock-verified;
+final independent re-reviews and full regression checks passed.** Baseline is user-committed
+adaptive read `f9e4f2b`, with user-confirmed live full-read evidence above. Grep work
+remains uncommitted; no live grep or full-release verification is claimed.
+
+- Implementation: `bff/app/agent_grep.py`, strict schemas/registry, Responses planning-v4,
+  `AgentService.grep_result`, synthesis-v3 coverage warnings and session artifact bindings;
+  UI `agent-tool.models.ts`, production decoder/workspace and literal JSONL inspector.
+  Enabled tools are read/fetch/grep; search/Tavily stays disabled. Registry versions are
+  `agent-tools-v3` (adaptive) and `agent-tools-v3-exact` (generic). Old versioned approvals
+  require fresh review; legacy read-only fallback cannot authorize grep.
+- Focused supplied evidence: **74 scanner tests** (`test_agent_grep.py`), **104 artifact
+  plus fetch tests**, and **26 grep API integration cases plus 5 synthesis-warning cases
+  = 31 cases** passed. Counts include parameterized cases and are not additive full-suite
+  totals. Relevant coverage is in `test_grep_artifacts.py`, existing artifact/fetch tests,
+  `test_agent_grep_api.py`, and adaptive/Responses/workspace regressions.
+- Scope verified includes shared fixed workspace/no-follow/exclusions and protected storage
+  identity, case-sensitive literal/glob selection, complete full-line JSONL scan with
+  bounded spools/8 KiB blocks, UTF-8/CRLF boundaries, no cumulative scan quotas, per-unit
+  timeout/Stop ownership, skipped-file staging discard, whole-operation traversal failures,
+  character artifact paging, and exact run/step/argument ownership. No atomic folder
+  snapshot or hardlink isolation for the other read tool is claimed.
+- Initial independent reviews found **P1 hardlink exposure** and **P2 spool timeout**,
+  artifact-reuse and partial-warning issues. Corrections reject multiply-linked files as
+  unreadable/incomplete, cover spool operations with unit timeouts, bind artifacts to exact
+  run/step/grep arguments without changing frozen proof/public shapes, and warn for
+  incomplete scans or omitted prefix/suffix evidence. Final scanner re-review passed with
+  **74 tests**; artifact/API re-review passed with **488 focused tests**; UI review passed
+  with **826 tests across 24 files**. No remaining material P1/P2 findings were reported
+  in these reviewed scopes. A separate documentation consistency review passed.
+- Final full backend run: **1,957 tests passed**. Ruff lint/format (65 Python files),
+  offline/frozen lock validation and generated v2 contract comparison passed. The current
+  fixture now includes an actual synthetic `grep_execution` stream, metadata and retained
+  artifact continuation GET decoded by production UI parsers. Frozen v1 is unchanged.
+- Final full UI run: **828 tests passed across 24 files**. App/spec TypeScript checks,
+  production build, frontend/documentation Prettier, Git-ignore and whitespace checks
+  passed. The two existing nonfatal critical-CSS selector warnings remain. No dependencies
+  changed. A final focused backend run passed **161 tests** after source-only string wrapping.
+  Grep UI coverage includes exact
+  approval arguments, metadata validation, literal `pre` JSONL, GET-only coalesced single
+  evidence-window paging and read file-identity-only review preservation.
+- All new scans and journals used synthetic temporary fixtures. No environment,
+  runtime/session/archive data or real workspace was inspected or changed, and no live
+  provider/grep calls were made. No general tool loop, dependent follow-up reads, no-tool
+  tasks, Tavily, full audit UI or broader parent/release gate is completed by this slice.
+
 ## Next MVP priorities
 
-1. User walkthrough of the file → plan → approval → read → synthesis → reload path; live end-to-end compatibility remains unverified. Fix any primary-path defects before expanding features.
-2. Implement `grep_in_folder` with the shared workspace boundary, relative paths/line numbers, and paged literal matches. This does not by itself implement dependent follow-up reads chosen from matches.
-3. Implement optional Tavily web search.
-4. Support no-tool/reasoning-only tasks without unnecessary file or web access.
+1. User walkthrough of grep → plan → approval → retained matches → synthesis → reload. Adaptive full-read live evidence is confirmed; live grep remains unverified. Dependent follow-up reads chosen from matches remain separate work.
+2. Implement optional Tavily web search.
+3. Support no-tool/reasoning-only tasks without unnecessary file or web access.
 
 Targeted revision refinements and a larger autonomous execution loop are not the next MVP slice.

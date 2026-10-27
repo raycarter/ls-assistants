@@ -6,11 +6,11 @@ Chat conversation state and calls the provider with `store=False`. The separate
 Agent API uses **production planning/revision and tool-free final synthesis over the recorded LLM boundary** with quota-free work and paginated
 public v2, described in [AGENT_API.md](AGENT_API.md): journal-backed sessions,
 provider-generated tool-free planning, exact-plan approval, file-scoped adaptive UTF-8 reads,
-public-page fetching, durable paged web evidence, final answers, progress, rejection,
+public-page fetching, literal folder grep, durable character-paged evidence, final answers, progress, rejection,
 Stop and restart recovery. Default run/revise commands, per-chunk read assessments and final synthesis call the
 Responses provider through a shared controlled dedicated HTTPX client; no Agent SDK is used. An explicitly injected service with
 no planner still returns `503 agent_not_configured`. Provider/deployment
-compatibility has not been live-validated; this is not a full Agent release.
+compatibility evidence is tracked only in the checklist; this is not a full Agent release.
 
 Agent HTTP acknowledgements return v2 session headers; list, run summaries, results
 and events are paginated. Selected runs load one full exact plan and a recent result
@@ -51,7 +51,8 @@ and no synthesis.
 
 Existing case-folded `.env`/secret/private/archive/dependency/session exclusions and
 the actual storage directory's inode exclusion remain enforced. They are not
-secret-content detection or hardlink isolation. Approval binds the path mapping and
+secret-content detection. Grep additionally rejects multiply-linked regular files;
+this does not claim hardlink isolation for the other read tool. Approval binds the path mapping and
 policy, not the workspace root inode or file contents. Changed scope rejects old
 approval and requires a fresh plan and approval without rewriting journals.
 
@@ -93,9 +94,9 @@ remains read-only. The runner retains one active call's observations, and JSON
 serialization still materializes each complete record, in addition to the existing
 baseline/index/linear-verification costs. No constant-memory guarantee is implied.
 
-`agent_responses.py` supplies `agent-responses-planning-v3`: pure request construction
+`agent_responses.py` supplies `agent-responses-planning-v4`: pure request construction
 with `stream=False`, configured `max_output_tokens`, and a manually reviewed strict
-closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
+closed schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step.
 The schema retains one-based file offset and 1–200-line limit wire fields as
 legacy/internal hints; production adaptive reads start at byte zero. Instructions
 avoid read paging/chunk/whole-file narratives. Web fetch retains zero-based character
@@ -115,7 +116,7 @@ repeated cancellation. `main.py` retains one exit-stack cleanup task closing
 Agent → Agent HTTP → Chat SDK → credential after settlement.
 
 Execution runs approved steps sequentially. Default `main.py` supplies a
-`RecordedReadAssessor`: new plans bind `agent-tools-v2` and
+`RecordedReadAssessor`: new plans bind `agent-tools-v3` and
 `read_semantics:file-scoped-v1`. Read approval shows workspace/path file identity
 only, never read paging/chunks, whole-file notes or generated titles/descriptions.
 Plans containing a read also hide objective/assumptions and full-plan JSON; the
@@ -142,7 +143,7 @@ Adaptive results contain lossy cumulative findings and optional `read` metadata:
 are null and `truncated = !eof`. Legacy metadata absence remains compatible.
 After all results commit,
 `AgentService` reloads the approved plan and all ordered completed results, then makes
-one audited tool-free `agent-responses-synthesis-v2` request with the full original
+one audited tool-free `agent-responses-synthesis-v3` request with the full original
 request, approved-plan snapshot and recorded result bodies, including provenance and
 truncation metadata. Result excerpts are not silently expanded into unseen artifact
 pages. Adaptive synthesis input contains findings plus coverage, not all raw chunks;
@@ -161,10 +162,44 @@ compatibility. Default `main.py` supplies planner, read assessor and synthesizer
 result DTOs add optional read coverage without new statuses or endpoints.
 
 No-tool plans, clarification, autonomous model/tool execution, continuation replay,
-general model-driven step results, revision prior context, Tavily, grep
+general model-driven step results, dependent follow-up reads from grep, revision prior context, Tavily
 and full audit UI remain pending.
 Implementation status, all test counts/evidence and remaining checks are
 recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
+
+### Literal folder grep
+
+The registry enables `read_file`, `web_fetch` and `grep_in_folder`; `web_search` stays
+disabled. Grep uses the same fixed workspace and no-follow/exclusion policy. Arguments
+are `{workspace_id,path,pattern,file_glob,offset,limit}`: folder `path` defaults to `.`,
+pattern is a nonempty case-sensitive single-line literal, glob is optional/null,
+and offset/limit select the initial Unicode-character page (`0`, `12000` normally;
+limit `1..16000`). A slash-free glob matches basenames; otherwise workspace-relative
+`fnmatchcase` applies, with `*` crossing `/`. Selection is not permission.
+
+`agent_grep.py` fully scans selected permitted UTF-8 files using bounded spools and
+8 KiB blocks, preserving split UTF-8/CRLF and entire matching lines as JSONL
+`{path,line,text}`. There is no overall file/match/byte quota or scan deadline;
+incremental I/O units have fresh timeouts and cooperative cancellation. Binary,
+unreadable, hardlinked and observed-mutating files discard staged matches and report
+skip counts/`complete:false`. Root/traversal/directory changes fail the operation.
+The scan is not an atomic folder snapshot, and matches do not trigger file opens.
+
+All JSONL is retained in existing session artifacts. Existing artifact GET pages
+characters, may split records, and is not match-count pagination. Paging requires no
+new approval/tool calls. Optional `result.grep` reports exact scope, total matching
+lines, scan coverage and page metadata, mutually exclusive with read/fetch metadata.
+`truncated = (next_offset != null || !complete)`; a nonzero offset can still omit a
+prefix when truncation is false. Synthesis v3 receives only the recorded excerpt and
+deterministically warns for incomplete coverage, nonzero offset or continuation.
+It does not automatically consume all retained pages.
+
+Private in-memory `ArtifactBinding` derives run/step/grep-argument ownership from
+committed proof; identical hashes cannot authorize another owner or pattern.
+Serialized proof/public shapes remain unchanged. New registry versions and enabled
+tools require fresh review of old versioned plans; legacy read-only fallback cannot
+authorize grep. Generic no-assessor services use `agent-tools-v3-exact`.
+See [AGENT_API.md](AGENT_API.md) for exact metadata and artifact contracts.
 
 ## Setup
 
@@ -449,6 +484,7 @@ acquisition serialization and lifespan draining. No real subprocess is started.
   validation over frozen approved-plan/result snapshots, sharing the controlled HTTPX client.
 - `app/agent_read_chunks.py`: pinned-descriptor sequential lossless UTF-8 chunks and version checks.
 - `app/agent_read_assessor.py`: strict recorded same-file continue/enough decisions and cumulative findings.
+- `app/agent_grep.py`: incremental literal folder scan, no-follow traversal, staged JSONL and coverage counts.
 - `app/llm_schemas.py`, `app/llm_journal.py`: strict private audit lifecycle,
   committed-reference indexes/readers and unmatched-intent recovery.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.

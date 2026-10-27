@@ -166,10 +166,10 @@ prompt propagation, send, retry or deletion through Chat routes.
 ### Implemented interaction
 
 Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
-`web_fetch` steps → tool-free final synthesis → paginated GET-based history after reload. The default
+`web_fetch`/`grep_in_folder` steps → tool-free final synthesis → paginated GET-based history after reload. The default
 BFF calls the Responses provider for planning, plan-feedback revisions, each read assessment and final synthesis through
-its recorded adapters sharing a controlled dedicated HTTPX client. Provider/deployment compatibility has not
-been live-validated. Implementation status, test evidence and remaining checks are tracked only in the
+its recorded adapters sharing a controlled dedicated HTTPX client. Provider/deployment compatibility,
+implementation status, test evidence and remaining checks are tracked only in the
 [root checklist](../AGENT_MODE_CHECKLIST.md).
 
 For each read step, approval displays only workspace/path file identity, with neutral tool/step
@@ -178,7 +178,7 @@ paging/chunk explanations, whole-file notes or generated read titles/description
 a read also hides its objective, assumptions and full-plan JSON to prevent read narrative leaks.
 The original user request remains shown; fetch details and fetch-only review remain unchanged.
 This is a display projection: the actual full wire plan, policy and digest remain preserved and
-approval-bound. New production plans bind `agent-tools-v2` / `read_semantics:file-scoped-v1`.
+approval-bound. New production plans bind `agent-tools-v3` / `read_semantics:file-scoped-v1`.
 Historical exact-page plans cannot gain adaptive authority through old-policy compatibility;
 obtain a fresh plan and approval. Generic injected BFF fixtures without an assessor retain exact reads.
 After all approved steps commit, the BFF reloads the approved plan and all ordered
@@ -187,7 +187,7 @@ the full original request, approved-plan snapshot and recorded result bodies wit
 truncation/coverage metadata; it is independent of the UI's loaded result window. Adaptive read
 results contain cumulative lossy model findings plus coverage, not all raw chunks. Raw chunks remain
 durable private evidence but are not reloaded into final synthesis. The synthesis stage is distinct
-from read assessments and uses `agent-responses-synthesis-v2`. The backend prepends an explicit
+from read assessments and uses `agent-responses-synthesis-v3`. The backend prepends an explicit
 partial-coverage warning if any read stops before EOF. No factual-accuracy guarantee is implied.
 Excerpts remain excerpts,
 without implicit loading of further retained artifact pages. No extra tools or approval are requested.
@@ -232,7 +232,8 @@ the request does not choose a root. A missing directory leaves startup and plan 
 the approved read returns generic `file_unavailable` and no synthesis. Every physical ancestor,
 the root and descendants retain strict descriptor-based no-follow checks. Existing case-folded
 `.env`/secret/private/archive/dependency/session exclusions and actual-storage inode exclusion
-remain enforced; these are not secret-content detection or hardlink isolation.
+remain enforced; these are not secret-content detection. Grep additionally rejects multiply-linked
+regular files, without claiming hardlink isolation for the other read tool.
 Approval binds the path mapping and policy, not the workspace root inode or file contents.
 Changed scope rejects old approval and needs a fresh plan and approval without rewriting journals.
 The v4 filesystem compatibility rule alone cannot authorize adaptive execution of an old exact-page plan.
@@ -246,6 +247,42 @@ controls; these issue only GET requests to the evidence endpoint, never fetch th
 another execution. Loading/errors are result-local; session changes and component destruction abort
 or suppress stale results. Reload restores the execution preview and access to retained pages, not
 the prior inspector position.
+
+### Literal folder grep
+
+Grep review displays its exact `{workspace_id,path,pattern,file_glob,offset,limit}`
+scope and arguments under the single plan approval. The folder defaults to `.`, pattern
+is a nonempty case-sensitive single-line literal, optional glob defaults to null, and
+offset/limit select the initial Unicode-character evidence page (`0`, `12000` normally;
+limit `1..16000`). A slash-free glob selects basenames at any depth; otherwise
+workspace-relative `fnmatchcase` applies, with `*` crossing `/`. Globs do not grant access.
+Read steps retain their file-identity-only approval projection, including in mixed plans.
+
+The BFF fully scans selected permitted UTF-8 files and retains one JSONL record per
+matching line, `{path,line,text}`. Bounded spools/8 KiB blocks preserve cross-block UTF-8,
+CRLF and full matching lines without clipping. No overall file/match/byte quota or scan
+deadline applies; incremental operations have fresh timeouts and cancellation ownership.
+Binary/unreadable/hardlinked/observed-mutating files discard staged matches and report
+skips/`complete:false`; root/traversal/directory changes fail the operation. This is not
+an atomic folder snapshot. Matched paths do not automatically trigger follow-up reads.
+
+Grep cards show scope, total matching lines, files searched, skip counts and scan coverage
+separately from the evidence excerpt. Source JSONL renders literally in `pre`, never as
+Markdown. Optional `result.grep` is mutually exclusive with read/fetch metadata; exact
+fields are in [AGENT_API.md](../bff/AGENT_API.md). Production tool types/validators live in
+`agent-tool.models.ts`, separately from the unchanged frozen-v1 reader.
+
+Existing artifact GET paging is coalesced into a single evidence window with local
+loading/errors and stale-response guards; it adds no tool calls or page approvals.
+Pages count Unicode characters and can split JSONL records, not matching-line counts.
+`truncated = (next_offset != null || !complete)`; nonzero offset can omit a prefix even
+when this flag is false. Synthesis v3 distinguishes scan coverage/total matches from
+the model's received excerpt and deterministically warns if `!complete`, `offset > 0`
+or `next_offset != null`. It does not automatically synthesize all retained pages.
+
+The changed enabled tools/registry version require fresh review of old versioned plans;
+legacy read-only fallback cannot authorize grep. Generic no-assessor services bind
+`agent-tools-v3-exact`. This tool does not add a general tool loop or dependent read flow.
 
 ### Paged history and loaded views
 
@@ -400,10 +437,10 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
 
 - The default BFF production planner is wired in `main.py`; run/revise commands call the provider.
   Startup, health and model listing make no provider/token calls or session reads. An explicitly
-  injected service with no planner retains `503 agent_not_configured`. Provider compatibility has
-  not been live-validated.
-- The BFF supports approved `read_file` and `web_fetch` steps through its production planner. Web search
-  (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release,
+  injected service with no planner retains `503 agent_not_configured`. Provider compatibility
+  evidence is maintained in the root checklist.
+- The BFF supports approved `read_file`, `web_fetch` and `grep_in_folder` steps through its production planner. Web search
+  (including Tavily) and no-tool steps remain unavailable. The full four-tool release,
   autonomous model/tool loop, general model-driven step results, continuation replay and revision prior
   context remain deferred. Default final output is a recorded tool-free synthesis; only explicitly
   injected `AgentService` instances with `synthesizer=None` retain a deterministic receipt for fixtures.
@@ -414,9 +451,9 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   are bound to it. The legacy planner fixture path stays `logical_only`. Final synthesis uses
   `RecordedSynthesizer` with `phase:synthesis`, bound to the execution operation and approved
   plan/revision, with its own stage/interaction/attempt identity. The adapters use no Agent SDK.
-- The `agent-responses-planning-v3` request builder is pure and tool-free, uses frozen model/effort,
+- The `agent-responses-planning-v4` request builder is pure and tool-free, uses frozen model/effort,
   `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
-  strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
+  strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step.
   Revision supplies feedback without old-plan history in the current interface. Default file scope
   is the fixed `workspace` mapping above; no-tool plans remain open. Read instructions describe purpose
   without paging/chunk/whole-file narratives; legacy offset/limit fields remain validated internal hints.

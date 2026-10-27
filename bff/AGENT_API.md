@@ -1,13 +1,13 @@
-# Agent: file-scoped adaptive reads, synthesis and paginated public v2
+# Agent: adaptive reads, literal folder grep and paginated public v2
 
 This backend implements request → provider-generated tool-free plan → exact-version approval
-→ approved `read_file`/`web_fetch` steps → persisted results → tool-free final synthesis
+→ approved `read_file`/`web_fetch`/`grep_in_folder` steps → persisted results → tool-free final synthesis
 → paginated history. The default `main.py` composition wires Responses planning/revision
 and read assessment/final synthesis through the recorded LLM boundary, sharing a controlled dedicated
 HTTPX client.
-No Agent SDK is used. Provider/deployment compatibility has not been live-validated.
+No Agent SDK is used. Live compatibility evidence belongs only in the checklist.
 Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
-replay, grep, revision prior context, and full audit UI remain deferred.
+replay, dependent follow-up reads from grep, revision prior context, and full audit UI remain deferred.
 Implementation progress and all verification evidence are tracked only in
 [the root checklist](../AGENT_MODE_CHECKLIST.md).
 Chat's schemas, API and credential selection are unchanged.
@@ -89,15 +89,17 @@ plan's effective-policy digest. Current file policy is `read-text-v4`; its narro
 compatibility check also accepts the known `read-text-v3` rules digest at identical
 workspace/root/storage scope. It does not accept arbitrary older rules or expand
 access. Other policy changes require a newly reviewed plan and fresh approval.
-New production plans also bind `tool_registry_version:"agent-tools-v2"`,
+New production plans also bind `tool_registry_version:"agent-tools-v3"`,
 `read_semantics:"file-scoped-v1"`, enabled tools and network-policy version.
 Old exact-page read plans cannot acquire adaptive authority through the v3/v4
 filesystem compatibility rule or legacy registry matching: obtain a fresh plan and
 approval. Historical wire plans and digests remain exact and unchanged.
 A legacy file-only policy can retain its unchanged original digest for `read_file`
-only; it cannot authorize a network tool. All four tool names are recognized;
-only `read_file` and `web_fetch` are enabled. `web_search` and `grep_in_folder` are
-explicitly rejected, not stubbed successes.
+only; it cannot authorize fetch or grep. All four tool names are recognized;
+`read_file`, `web_fetch` and `grep_in_folder` are enabled; `web_search` remains disabled.
+Generic no-assessor services bind `agent-tools-v3-exact`. Changed registry versions
+and enabled tools require fresh review/approval of old versioned plans; historical
+bytes and digests remain unchanged.
 
 ## Recorded LLM requests, observations and attempts
 
@@ -122,7 +124,7 @@ evidence; the production adapter sends those exact bytes directly over HTTPX.
 ### Production Responses planning/revision adapter
 
 `agent_responses.py` builds `RecordedPlanner` with `ResponsesTransport` and version
-`agent-responses-planning-v3`. Request construction is pure and tool-free. The
+`agent-responses-planning-v4`. Request construction is pure and tool-free. The
 request uses frozen model/explicit reasoning effort, `store:false`, `stream:false`,
 and `Settings.max_output_tokens`. Its input contains the request, workspace IDs,
 available-tool descriptions, and revision feedback; the current interface provides
@@ -130,7 +132,7 @@ no old-plan history. It sends no provider tools or previous-response ID.
 
 The manually reviewed strict JSON schema is closed (`additionalProperties:false`,
 all properties required). It requires objective, assumptions, and at least one
-`read_file`/`web_fetch` step, with expected outcomes in descriptions. Strict local
+`read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions. Strict local
 shape/domain checks and coordinator capability/policy validation remain authoritative;
 provider structured-output acceptance is not authorization. No-tool plans are not
 supported by this adapter. Default file scope is the fixed `workspace` mapping above.
@@ -195,12 +197,12 @@ falls back to raw evidence. Failed partial reads retain a failed `error_body` wi
 reversible UTF-8/base64 representation; non-UTF-8 complete bodies use base64 too.
 Response close remains owned through repeated cancellation without discarding an
 already observed body. Complete parsed responses preserve full observable content
-and reported metadata. Provider/deployment compatibility is not live-validated.
+and reported metadata. Provider/deployment compatibility evidence belongs in the checklist.
 
 ### MVP tool-free final synthesis
 
 `agent_synthesis.py` supplies `RecordedSynthesizer` and version
-`agent-responses-synthesis-v2`. After every approved step has a committed
+`agent-responses-synthesis-v3`. After every approved step has a committed
 result, the coordinator reloads the run and approved plan, verifies plan/revision
 binding and the complete ordered step/result sequence with every result completed,
 and freezes the synthesis input as immutable JSON strings. This includes the full
@@ -214,6 +216,13 @@ excerpts; synthesis does not automatically load further retained artifact pages.
 Synthesis has a distinct stage from execution assessments. If any read stopped before
 EOF, the backend prepends: “Coverage note: A file read stopped before EOF. This answer
 is based on partial file content.”
+
+Grep scan coverage and total matches are distinct from the character excerpt actually
+supplied to the model. If any grep has `!complete`, `offset > 0`, or nonnull
+`next_offset`, the backend deterministically prepends: “Coverage note: A folder search
+skipped files or supplied only an excerpt of its retained matches to synthesis. This
+answer is not based on complete search evidence.” It does not automatically consume
+all retained grep pages.
 
 One request uses the approved model and explicit reasoning effort, `store:false`,
 `stream:false`, configured `max_output_tokens`, and ordinary text output. It sends
@@ -317,12 +326,12 @@ and effective policy, single-consumption execution, and Stop remain operative.
 Request IDs, strict schemas, path/URL policy, page sizes and parser guards remain
 protocol and per-request controls. They do not allocate cumulative work budgets.
 
-| Guard                                        | Default                  | Scope                                                                             |
-| -------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
-| `AgentService.planner_timeout_seconds`       | 120 seconds              | Each recorded send attempt or legacy fixture call; not recording/cleanup lifetime |
-| `AgentService.file_timeout_seconds`          | 30 seconds               | Each adaptive chunk (or legacy exact read), with a fresh monotonic deadline       |
-| `AgentService.send_timeout_seconds`          | 30 seconds               | Each ASGI response send                                                           |
-| `WebFetcher(timeout=..., max_redirects=...)` | 30 seconds, 10 redirects | One fetch and its redirect chain; loop/parser/protocol guards also apply          |
+| Guard                                        | Default                  | Scope                                                                                  |
+| -------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
+| `AgentService.planner_timeout_seconds`       | 120 seconds              | Each recorded send attempt or legacy fixture call; not recording/cleanup lifetime      |
+| `AgentService.file_timeout_seconds`          | 30 seconds               | Each adaptive chunk, legacy exact read, or incremental grep I/O unit; no scan deadline |
+| `AgentService.send_timeout_seconds`          | 30 seconds               | Each ASGI response send                                                                |
+| `WebFetcher(timeout=..., max_redirects=...)` | 30 seconds, 10 redirects | One fetch and its redirect chain; loop/parser/protocol guards also apply               |
 
 The service timeout injections must be positive and finite. Waiting for the next
 SSE frame has no overall stream timer. Timeout/Stop cleanup retains ownership until
@@ -424,12 +433,17 @@ tools have matching strict arguments:
   approval; production adaptive execution begins at byte zero regardless of them.
 - `tool:"web_fetch"`: `{url,offset,limit}`; zero-based Unicode-character offset,
   default `0`, and page size `1..16000`, default `12000`.
+- `tool:"grep_in_folder"`: `{workspace_id,path,pattern,file_glob,offset,limit}`;
+  relative folder `path` defaults to `"."`; `pattern` is a nonempty case-sensitive
+  single-line literal; optional `file_glob` defaults to null. `offset` defaults to
+  `0`; `limit` is `1..16000`, normally `12000`, Unicode characters. These select
+  only the initial evidence page, never a search quota.
 
 No reasoning-only/null-tool steps are advertised yet. Planning validates URL syntax
 without DNS, HTTP, or any tool invocation.
 
 Results contain `step_id,status,content,time,error` plus
-`path,offset,returned_lines,truncated,fetch` and optional `read`. Legacy exact-read
+`path,offset,returned_lines,truncated,fetch` and optional `read` or `grep`. Legacy exact-read
 content is numbered UTF-8 text. Adaptive content is cumulative model findings and
 `read` contains `{chunks,bytes_read,total_bytes,eof,stop_reason,file_version}`.
 `chunks >= 1`, `0 <= bytes_read <= total_bytes`; EOF means all bytes were covered and
@@ -463,11 +477,54 @@ normal `422` format. Raw provider exceptions are never used as messages.
 
 Clarification-shaped `/revise` and `/reject` requests are strictly parsed but
 return `501 clarification_unavailable`; no clarification state is produced.
-Search/Tavily, grep, null-tool steps, revision prior context and function-loop/model
+Search/Tavily, null-tool steps, revision prior context and function-loop/model
 continuation replay are unavailable. Shared audit/request primitives retain canonical
 and opaque continuation items without replaying them. Final tool-free synthesis does
 not implement the broader function loop. File-scoped assessment is the limited
 model-driven execution path described above.
+
+## Literal folder grep and retained evidence
+
+`agent_grep.py` validates scope without pre-approval filesystem access, then scans
+all selected permitted UTF-8 files recursively. A slash-free `file_glob` matches
+basenames at any depth; otherwise `fnmatchcase` matches workspace-relative paths.
+`*` can cross `/`. Globs narrow selection and never grant permission.
+
+Bounded disk spools and 8 KiB blocks preserve cross-block UTF-8, CRLF and full matching
+lines without clipping. One JSONL record per matching line contains `{path,line,text}`,
+with workspace-relative path and one-based line number, regardless of occurrence count.
+Matched paths are not automatically opened by `read_file`. There is no overall file,
+match, byte quota or scan deadline. Each incremental I/O operation gets a fresh file
+timeout; cancellation retains worker/spool ownership until actual settlement.
+
+Shared exclusions, no-follow descriptors and protected-storage path/inode identities
+apply during traversal/open. Grep rejects regular files with more than one hardlink
+as `skipped_unreadable`; this is grep-specific isolation, not a claim about the other
+read tool. Binary/invalid UTF-8, unreadable and observed-mutating files are counted as
+skips and their staged matches discarded. Root/traversal errors and observed directory
+changes fail the whole operation rather than report false “no matches”. This is not
+an atomic folder snapshot. Expected exclusions are pruned, not counted as skips.
+
+Optional `result.grep` has exactly these fields:
+`artifact_id,workspace_id,path,pattern,file_glob,offset,returned_chars,total_chars,
+next_offset,total_matches,files_searched,skipped_binary,skipped_unreadable,complete`.
+`complete` means both skip counts are zero; `files_searched` counts successfully
+validated files; `total_matches` counts retained matching lines across the scan.
+Grep metadata is mutually exclusive with `read` and `fetch`; top-level
+`path,offset,returned_lines` are null. Absence remains legacy-compatible.
+`truncated = (next_offset != null || !complete)`. A nonzero offset can omit a prefix
+even when `truncated` is false; inspect explicit coverage and paging metadata.
+
+All JSONL is retained through the existing artifact mechanism. Existing
+`GET /{sid}/artifacts/{artifact_id}` pages Unicode characters and can split JSONL
+records: this is **not match-count pagination**. GET continuation does not rescan,
+call another tool or require extra approval. One approval binds the exact folder,
+literal pattern, glob and initial page arguments.
+
+Private in-memory `ArtifactBinding` adds immutable run/step ownership and exact grep
+arguments to receipts, derived from committed journal proof on replay. Ownership is
+enforced per run/step; identical hashes do not authorize reuse for another step or
+pattern. Serialized receipt proof and public artifact shapes remain unchanged.
 
 ## Public web fetching and retained evidence
 
@@ -498,7 +555,7 @@ model-driven execution path described above.
   allowance is imposed; physical I/O failure stops recording/dispatch.
 
 The artifact GET returns `{artifact_id,content,offset,returned_chars,total_chars,
-next_offset}`. Its page bounds match fetch arguments; an offset past the retained
+next_offset}`. Its page bounds match fetch/grep arguments; an offset past the retained
 text is `422`. IDs are server-owned 32-character lowercase hex. Only evidence
 referenced by a committed successful result in that session is readable; unknown,
 uncommitted, and cross-session IDs return `404`. Malformed IDs/pages return `422`.
@@ -657,7 +714,7 @@ intent/observation/outcome/validation bodies. Each stream observation has its ow
 immutable audit payload, not a cumulative snapshot of all earlier chunks.
 References contain ID, SHA-256, and byte length. Unchanged bodies reuse references
 without serialization or hashing; control/title updates do not rewrite old bodies.
-Successful fetched text remains separately stored in `artifacts/<uuid>.txt`.
+Successful fetched text and grep JSONL remain separately stored in `artifacts/<uuid>.txt`.
 Private chunk audit retains full encountered read text/ranges/version. Typed recording
 covers production planning/revision, every read assessment and final synthesis through the recorded
 boundary; legacy logical fixtures do not become provider observations.

@@ -22,7 +22,7 @@ from app.agent_responses import (
     create_http_client,
     proposal_schema,
 )
-from app.agent_schemas import FetchArguments, ReadArguments
+from app.agent_schemas import FetchArguments, GrepArguments, ReadArguments
 from app.llm_schemas import LLMIdentity, LLMRecord
 from app.tools.registry import ToolRegistry
 
@@ -137,8 +137,8 @@ async def run_planner(handler, *, provider=bearer, validate=lambda p: p):
 def test_request_and_manually_reviewed_schema():
     request = build_request(context(), 2048)
     wire = request.body
-    assert request.instructions_version == INSTRUCTIONS_VERSION == "agent-responses-planning-v3"
-    assert wire["text"]["format"]["name"] == "agent_plan_v3"
+    assert request.instructions_version == INSTRUCTIONS_VERSION == "agent-responses-planning-v4"
+    assert wire["text"]["format"]["name"] == "agent_plan_v4"
     assert wire["model"] == "frozen-deployment"
     assert wire["reasoning"] == {"effort": "high"}
     assert wire["store"] is wire["stream"] is False
@@ -170,7 +170,15 @@ def test_request_and_manually_reviewed_schema():
     review(schema)
     assert schema == proposal_schema()
     assert schema["properties"]["steps"]["minItems"] == 1
-    assert len(schema["properties"]["steps"]["items"]["anyOf"]) == 2
+    variants = schema["properties"]["steps"]["items"]["anyOf"]
+    assert [v["properties"]["tool"]["enum"] for v in variants] == [
+        ["read_file"],
+        ["web_fetch"],
+        ["grep_in_folder"],
+    ]
+    grep = variants[2]["properties"]["arguments"]["properties"]
+    assert grep["pattern"]["minLength"] == 1
+    assert grep["file_glob"]["type"] == ["string", "null"]
 
 
 def test_request_explains_relative_paths_and_distinct_paging_units_and_defaults():
@@ -190,7 +198,9 @@ def test_request_explains_relative_paths_and_distinct_paging_units_and_defaults(
     ):
         assert text in instructions
     descriptions = json.loads(wire["input"][0]["content"])["available_tool_descriptions"]
-    read, fetch = descriptions
+    read, fetch, grep = descriptions
+    for text in ("case-sensitive", "literal", "never a regex", "No automatic file reads"):
+        assert text in grep
     for text in (
         "exact supplied workspace ID",
         "workspace-relative path",
@@ -212,6 +222,7 @@ def test_request_explains_relative_paths_and_distinct_paging_units_and_defaults(
     [
         ("read_file", ReadArguments, 1, 200, "line", 1, 200),
         ("web_fetch", FetchArguments, 0, 16000, "character", 0, 12000),
+        ("grep_in_folder", GrepArguments, 0, 16000, "character", 0, 12000),
     ],
 )
 def test_provider_paging_schema_matches_argument_models(
@@ -256,18 +267,32 @@ def test_provider_paging_schema_matches_argument_models(
         ("web_fetch", 0, 0, False),
         ("web_fetch", 0, 16001, False),
         ("web_fetch", 10**30, 16000, True),
+        ("grep_in_folder", 0, 12000, True),
+        ("grep_in_folder", 0, 16000, True),
+        ("grep_in_folder", -1, 12000, False),
+        ("grep_in_folder", 0, 0, False),
+        ("grep_in_folder", 0, 16001, False),
     ],
 )
 async def test_paging_bounds_enforced_locally_and_at_recorded_boundary(tool, offset, limit, valid):
     plan = proposal()
-    arguments = (
-        {"workspace_id": "workspace_a", "path": "note.txt"}
-        if tool == "read_file"
-        else {"url": "https://example.invalid/note.txt"}
-    ) | {"offset": offset, "limit": limit}
+    arguments = {
+        "read_file": {"workspace_id": "workspace_a", "path": "note.txt"},
+        "web_fetch": {"url": "https://example.invalid/note.txt"},
+        "grep_in_folder": {
+            "workspace_id": "workspace_a",
+            "path": ".",
+            "pattern": "[.*]雪",
+            "file_glob": None,
+        },
+    }[tool] | {"offset": offset, "limit": limit}
     plan["steps"][0].update(tool=tool, arguments=arguments)
     unchanged = copy.deepcopy(plan)
-    model = ReadArguments if tool == "read_file" else FetchArguments
+    model = {
+        "read_file": ReadArguments,
+        "web_fetch": FetchArguments,
+        "grep_in_folder": GrepArguments,
+    }[tool]
     if valid:
         _check_shape(plan, proposal_schema())
         assert model.model_validate(arguments).model_dump() == arguments
@@ -288,7 +313,7 @@ async def test_paging_bounds_enforced_locally_and_at_recorded_boundary(tool, off
     assert len(calls) == 1
     assert plan == unchanged
     assert next(r["data"]["body"] for r in records if r["kind"] == "output") == full
-    assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v3"
+    assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v4"
     assert records[-2]["data"]["status"] == "completed"
     if valid:
         assert result.steps[0].arguments.model_dump() == arguments

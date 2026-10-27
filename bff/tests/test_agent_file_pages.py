@@ -427,7 +427,7 @@ def test_registry_compatibility_keeps_reviewed_material_and_network_boundary(pub
     policy, _ = public_files
     registry = ToolRegistry(policy, SimpleNamespace(policy_version="public-web-v1"))
     assert registry.known == ("read_file", "web_fetch", "web_search", "grep_in_folder")
-    assert registry.enabled == ("read_file", "web_fetch")
+    assert registry.enabled == ("read_file", "web_fetch", "grep_in_folder")
     file_projection, full_projection = policy.projection(), registry.projection()
     if legacy:
         file_projection, full_projection = (

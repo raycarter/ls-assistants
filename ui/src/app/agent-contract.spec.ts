@@ -121,6 +121,7 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       'backwards_clock',
       'fetch_execution',
       'recorded_planning',
+      'grep_execution',
     ]);
     for (const entry of contract.streams) {
       expect(parseAgentSession(entry.baseline)).toEqual(entry.baseline);
@@ -287,30 +288,82 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       );
     },
   );
-  it('preserves generated file/fetch metadata and reads artifact continuation without dispatching a tool', async () => {
-    const entry = contract.streams.find((entry) => entry.name === 'fetch_execution')!;
-    const continuation = entry.artifact_page!;
-    const result = entry.terminal_run.results[0];
-    const metadata = result.fetch!;
-    fetchDouble.mockImplementationOnce(async (input, init) => {
-      expect(String(input)).toBe(continuation.http.url);
-      expect(init?.method).toBe('GET');
-      return Response.json(continuation.body);
-    });
-    expect(
-      await api.artifactPage(
-        entry.baseline.id,
-        metadata.artifact_id,
-        metadata.next_offset!,
-        12000,
-        new AbortController().signal,
-      ),
-    ).toEqual(continuation.body);
-    expect(result.content + continuation.body.content).toBe(
-      'Public evidence 🌱\nContinuation from durable storage.',
-    );
-    expect(fetchDouble).toHaveBeenCalledOnce();
-  });
+  it.each(['fetch_execution', 'grep_execution'])(
+    'preserves generated metadata and reads artifact continuation for %s',
+    async (name) => {
+      const entry = contract.streams.find((entry) => entry.name === name)!;
+      const continuation = entry.artifact_page!;
+      const result = entry.terminal_run.results[0];
+      const metadata = result.grep ?? result.fetch!;
+      fetchDouble.mockImplementationOnce(async (input, init) => {
+        expect(String(input)).toBe(continuation.http.url);
+        expect(init?.method).toBe('GET');
+        return Response.json(continuation.body);
+      });
+      expect(
+        await api.artifactPage(
+          entry.baseline.id,
+          metadata.artifact_id,
+          metadata.next_offset!,
+          12000,
+          new AbortController().signal,
+        ),
+      ).toEqual(continuation.body);
+      expect(continuation.body.offset).toBe(metadata.next_offset);
+      expect(continuation.body.next_offset).toBeNull();
+      const retained = result.content + continuation.body.content;
+      if (name === 'grep_execution') {
+        expect(entry.terminal_run.plan?.steps).toHaveLength(1);
+        expect(entry.terminal_run.plan?.steps[0]).toMatchObject({
+          tool: 'grep_in_folder',
+          arguments: {
+            workspace_id: 'public',
+            path: '.',
+            pattern: 'alpha',
+            file_glob: '*.txt',
+            offset: 0,
+            limit: 18,
+          },
+        });
+        expect(result.grep).toMatchObject({
+          returned_chars: 18,
+          total_matches: 1,
+          files_searched: 1,
+          skipped_binary: 0,
+          skipped_unreadable: 0,
+          complete: true,
+        });
+        expect(
+          retained
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line)),
+        ).toEqual([{ path: 'public.txt', line: 1, text: 'alpha 🌱' }]);
+        const events = frames(entry).map((frame) => parseAgentEvent(JSON.parse(frame.data)));
+        expect(events.map((event) => event.type)).toEqual([
+          'run.approved',
+          'run.executing',
+          'tool.intent',
+          'tool.result',
+          'run.completed',
+        ]);
+        const plan = entry.terminal_run.plan!;
+        expect(events[0].run?.plan_identity).toEqual({
+          id: plan.id,
+          revision: plan.revision,
+          digest: plan.digest,
+          model: plan.model,
+          reasoning_effort: plan.reasoning_effort,
+        });
+        expect(events[3].result).toEqual(result);
+        expect(events.map((event) => event.run?.result_count)).toEqual([0, 0, 1, 1, 1]);
+        expect(events.map((event) => event.run?.completed_steps)).toEqual([0, 0, 0, 1, 1]);
+      } else {
+        expect(retained).toBe('Public evidence 🌱\nContinuation from durable storage.');
+      }
+      expect(fetchDouble).toHaveBeenCalledOnce();
+    },
+  );
   const controls = contract.streams.flatMap((entry) =>
     (entry.controls ?? []).map((control) => ({
       ...control,

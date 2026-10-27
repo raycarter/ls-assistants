@@ -5,7 +5,7 @@ import fixtureData from './agent-contract-v1.fixture.json';
 import { AgentApi } from './agent-api';
 import { AgentState } from './agent-state';
 import { AgentWorkspace } from './agent-workspace';
-import { settled, type ArtifactPage } from './agent.models';
+import { parseAgentRun, settled, type ArtifactPage } from './agent.models';
 import {
   workspaceFixture as parseAgentSession,
   type WorkspaceFixture as AgentSession,
@@ -117,6 +117,208 @@ describe('safe fetched evidence workspace', () => {
     await settle();
   }
 
+  function grepSession(
+    source = '{"path":"<img src=x>","line":1,"text":"**literal** 😀"}\n',
+  ): AgentSession {
+    const session = fetchedSession();
+    const run = session.runs[0];
+    run.plan!.steps[0] = {
+      id: run.results[0].step_id,
+      title: 'Grep',
+      description: 'Folder evidence',
+      tool: 'grep_in_folder',
+      arguments: {
+        workspace_id: 'public',
+        path: '<svg onload=bad()>',
+        pattern: '**literal**',
+        file_glob: '*.md',
+        offset: 0,
+        limit: Array.from(source).length,
+      },
+    };
+    const result = run.results[0];
+    result.content = source;
+    result.fetch = null;
+    result.read = null;
+    result.path = null;
+    result.offset = null;
+    result.returned_lines = null;
+    result.truncated = true;
+    result.grep = {
+      artifact_id: 'b'.repeat(32),
+      workspace_id: 'public',
+      path: '<svg onload=bad()>',
+      pattern: '**literal**',
+      file_glob: '*.md',
+      offset: 0,
+      returned_chars: Array.from(source).length,
+      total_chars: Array.from(source).length + 4,
+      next_offset: Array.from(source).length,
+      total_matches: 3,
+      files_searched: 4,
+      skipped_binary: 1,
+      skipped_unreadable: 2,
+      complete: false,
+    };
+    parseAgentRun(run);
+    return session;
+  }
+
+  it('reviews literal grep scope and initial evidence arguments, rendering JSONL as text', async () => {
+    const session = grepSession();
+    await render(session);
+    const plan = root().querySelector('[aria-label="Reviewed plan"]')!;
+    expect(plan.textContent).toContain('Workspace: public');
+    expect(plan.textContent).toContain('Folder: <svg onload=bad()>');
+    expect(plan.textContent).toContain('Literal pattern: **literal**');
+    expect(plan.textContent).toContain('File glob: *.md');
+    expect(
+      JSON.parse(plan.querySelector('[aria-label="Exact tool arguments"] pre')!.textContent!),
+    ).toEqual(session.runs[0].plan!.steps[0].arguments);
+    const card = root().querySelector('[aria-label="Step result"]')!;
+    expect(card.querySelector('pre')!.textContent).toBe(session.runs[0].results[0].content);
+    expect(card.textContent).toContain('3 matches · 4 files searched');
+    expect(card.textContent).toContain('Skipped binary: 1 · Skipped unreadable: 2');
+    expect(card.textContent).toContain('Partial search coverage');
+    expect(card.textContent).toContain('Partial evidence preview');
+    expect(
+      card.querySelector('img, svg, script, strong, a, .message-markdown, .fetch-provenance'),
+    ).toBeNull();
+    expect(plan.querySelector('svg, [onload]')).toBeNull();
+    expect(fetchDouble).toHaveBeenCalledOnce();
+    expect(state.openRun).not.toHaveBeenCalled();
+    expect(state.approve).not.toHaveBeenCalled();
+  });
+
+  it('pages grep evidence by read-only retained GET, one page at a time, without file opening', async () => {
+    const session = grepSession();
+    await render(session);
+    const result = session.runs[0].results[0];
+    const metadata = result.grep!;
+    fetchDouble.mockResolvedValueOnce(
+      Response.json({
+        artifact_id: metadata.artifact_id,
+        content: 'tail',
+        offset: metadata.next_offset,
+        returned_chars: 4,
+        total_chars: metadata.total_chars,
+        next_offset: null,
+      }),
+    );
+    button('Next retained page').click();
+    await vi.waitFor(() =>
+      expect(fixture.componentInstance.evidence().values().next().value?.loading).toBe(false),
+    );
+    await settle();
+    expect(fetchDouble).toHaveBeenCalledTimes(2);
+    expect(fetchDouble.mock.calls[1][0]).toBe(
+      `/api/agent/sessions/${session.id}/artifacts/${metadata.artifact_id}?offset=${metadata.next_offset}&limit=12000`,
+    );
+    expect(fetchDouble.mock.calls[1][1]?.method).toBe('GET');
+    expect(fetchDouble.mock.calls[1][1]?.body).toBeUndefined();
+    expect(root().querySelectorAll('[aria-label="Retained evidence page"]')).toHaveLength(1);
+    expect(root().querySelector('[aria-label="Retained evidence page"] pre')!.textContent).toBe(
+      'tail',
+    );
+    expect(root().textContent).toContain('End of retained text.');
+    const restartText = 'x'.repeat(metadata.total_chars);
+    fetchDouble.mockResolvedValueOnce(
+      Response.json({
+        artifact_id: metadata.artifact_id,
+        content: restartText,
+        offset: 0,
+        returned_chars: metadata.total_chars,
+        total_chars: metadata.total_chars,
+        next_offset: null,
+      }),
+    );
+    button('Inspect retained text from start').click();
+    await vi.waitFor(() =>
+      expect(fixture.componentInstance.evidence().values().next().value?.loading).toBe(false),
+    );
+    await settle();
+    expect(root().querySelectorAll('[aria-label="Retained evidence page"]')).toHaveLength(1);
+    expect(root().querySelector('[aria-label="Retained evidence page"] pre')!.textContent).toBe(
+      restartText,
+    );
+    expect(state.openRun).not.toHaveBeenCalled();
+    expect(state.request).not.toHaveBeenCalled();
+    expect(state.approve).not.toHaveBeenCalled();
+  });
+
+  it('supports no-match grep and a resumed initial character window', async () => {
+    const session = grepSession();
+    const result = session.runs[0].results[0];
+    result.content = '';
+    Object.assign(result.grep!, {
+      returned_chars: 0,
+      total_chars: 0,
+      next_offset: null,
+      total_matches: 0,
+      complete: true,
+      skipped_binary: 0,
+      skipped_unreadable: 0,
+    });
+    result.truncated = false;
+    session.runs[0].plan!.steps[0].arguments.limit = 20;
+    parseAgentRun(session.runs[0]);
+    await render(session);
+    expect(root().textContent).toContain('0 matches');
+    expect(root().textContent).toContain('Complete search coverage');
+    expect(root().querySelector('[aria-label="Step result"] button')).toBeNull();
+    const resumed = grepSession();
+    const metadata = resumed.runs[0].results[0].grep!;
+    Object.assign(metadata, {
+      offset: 4,
+      total_chars: metadata.total_chars + 4,
+      next_offset: metadata.next_offset! + 4,
+    });
+    resumed.runs[0].plan!.steps[0].arguments.offset = 4;
+    parseAgentRun(resumed.runs[0]);
+    state.sessions.set([resumed]);
+    await settle();
+    expect(root().textContent).toContain('Execution preview: offset 4');
+    expect(button('Inspect retained text from start')).toBeTruthy();
+    expect(fetchDouble).toHaveBeenCalledOnce();
+  });
+
+  it('guards duplicate grep reads, scopes page errors and fences aborted stale responses', async () => {
+    const session = grepSession();
+    await render(session);
+    const result = session.runs[0].results[0];
+    const pending = deferredResponse();
+    fetchDouble.mockReturnValueOnce(pending.promise);
+    button('Next retained page').click();
+    await settle();
+    await fixture.componentInstance.readEvidence(
+      session.id,
+      session.runs[0].id,
+      result,
+      result.grep!.next_offset!,
+    );
+    expect(fetchDouble).toHaveBeenCalledTimes(2);
+    const signal = fetchDouble.mock.calls[1][1]!.signal!;
+    const updated = structuredClone(session);
+    updated.runs[0].results[0].grep!.skipped_unreadable = 3;
+    state.sessions.set([updated]);
+    await settle();
+    expect(signal.aborted).toBe(true);
+    pending.reject(new Error('STALE grep failure'));
+    await settle();
+    expect(root().textContent).not.toContain('STALE');
+    fetchDouble.mockRejectedValueOnce(new Error('Scoped grep failure'));
+    button('Next retained page').click();
+    await vi.waitFor(() =>
+      expect(fixture.componentInstance.evidence().values().next().value?.loading).toBe(false),
+    );
+    await settle();
+    expect(
+      root().querySelector('[aria-label="Step result"] [role="alert"]')!.textContent,
+    ).toContain('Scoped grep failure');
+    expect(state.sessionError()).toBeNull();
+    expect(state.globalError()).toBeNull();
+  });
+
   it('reviews the whole exact fetch scope, with quota-free presentation', async () => {
     await render(parseAgentSession(structuredClone(recorded.baseline)));
     const plan = root().querySelector('[aria-label="Reviewed plan"]')!;
@@ -133,7 +335,7 @@ describe('safe fetched evidence workspace', () => {
     expect(plan.textContent).not.toContain('Workspace:');
     expect(plan.textContent).not.toContain('Lines');
     expect(plan.textContent).not.toContain('tool calls');
-    expect(root().textContent).toContain('Search and grep are unavailable');
+    expect(root().textContent).toContain('Search is unavailable');
     expect(root().textContent).toContain('determined by the BFF');
     expect(root().textContent).toContain('not a complete LLM audit');
     const file = parseAgentSession(

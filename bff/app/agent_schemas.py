@@ -92,6 +92,15 @@ class FetchArguments(Strict):
     limit: Annotated[int, Field(ge=1, le=16000)] = 12000
 
 
+class GrepArguments(Strict):
+    workspace_id: Key
+    path: Annotated[str, Field(min_length=1, max_length=500)] = "."
+    pattern: Text
+    file_glob: str | None = None
+    offset: Annotated[int, Field(ge=0)] = 0
+    limit: Annotated[int, Field(ge=1, le=16000)] = 12000
+
+
 class LegacyPlanLimits(Strict):
     """Historical signed material only; these values no longer govern execution."""
 
@@ -106,12 +115,16 @@ PlanLimits = LegacyPlanLimits
 class ProposedStep(Strict):
     title: Annotated[str, Field(min_length=1, max_length=200)]
     description: Text
-    tool: Literal["read_file", "web_fetch"]
-    arguments: ReadArguments | FetchArguments
+    tool: Literal["read_file", "web_fetch", "grep_in_folder"]
+    arguments: ReadArguments | FetchArguments | GrepArguments
 
     @model_validator(mode="after")
     def matching_arguments(self) -> Self:
-        expected = ReadArguments if self.tool == "read_file" else FetchArguments
+        expected = {
+            "read_file": ReadArguments,
+            "web_fetch": FetchArguments,
+            "grep_in_folder": GrepArguments,
+        }[self.tool]
         if not isinstance(self.arguments, expected):
             raise ValueError("Tool and arguments do not match")
         return self
@@ -184,6 +197,35 @@ class FetchMetadata(Strict):
         return self
 
 
+class GrepMetadata(Strict):
+    artifact_id: ArtifactId
+    workspace_id: Key
+    path: Text
+    pattern: Text
+    file_glob: str | None
+    offset: Nonnegative
+    returned_chars: Nonnegative
+    total_chars: Nonnegative
+    next_offset: Nonnegative | None
+    total_matches: Nonnegative
+    files_searched: Nonnegative
+    skipped_binary: Nonnegative
+    skipped_unreadable: Nonnegative
+    complete: bool
+
+    @model_validator(mode="after")
+    def consistent(self) -> Self:
+        end = self.offset + self.returned_chars
+        if (
+            end > self.total_chars
+            or self.returned_chars > 16000
+            or self.next_offset != (end if end < self.total_chars else None)
+            or self.complete != (self.skipped_binary == 0 and self.skipped_unreadable == 0)
+        ):
+            raise ValueError("Inconsistent grep metadata")
+        return self
+
+
 class ReadCoverage(Strict):
     chunks: Annotated[int, Field(ge=1)]
     bytes_read: Nonnegative
@@ -215,9 +257,20 @@ class StepResult(Strict):
     truncated: bool = False
     fetch: FetchMetadata | None = None
     read: ReadCoverage | None = Field(default=None, exclude_if=lambda value: value is None)
+    grep: GrepMetadata | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def adaptive_metadata(self) -> Self:
+        if self.grep is not None and (
+            self.fetch is not None
+            or self.read is not None
+            or self.path is not None
+            or self.offset is not None
+            or self.returned_lines is not None
+            or self.grep.returned_chars != len(self.content)
+            or self.truncated != (self.grep.next_offset is not None or not self.grep.complete)
+        ):
+            raise ValueError("Inconsistent grep result")
         if self.read is not None and (
             not self.path
             or self.path.startswith("/")
