@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from app.agent import AgentService
 from app.agent_files import AgentFault
+from app.agent_read_assessor import build_read_assessor
 from app.agent_responses import build_recorded_planner, create_http_client
 from app.agent_routes import router as agent_router
 from app.agent_synthesis import build_recorded_synthesizer
@@ -55,6 +56,12 @@ def create_app(
                 stack.push_async_callback(agent_client.aclose)
                 agent_service = AgentService(
                     files=build_file_policy(),
+                    read_assessor=build_read_assessor(
+                        agent_client,
+                        configuration.openai_base_url,
+                        bearer_provider,
+                        configuration.max_output_tokens,
+                    ),
                     planner=build_recorded_planner(
                         agent_client,
                         configuration.openai_base_url,

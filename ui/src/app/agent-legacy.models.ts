@@ -61,6 +61,14 @@ export interface AgentPlan {
   steps: AgentStep[];
   search_policy?: unknown;
 }
+export interface ReadMetadata {
+  chunks: number;
+  bytes_read: number;
+  total_bytes: number;
+  eof: boolean;
+  stop_reason: 'eof' | 'enough';
+  file_version: string;
+}
 export interface StepResult {
   step_id: string;
   status: 'running' | 'completed' | 'failed';
@@ -72,6 +80,7 @@ export interface StepResult {
   returned_lines?: number | null;
   truncated?: boolean;
   fetch?: FetchMetadata | null;
+  read?: ReadMetadata | null;
 }
 export interface AgentRun {
   id: string;
@@ -374,6 +383,7 @@ function validRun(value: unknown): value is AgentRun {
   const checkedResults = results as StepResult[];
   if (plan !== null && validPlan(plan)) {
     for (const result of checkedResults) {
+      if (!validResult(result, plan)) return false;
       const step = plan.steps.find((entry) => entry.id === result.step_id)!;
       if (step.tool === 'read_file') {
         if (result.fetch != null) return false;
@@ -491,7 +501,16 @@ export function validResult(value: unknown, plan?: AgentPlan | null): value is S
       value['fetch'] === undefined ||
       value['fetch'] === null ||
       validFetch(value['fetch'], value['content'])
-    )
+    ) ||
+    (value['read'] != null &&
+      (!validRead(value['read']) ||
+        value['fetch'] != null ||
+        !id(value['path']) ||
+        value['path'].startsWith('/') ||
+        value['path'].split('/').includes('..') ||
+        value['offset'] !== null ||
+        value['returned_lines'] !== null ||
+        value['truncated'] !== !value['read'].eof))
   )
     return false;
   if (plan === undefined) return true;
@@ -500,6 +519,7 @@ export function validResult(value: unknown, plan?: AgentPlan | null): value is S
   if (!step) return false;
   if (step.tool === 'read_file') return result.fetch == null;
   return (
+    result.read == null &&
     result.path == null &&
     result.offset == null &&
     result.returned_lines == null &&
@@ -511,5 +531,27 @@ export function validResult(value: unknown, plan?: AgentPlan | null): value is S
         result.fetch.offset === step.arguments.offset &&
         result.fetch.returned_chars ===
           Math.min(step.arguments.limit, result.fetch.total_chars - result.fetch.offset)))
+  );
+}
+
+function validRead(value: unknown): value is ReadMetadata {
+  return (
+    object(value) &&
+    onlyKeys(value, [
+      'chunks',
+      'bytes_read',
+      'total_bytes',
+      'eof',
+      'stop_reason',
+      'file_version',
+    ]) &&
+    integer(value['chunks'], 1) &&
+    integer(value['bytes_read']) &&
+    integer(value['total_bytes']) &&
+    value['bytes_read'] <= value['total_bytes'] &&
+    typeof value['eof'] === 'boolean' &&
+    value['eof'] === (value['bytes_read'] === value['total_bytes']) &&
+    value['stop_reason'] === (value['eof'] ? 'eof' : 'enough') &&
+    id(value['file_version'])
   );
 }

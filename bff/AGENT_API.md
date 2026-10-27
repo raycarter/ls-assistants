@@ -1,9 +1,9 @@
-# Agent: production planning, tool-free synthesis and paginated public v2
+# Agent: file-scoped adaptive reads, synthesis and paginated public v2
 
 This backend implements request → provider-generated tool-free plan → exact-version approval
 → approved `read_file`/`web_fetch` steps → persisted results → tool-free final synthesis
 → paginated history. The default `main.py` composition wires Responses planning/revision
-and final synthesis through the recorded LLM boundary, sharing a controlled dedicated
+and read assessment/final synthesis through the recorded LLM boundary, sharing a controlled dedicated
 HTTPX client.
 No Agent SDK is used. Provider/deployment compatibility has not been live-validated.
 Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
@@ -22,6 +22,7 @@ AgentService(
     SessionStore(explicit_storage_path),
     planner=my_recorded_planner,
     synthesizer=my_recorded_synthesizer,
+    read_assessor=my_recorded_read_assessor,
     files=FilePolicy(),  # Bare policy has no roots; custom injection remains explicit.
     models=settings.available_models,
 )
@@ -40,11 +41,14 @@ The older fixture injection `async plan(context: PlanningInput) -> Proposal` rem
 supported. Its `planner.attempt`/`planner.result` records have `coverage:"logical_only"`;
 they do not establish actual provider input/output or physical send count. Historical
 opaque planner audits are not retroactively reclassified as typed LLM attempts.
-Default composition supplies both `RecordedPlanner` and `RecordedSynthesizer` with
+Default composition supplies `RecordedPlanner`, `RecordedReadAssessor` and `RecordedSynthesizer` with
 the production adapters described below. Explicitly injected services with
 `synthesizer=None` retain a deterministic completion receipt for fixture compatibility.
 Observed usage is informational when supplied, not a guaranteed price or
 currency ceiling.
+
+Generic injected services with `read_assessor=None` retain exact numbered-line reads
+for fixture compatibility. Production supplies the assessor and uses file-scoped reads.
 
 The default application calls the provider on run/revise commands and for final synthesis
 after approved tool results commit. HTTP
@@ -85,7 +89,11 @@ plan's effective-policy digest. Current file policy is `read-text-v4`; its narro
 compatibility check also accepts the known `read-text-v3` rules digest at identical
 workspace/root/storage scope. It does not accept arbitrary older rules or expand
 access. Other policy changes require a newly reviewed plan and fresh approval.
-New plans also bind the fixed registry's enabled tools and network-policy version.
+New production plans also bind `tool_registry_version:"agent-tools-v2"`,
+`read_semantics:"file-scoped-v1"`, enabled tools and network-policy version.
+Old exact-page read plans cannot acquire adaptive authority through the v3/v4
+filesystem compatibility rule or legacy registry matching: obtain a fresh plan and
+approval. Historical wire plans and digests remain exact and unchanged.
 A legacy file-only policy can retain its unchanged original digest for `read_file`
 only; it cannot authorize a network tool. All four tool names are recognized;
 only `read_file` and `web_fetch` are enabled. `web_search` and `grep_in_folder` are
@@ -114,7 +122,7 @@ evidence; the production adapter sends those exact bytes directly over HTTPX.
 ### Production Responses planning/revision adapter
 
 `agent_responses.py` builds `RecordedPlanner` with `ResponsesTransport` and version
-`agent-responses-planning-v2`. Request construction is pure and tool-free. The
+`agent-responses-planning-v3`. Request construction is pure and tool-free. The
 request uses frozen model/explicit reasoning effort, `store:false`, `stream:false`,
 and `Settings.max_output_tokens`. Its input contains the request, workspace IDs,
 available-tool descriptions, and revision feedback; the current interface provides
@@ -128,10 +136,48 @@ provider structured-output acceptance is not authorization. No-tool plans are no
 supported by this adapter. Default file scope is the fixed `workspace` mapping above.
 The provider schema and local wire validation both enforce `read_file.offset >= 1`
 and `read_file.limit` in `1..200` lines, versus `web_fetch.offset >= 0` and
-`web_fetch.limit` in `1..16000` characters. Instructions specify normal starting
-pages (`1,200` for reads; `0,12000` for fetches), exact workspace IDs and relative
-file paths. Neither offset has an artificial maximum; invalid arguments are not
-silently coerced or repaired.
+`web_fetch.limit` in `1..16000` characters. Read fields (`1,200` normally) are
+legacy/internal hints, not production coverage boundaries; adaptive reading starts
+at byte zero. Instructions describe read purpose/file identity without paging,
+chunk, whole-file/partial-file or extra-approval narratives. Fetch paging remains
+unchanged (`0,12000` normally). Exact workspace IDs and relative paths are required.
+Neither offset has an artificial maximum; invalid arguments are not repaired.
+
+### Approval presentation and file-scoped assessment
+
+Read approval displays only workspace/path file identity, alongside neutral tool/step
+identity and plan revision/digest/model controls. It hides read titles/descriptions,
+offset/limit, paging/chunk explanations and whole-file notes. Any plan containing a
+read also hides objective, assumptions and full-plan JSON to avoid narrative leaks.
+The original user request remains shown. Fetch step details and fetch-only review
+remain unchanged. This display projection does not alter the actual wire plan,
+policy or digest: the full exact plan remains loaded and approval-bound.
+
+`agent_read_chunks.py` pins a no-follow regular-file descriptor and reads only that
+file sequentially from byte zero. Each chunk represents at most 16,000 raw source
+bytes, with incremental lossless UTF-8 decoding across codepoints, preserving CRLF
+and long lines without suffix clipping. The backend alone owns the same-file cursor;
+the model cannot choose another offset, path or tool. There is no total-byte/chunk
+quota or loop deadline. Each next-chunk worker gets a fresh file timeout. Version
+checks cover reads, post-assessment and close; observed mutation/close errors prevent
+result publication. These checks do not provide a snapshot guarantee. Only encountered
+text is validated; an unseen suffix remains unvalidated after early stop.
+
+Before each assessment intent/send, durable private `tool.chunk` audit stores the
+full raw text, byte range, total bytes, EOF and file version, plus step/chunk identity.
+Public v2 emits neutral controls with no chunk body or step/result advancement.
+`RecordedReadAssessor` uses the same controlled HTTPX/`AttemptRunner` boundary and
+frozen approved model/effort. `agent-read-assessment-v1` strictly returns only
+`{decision:"continue"|"enough", findings:<nonempty updated cumulative findings>}`.
+Inputs include the original request, approved plan, step, current raw chunk and
+previous findings. Every actual assessment input/output remains recorded, including
+failed/cancelled observations. The execution stage is stable per step, with distinct
+interaction/attempt IDs per chunk. EOF wins even over `continue`, without further I/O.
+
+Early `enough` is an explicit successful partial result, not an implied full read.
+Stop/cancellation and recording failure revoke advancement while retaining owned
+worker, descriptor, recording and transport cleanup. This same-file flow requires
+no extra approval and introduces no general autonomous tool loop or scope expansion.
 
 `create_http_client` owns a dedicated `AsyncHTTPTransport(retries=0, trust_env=False)`
 with `trust_env=False` and redirects disabled. Each send constructs a fresh
@@ -154,14 +200,20 @@ and reported metadata. Provider/deployment compatibility is not live-validated.
 ### MVP tool-free final synthesis
 
 `agent_synthesis.py` supplies `RecordedSynthesizer` and version
-`agent-responses-synthesis-v1`. After every exact approved tool call has a committed
+`agent-responses-synthesis-v2`. After every approved step has a committed
 result, the coordinator reloads the run and approved plan, verifies plan/revision
 binding and the complete ordered step/result sequence with every result completed,
 and freezes the synthesis input as immutable JSON strings. This includes the full
 original request, approved-plan snapshot and all recorded result bodies, including
-file/page offsets, provenance and truncation metadata. It uses all committed results,
-not the UI's recent result window. Recorded excerpts remain excerpts; synthesis does
-not automatically load further retained artifact pages.
+file/page offsets, provenance and truncation/coverage metadata. It uses all committed
+results, not the UI's recent result window. Adaptive result content is cumulative
+model findings plus `read` coverage, not all raw chunks. Findings are lossy summaries;
+raw chunks remain durable private audit evidence but are not reloaded into synthesis.
+There is no factual-accuracy or constant-memory guarantee. Recorded excerpts remain
+excerpts; synthesis does not automatically load further retained artifact pages.
+Synthesis has a distinct stage from execution assessments. If any read stopped before
+EOF, the backend prepends: “Coverage note: A file read stopped before EOF. This answer
+is based on partial file content.”
 
 One request uses the approved model and explicit reasoning effort, `store:false`,
 `stream:false`, configured `max_output_tokens`, and ordinary text output. It sends
@@ -177,7 +229,8 @@ Failed/refused/incomplete/empty/invalid output or request failure does not produ
 receipt fallback or fabricated answer; committed tool results remain inspectable.
 Stop/cancellation and recording/publication races revoke advancement and retain
 cleanup ownership. The same controlled HTTPX transport and lifecycle described
-above serve planner and synthesizer. No public statuses, endpoints or DTO shapes change.
+above serve planner, read assessor and synthesizer. Existing statuses/endpoints remain;
+optional read coverage extends result DTOs with legacy-compatible absence.
 
 Private `llm_audit_version:1` records carry `kind,identity,at,data`, with UTC timestamps:
 
@@ -267,7 +320,7 @@ protocol and per-request controls. They do not allocate cumulative work budgets.
 | Guard                                        | Default                  | Scope                                                                             |
 | -------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
 | `AgentService.planner_timeout_seconds`       | 120 seconds              | Each recorded send attempt or legacy fixture call; not recording/cleanup lifetime |
-| `AgentService.file_timeout_seconds`          | 30 seconds               | Each file read, with a fresh monotonic deadline                                   |
+| `AgentService.file_timeout_seconds`          | 30 seconds               | Each adaptive chunk (or legacy exact read), with a fresh monotonic deadline       |
 | `AgentService.send_timeout_seconds`          | 30 seconds               | Each ASGI response send                                                           |
 | `WebFetcher(timeout=..., max_redirects=...)` | 30 seconds, 10 redirects | One fetch and its redirect chain; loop/parser/protocol guards also apply          |
 
@@ -365,9 +418,10 @@ Removing quota enforcement does not rewrite an old approval identity.
 server paths. Each step contains `id,title,description,tool,arguments`. Supported
 tools have matching strict arguments:
 
-- `tool:"read_file"`: `{workspace_id,path,offset,limit}`; one-based line offset,
-  default `1`, and `1..200` lines per page, default `200`. There is no 10,000-line
-  offset ceiling.
+- `tool:"read_file"`: `{workspace_id,path,offset,limit}`; legacy/internal one-based
+  offset (default `1`) and `1..200` line limit (default `200`), without an offset
+  ceiling. These fields remain exact wire/digest material, never displayed at read
+  approval; production adaptive execution begins at byte zero regardless of them.
 - `tool:"web_fetch"`: `{url,offset,limit}`; zero-based Unicode-character offset,
   default `0`, and page size `1..16000`, default `12000`.
 
@@ -375,7 +429,13 @@ No reasoning-only/null-tool steps are advertised yet. Planning validates URL syn
 without DNS, HTTP, or any tool invocation.
 
 Results contain `step_id,status,content,time,error` plus
-`path,offset,returned_lines,truncated,fetch`. File content is numbered UTF-8 text.
+`path,offset,returned_lines,truncated,fetch` and optional `read`. Legacy exact-read
+content is numbered UTF-8 text. Adaptive content is cumulative model findings and
+`read` contains `{chunks,bytes_read,total_bytes,eof,stop_reason,file_version}`.
+`chunks >= 1`, `0 <= bytes_read <= total_bytes`; EOF means all bytes were covered and
+`stop_reason:"eof"`, otherwise the reason is `"enough"`. Adaptive offset/returned_lines
+are null, `truncated = !eof`, path is relative and fetch metadata is null. The optional
+field is omitted when absent for legacy compatibility; decoders validate parity.
 For a successful fetch, content is a page of extracted text and `fetch` contains
 `artifact_id,requested_url,final_url,title,status_code,content_type,fetched_at,
 redirects,total_chars,offset,returned_chars,next_offset`. `title` and `next_offset`
@@ -406,7 +466,8 @@ return `501 clarification_unavailable`; no clarification state is produced.
 Search/Tavily, grep, null-tool steps, revision prior context and function-loop/model
 continuation replay are unavailable. Shared audit/request primitives retain canonical
 and opaque continuation items without replaying them. Final tool-free synthesis does
-not implement model-driven step results or the broader function loop.
+not implement the broader function loop. File-scoped assessment is the limited
+model-driven execution path described above.
 
 ## Public web fetching and retained evidence
 
@@ -476,7 +537,7 @@ complete plan is intentionally loaded for exact approval, with no plan-payload
 quota. Types include `run.planning`,
 `planner.attempt`, `planner.result`, `llm.intent`, `llm.dispatched`, `llm.output`,
 `llm.outcome`, `llm.validation`, `run.awaiting_approval`, `run.approved`,
-`run.executing`, `tool.intent`, `tool.result`, and terminal `run.completed`,
+`run.executing`, `tool.intent`, `tool.chunk`, `tool.result`, and terminal `run.completed`,
 `run.rejected`, `run.failed`, `run.cancelled`, `run.interrupted`, plus
 `run.cancelling` and session lifecycle events. Rejection is available through
 header/detail/event reads rather than its own SSE response. Streams end at their
@@ -494,6 +555,8 @@ missing loaded body. Recording timestamps/sequences may change while coordinator
 state stays the same. Intent/dispatch require an active planning/approved/executing
 operation; output/outcome/validation can also settle observations while cancelling.
 Approval becomes available only at the separate `run.awaiting_approval` transition.
+`tool.chunk` is also neutral in public v2: private raw text/ranges/version never
+enter its public body, and it cannot advance results, completed steps or approval.
 
 Actual startup recovery preserves its original envelope:
 `type:"run.interrupted",request_id:"recovery",run_id:null,operation_id:null`.
@@ -595,7 +658,8 @@ immutable audit payload, not a cumulative snapshot of all earlier chunks.
 References contain ID, SHA-256, and byte length. Unchanged bodies reuse references
 without serialization or hashing; control/title updates do not rewrite old bodies.
 Successful fetched text remains separately stored in `artifacts/<uuid>.txt`.
-Typed recording covers production planning/revision and final synthesis through the recorded
+Private chunk audit retains full encountered read text/ranges/version. Typed recording
+covers production planning/revision, every read assessment and final synthesis through the recorded
 boundary; legacy logical fixtures do not become provider observations.
 
 The store keeps one private hydrated latest-session baseline per session, its
@@ -657,12 +721,14 @@ active-call/per-record costs. Selected public bodies and UI windows do not
 make persistent state fully paged or guarantee bounded total memory/disk or
 physically infinite history. The fast path relies on coherent single-writer
 filesystem metadata, not protection against a malicious operating system.
-Compaction, garbage collection/orphan cleanup, model-driven step execution,
+Compaction, garbage collection/orphan cleanup, general model-driven step execution,
 and full audit-history UI remain future work. Archive retains history; no
 expiry/permanent deletion exists.
 
-## File pages and access policy
+## Legacy exact file pages and shared access policy
 
+The following exact-page behavior applies to generic injected services without a
+read assessor and historical results, not fresh production adaptive execution.
 Regular UTF-8 text is incrementally decoded through real EOF in 8 KiB chunks,
 including text beyond the requested page. There is no 256 KB input-file allowance
 or 10,000-line offset ceiling. Only the requested page and the current line's

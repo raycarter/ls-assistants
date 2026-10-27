@@ -5,9 +5,9 @@ conversation history and sends it explicitly on every turn. The backend keeps no
 Chat conversation state and calls the provider with `store=False`. The separate
 Agent API uses **production planning/revision and tool-free final synthesis over the recorded LLM boundary** with quota-free work and paginated
 public v2, described in [AGENT_API.md](AGENT_API.md): journal-backed sessions,
-provider-generated tool-free planning, exact-plan approval, streaming UTF-8 file pages,
+provider-generated tool-free planning, exact-plan approval, file-scoped adaptive UTF-8 reads,
 public-page fetching, durable paged web evidence, final answers, progress, rejection,
-Stop and restart recovery. Default run/revise commands and final synthesis call the
+Stop and restart recovery. Default run/revise commands, per-chunk read assessments and final synthesis call the
 Responses provider through a shared controlled dedicated HTTPX client; no Agent SDK is used. An explicitly injected service with
 no planner still returns `503 agent_not_configured`. Provider/deployment
 compatibility has not been live-validated; this is not a full Agent release.
@@ -17,7 +17,8 @@ and events are paginated. Selected runs load one full exact plan and a recent re
 window; v2 SSE sends headers/controls and changed bodies rather than session history.
 There are no artificial work/history/payload allowances or overall Agent operation
 or stream expiry. Per-call defaults remain: planner 120 seconds, file read 30 seconds,
-ASGI send 30 seconds; WebFetcher owns a 30-second fetch timeout and 10-redirect guard.
+ASGI send 30 seconds; adaptive file chunks each receive a fresh 30-second file timeout.
+WebFetcher owns a 30-second fetch timeout and 10-redirect guard.
 Exact approval, one active run per session, preference freezes and Stop still apply.
 New plans omit `limits`; known legacy limits remain exact digest material but are
 nonoperative. These Agent changes do not alter Chat deadlines.
@@ -27,7 +28,7 @@ legacy journal bytes and approvals. This is separate from public projection/sche
 version 2; cached v1 clients must reload the updated UI. Normal public reads select
 references directly, but one internal hydrated baseline/index per session, reference
 metadata checks and append-prefix hashing still grow with retained history. There is
-no compaction/GC. Typed LLM audit covers production planning/revision and final synthesis through the
+no compaction/GC. Typed LLM audit covers production planning/revision, every read assessment and final synthesis through the
 recorded boundary; full audit-history UI is pending. Default `main.py` passes
 `files=agent_workspace.build_file_policy()` for the sole approved workspace described
 below. Bare `FilePolicy()` still has no roots, and custom `agent_service_factory`
@@ -92,12 +93,14 @@ remains read-only. The runner retains one active call's observations, and JSON
 serialization still materializes each complete record, in addition to the existing
 baseline/index/linear-verification costs. No constant-memory guarantee is implied.
 
-`agent_responses.py` supplies `agent-responses-planning-v2`: pure request construction
+`agent_responses.py` supplies `agent-responses-planning-v3`: pure request construction
 with `stream=False`, configured `max_output_tokens`, and a manually reviewed strict
 closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
-The schema and instructions distinguish one-based file line offsets and 1–200-line
-excerpts from zero-based web character offsets and 1–16000-character pages. File
-paths must be workspace-relative. Invalid arguments are rejected, not repaired.
+The schema retains one-based file offset and 1–200-line limit wire fields as
+legacy/internal hints; production adaptive reads start at byte zero. Instructions
+avoid read paging/chunk/whole-file narratives. Web fetch retains zero-based character
+offsets and 1–16000-character pages. File paths must be workspace-relative.
+Invalid arguments are rejected, not repaired.
 Revision input includes feedback but no old-plan history in the current interface.
 The adapter sends exact canonical bytes via fresh HTTPX requests with `auth=None`,
 no ambient cookies/default headers/client auth, `trust_env=False`, redirects disabled,
@@ -111,12 +114,41 @@ unsafe/deep JSON falls back to raw evidence. Response close remains owned throug
 repeated cancellation. `main.py` retains one exit-stack cleanup task closing
 Agent → Agent HTTP → Chat SDK → credential after settlement.
 
-Execution runs the exact approved tool calls sequentially. After all results commit,
+Execution runs approved steps sequentially. Default `main.py` supplies a
+`RecordedReadAssessor`: new plans bind `agent-tools-v2` and
+`read_semantics:file-scoped-v1`. Read approval shows workspace/path file identity
+only, never read paging/chunks, whole-file notes or generated titles/descriptions.
+Plans containing a read also hide objective/assumptions and full-plan JSON; the
+original request stays visible and fetch details/fetch-only review are unchanged.
+The actual wire plan and digest remain preserved. Historical exact-page plans cannot
+gain adaptive semantics through old-policy matching; obtain a fresh plan/approval.
+Generic injections without an assessor keep exact-read fixture compatibility.
+
+`FileChunkReader` pins one descriptor and advances sequentially from byte zero in
+chunks of at most 16,000 raw bytes, losslessly preserving UTF-8, CRLF and long lines
+without suffix clipping. There is no total quota or loop deadline. Version checks
+after reads/assessment and at close fail on observed mutation; this is not a snapshot
+guarantee. Early stop does not validate the unseen suffix. The backend alone controls
+the same-file cursor. Private `tool.chunk` full raw text/ranges/version commits before
+each LLM intent/send; its public v2 event is neutral with no body or control advancement.
+`agent-read-assessment-v1` strictly returns continue/enough plus updated cumulative
+findings. A step has a stable execution stage and each chunk a distinct interaction/
+attempt; actual I/O remains recorded through failure/Stop and owned cleanup. EOF wins
+over continue without extra I/O. No general autonomous loop, wider tools/scope or
+extra approval is added.
+
+Adaptive results contain lossy cumulative findings and optional `read` metadata:
+`chunks,bytes_read,total_bytes,eof,stop_reason,file_version`; offset/returned_lines
+are null and `truncated = !eof`. Legacy metadata absence remains compatible.
+After all results commit,
 `AgentService` reloads the approved plan and all ordered completed results, then makes
-one audited tool-free `agent-responses-synthesis-v1` request with the full original
+one audited tool-free `agent-responses-synthesis-v2` request with the full original
 request, approved-plan snapshot and recorded result bodies, including provenance and
 truncation metadata. Result excerpts are not silently expanded into unseen artifact
-pages. Synthesis uses the approved frozen model/effort, `store=False`, `stream=False`
+pages. Adaptive synthesis input contains findings plus coverage, not all raw chunks;
+raw chunks remain durable private evidence. The backend prepends a partial-coverage
+warning when any read stops before EOF. Neither factual accuracy nor constant memory
+is guaranteed. Synthesis uses the approved frozen model/effort, `store=False`, `stream=False`
 and configured output tokens, with no extra tools or approval.
 
 Its `phase:synthesis` identity binds the execution operation and approved plan/revision.
@@ -125,11 +157,11 @@ the atomic answer plus `run.completed` transition. Failures, invalid/empty/refus
 incomplete output, Stop/cancellation and recording/publication races fail closed;
 committed results remain inspectable without a fabricated answer. Only explicitly
 injected services with `synthesizer=None` keep the deterministic receipt for fixture
-compatibility. Default `main.py` supplies both planner and synthesizer; no new status
-or public API shape is introduced.
+compatibility. Default `main.py` supplies planner, read assessor and synthesizer;
+result DTOs add optional read coverage without new statuses or endpoints.
 
 No-tool plans, clarification, autonomous model/tool execution, continuation replay,
-model-driven step results, revision prior context, Tavily, grep
+general model-driven step results, revision prior context, Tavily, grep
 and full audit UI remain pending.
 Implementation status, all test counts/evidence and remaining checks are
 recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
@@ -415,6 +447,8 @@ acquisition serialization and lifespan draining. No real subprocess is started.
   versioned strict proposal contract, exact wire bytes and raw response ownership.
 - `app/agent_synthesis.py`: tool-free final answer request/decoding and recorded
   validation over frozen approved-plan/result snapshots, sharing the controlled HTTPX client.
+- `app/agent_read_chunks.py`: pinned-descriptor sequential lossless UTF-8 chunks and version checks.
+- `app/agent_read_assessor.py`: strict recorded same-file continue/enough decisions and cumulative findings.
 - `app/llm_schemas.py`, `app/llm_journal.py`: strict private audit lifecycle,
   committed-reference indexes/readers and unmatched-intent recovery.
 - `app/sessions.py`: lazy, single-writer, fsynced Agent journal and recovery.

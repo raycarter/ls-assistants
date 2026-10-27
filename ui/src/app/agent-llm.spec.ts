@@ -185,7 +185,7 @@ describe('private LLM events as public neutral progress', () => {
       for (const event of prefix) view = reduceRunView(view, event)!;
       const previous = prefix.at(-1)!;
       const frontier = { step_id: view.body.results[0].step_id, status: 'running' as const };
-      const allowed = name === 'execution' ? kinds : kinds.slice(2);
+      const allowed = [...(name === 'execution' ? kinds : kinds.slice(2)), 'tool.chunk'];
       for (const kind of allowed) {
         const event = parseAgentEvent(progress(previous, kind));
         const decoder = new AgentEventDecoder({
@@ -200,14 +200,23 @@ describe('private LLM events as public neutral progress', () => {
         expect(decoder.decode(frame(event))).toEqual(event);
         expect(decoder.terminal).toBe(false);
         expect(advanceResults(previous.run, event, view.body.plan!, frontier)).toBe(frontier);
-        const next = reduceRunView(view, event)!;
-        expect(next.body.results).toEqual(view.body.results);
-        expect(next.body.plan).toBe(view.body.plan);
-        expect(next.body.status).toBe(view.body.status);
-        expect(next.body.result_count).toBe(view.body.result_count);
-        expect(next.body.completed_steps).toBe(view.body.completed_steps);
+        for (const window of ['recent', 'older'] as const) {
+          const paged = {
+            ...view,
+            body: window === 'older' ? { ...view.body, results: [] } : view.body,
+            window: { ...view.window, kind: window },
+          };
+          const next = reduceRunView(paged, event)!;
+          expect(next.body.results).toEqual(paged.body.results);
+          expect(next.body.plan).toBe(view.body.plan);
+          expect(next.body.status).toBe(view.body.status);
+          expect(next.body.result_count).toBe(view.body.result_count);
+          expect(next.body.completed_steps).toBe(view.body.completed_steps);
+          expect(next.window.kind).toBe(window);
+          if (window === 'older') expect(next.window).toBe(paged.window);
+        }
       }
-      for (const kind of kinds) {
+      for (const kind of [...kinds, 'tool.chunk']) {
         const injected = progress(previous, kind);
         injected.run!.completed_steps = 1;
         injected.session.current_run = injected.run;
@@ -222,6 +231,63 @@ describe('private LLM events as public neutral progress', () => {
       }
     },
   );
+
+  it('restricts tool.chunk to body-free, private-metadata-free executing/cancelling progress', () => {
+    const entry = streams.find((entry) => entry.name === 'execution')!;
+    const intent = frames(entry).find((event) => event.type === 'tool.intent')!;
+    const chunk = progress(intent, 'tool.chunk');
+    expect(parseAgentEvent(chunk)).toEqual(chunk);
+    expect(reduceRunView(null, chunk)).toBeNull();
+    for (const injection of [
+      { request: 'private request' },
+      { plan: entry.terminal_run.plan },
+      { result: intent.result },
+      { answer: 'private findings' },
+      { read: { chunks: 1 } },
+      { payload: { bytes_read: 100 } },
+      { audit: { body: 'private chunk' } },
+      { content: 'private chunk' },
+      { error: { code: 'injected', message: 'injected' } },
+      { invalidates_runs: true },
+    ])
+      expect(() => parseAgentEvent({ ...chunk, ...injection })).toThrow('Invalid Agent');
+    for (const status of ['planning', 'approved', 'awaiting_approval', 'completed'] as const) {
+      const event = structuredClone(chunk);
+      event.run!.status = status;
+      event.run!.result_count = event.run!.completed_steps = 0;
+      event.run!.operation_id = ['planning', 'approved'].includes(status)
+        ? event.operation_id
+        : null;
+      event.session.current_run = event.run;
+      expect(() => parseAgentEvent(event)).toThrow('Invalid Agent');
+    }
+    const view = reduceRunView(loadedView(entry), intent)!;
+    for (const mutation of [
+      { status: 'cancelling' as const },
+      { operation_id: 'another-operation' },
+      { result_count: 0 },
+      { completed_steps: 1 },
+      { plan_identity: { ...chunk.run!.plan_identity!, digest: 'f'.repeat(64) } },
+    ]) {
+      const event = structuredClone(chunk);
+      Object.assign(event.run!, mutation);
+      event.session.current_run = event.run;
+      for (const kind of ['recent', 'older'] as const) {
+        expect(() => reduceRunView({ ...view, window: { ...view.window, kind } }, event)).toThrow(
+          'Invalid Agent',
+        );
+      }
+    }
+    const clock = structuredClone(chunk);
+    clock.run!.version_sequence = clock.sequence;
+    clock.run!.updated_at = '2026-10-16T09:00:01.000Z';
+    clock.session.current_run = clock.run;
+    expect(reduceRunView(view, parseAgentEvent(clock))!.body).toEqual({
+      ...view.body,
+      version_sequence: clock.sequence,
+      updated_at: clock.run!.updated_at,
+    });
+  });
 
   it('accepts the real unmatched-intent recovery outcome before null-ID invalidation', () => {
     const recovery = fixture.recoveries.find((entry) => entry.name === 'llm_startup_recovery')!;

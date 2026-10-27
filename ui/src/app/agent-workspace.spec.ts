@@ -145,7 +145,8 @@ describe('safe fetched evidence workspace', () => {
     const filePlan = root().querySelector('[aria-label="Reviewed plan"]')!;
     expect(filePlan.textContent).toContain('Workspace: public');
     expect(filePlan.textContent).toContain('public.txt');
-    expect(filePlan.textContent).toContain('Lines 1–2');
+    expect(filePlan.textContent).not.toContain('Lines 1–2');
+    expect(filePlan.querySelector('[aria-label="Exact tool arguments"]')).toBeNull();
   });
 
   it('renders untrusted title and extracted source literally, with only safe provenance links', async () => {
@@ -185,9 +186,11 @@ describe('safe fetched evidence workspace', () => {
     expect(root().querySelector('[aria-label="Step result"] a')).toBeNull();
   });
 
-  it('renders every description and the complete exact plan before approval beyond old step/revision ceilings', async () => {
+  it('renders fetch descriptions and exact arguments before approval beyond old step/revision ceilings', async () => {
     const session = parseAgentSession(structuredClone(recorded.baseline));
     const run = session.runs[0];
+    run.plan!.objective = 'Fetch-only objective';
+    run.plan!.assumptions = ['Fetch-only assumption'];
     run.plan!.revision = 25;
     delete run.plan!.limits;
     run.plan!.steps = Array.from({ length: 12 }, (_, index) => ({
@@ -198,15 +201,130 @@ describe('safe fetched evidence workspace', () => {
     session.current_run!.plan_identity!.revision = 25;
     await render(session);
     const reviewed = root().querySelector('[aria-label="Reviewed plan"]')!;
+    expect(reviewed.querySelector('h2')!.textContent).toBe('Fetch-only objective');
+    expect(reviewed.textContent).toContain('Fetch-only assumption');
     for (let index = 0; index < 12; index++)
       expect(reviewed.textContent).toContain(`Exact scope ${index}`);
     expect(reviewed.querySelectorAll('ol > li')).toHaveLength(12);
     expect(reviewed.querySelectorAll('details')).toHaveLength(0);
-    expect(
-      JSON.parse(reviewed.querySelector('[aria-label="Exact recorded plan"] pre')!.textContent!),
-    ).toEqual(run.plan);
+    expect(reviewed.querySelector('[aria-label="Exact recorded plan"]')).toBeNull();
+    expect(reviewed.querySelectorAll('[aria-label="Exact tool arguments"]')).toHaveLength(12);
     expect(reviewed.textContent).not.toContain('Limits:');
     expect(button('Approve and run').disabled).toBe(false);
+  });
+
+  it.each(['recent', 'older'])(
+    'hides model-authored read scope and raw paging in the %s window',
+    async (window) => {
+      state.windowKind.mockReturnValue(window);
+      const session = parseAgentSession(
+        structuredClone(fixtureData.streams.find((entry) => entry.name === 'execution')!.baseline),
+      );
+      const run = session.runs[0];
+      run.plan!.objective = 'LEAK-OBJECTIVE: read the whole file using paging';
+      run.plan!.assumptions = ['LEAK-ASSUMPTION: 9 chunks cover the full file'];
+      const step = run.plan!.steps[0];
+      step.title = 'LEAK-TITLE: read full file in 9 chunks';
+      step.description = 'LEAK-DESCRIPTION: offset 719 limit 823';
+      step.arguments.offset = 719;
+      step.arguments.limit = 823;
+      const original = structuredClone(run.plan);
+      await render(session);
+      const reviewed = root().querySelector('[aria-label="Reviewed plan"]')!;
+      expect(reviewed.querySelector('h2')!.textContent).toBe('Plan for review');
+      expect(reviewed.querySelector('ol h3')!.textContent).toBe('Read file · public.txt');
+      expect(reviewed.textContent).toContain('Workspace: public');
+      for (const leak of ['LEAK-', '719', '823', 'chunks', 'full file', 'offset', 'limit', 'Lines'])
+        expect(reviewed.textContent).not.toContain(leak);
+      expect(reviewed.querySelector('[aria-label="Exact tool arguments"]')).toBeNull();
+      expect(reviewed.querySelector('[aria-label="Exact recorded plan"]')).toBeNull();
+      expect(reviewed.textContent).toContain(run.plan!.digest);
+      button('Approve and run').click();
+      expect(state.approve).toHaveBeenCalledWith(run);
+      expect(run.plan).toEqual(original);
+    },
+  );
+
+  it('hides model-authored file scope in mixed plans while preserving fetch arguments and approval identity', async () => {
+    const session = parseAgentSession(structuredClone(recorded.baseline));
+    const run = session.runs[0];
+    const plan = run.plan!;
+    plan.objective = 'LEAK-OBJECTIVE: read the whole file with paging';
+    plan.assumptions = ['LEAK-ASSUMPTION: the full file fits in 9 chunks'];
+    plan.steps.push({
+      id: 'file-read',
+      tool: 'read_file',
+      title: 'LEAK-TITLE: read 9 chunks',
+      description: 'LEAK-DESCRIPTION: offset 719 limit 823',
+      arguments: { workspace_id: 'public', path: 'public.txt', offset: 719, limit: 823 },
+    });
+    run.request = 'Original request stays visible';
+    const original = structuredClone(plan);
+    const identity = structuredClone(session.current_run!.plan_identity);
+    await render(session);
+    const reviewed = root().querySelector('[aria-label="Reviewed plan"]')!;
+    expect(reviewed.querySelector('h2')!.textContent).toBe('Plan for review');
+    for (const leak of [
+      'LEAK-',
+      'whole file',
+      'full file',
+      'chunks',
+      'paging',
+      '719',
+      '823',
+      'Unverified assumptions',
+    ])
+      expect(reviewed.textContent).not.toContain(leak);
+    expect(reviewed.textContent).toContain('Workspace: public');
+    expect(reviewed.textContent).toContain('Read file · public.txt');
+    expect(root().querySelector('.request')!.textContent).toContain(run.request);
+    const argumentsViews = reviewed.querySelectorAll('[aria-label="Exact tool arguments"] pre');
+    expect(argumentsViews).toHaveLength(1);
+    expect(JSON.parse(argumentsViews[0].textContent!)).toEqual(plan.steps[0].arguments);
+    expect(reviewed.textContent).toContain(plan.digest);
+    expect(reviewed.textContent).toContain(`Revision ${plan.revision}`);
+    expect(reviewed.querySelector('[aria-label="Exact recorded plan"]')).toBeNull();
+    button('Approve and run').click();
+    expect(state.approve).toHaveBeenCalledWith(run);
+    expect(run.plan).toEqual(original);
+    expect(session.current_run!.plan_identity).toEqual(identity);
+  });
+
+  it.each([false, true])('shows adaptive coverage only in results (eof=%s)', async (eof) => {
+    const session = parseAgentSession(
+      structuredClone(fixtureData.streams.find((entry) => entry.name === 'execution')!.terminal),
+    );
+    const result = session.runs[0].results[0];
+    Object.assign(result, {
+      content: 'Accumulated findings from the file.',
+      path: 'actual/public.txt',
+      offset: null,
+      returned_lines: null,
+      truncated: !eof,
+      read: {
+        chunks: 3,
+        bytes_read: eof ? 100 : 60,
+        total_bytes: 100,
+        eof,
+        stop_reason: eof ? 'eof' : 'enough',
+        file_version: 'version-abc',
+      },
+    });
+    await render(session);
+    const reviewed = root().querySelector('[aria-label="Reviewed plan"]')!;
+    expect(reviewed.querySelector('[aria-label="File read coverage"]')).toBeNull();
+    expect(reviewed.textContent).not.toContain('version-abc');
+    const card = root().querySelector('[aria-label="Step result"]')!;
+    expect(card.textContent).toContain('actual/public.txt');
+    expect(card.textContent).toContain(`${eof ? 100 : 60} of 100 bytes`);
+    expect(card.textContent).toContain('3 chunks');
+    expect(card.textContent).toContain('version-abc');
+    expect(card.textContent).toContain(
+      eof ? 'End of file reached' : 'Stopped early: enough findings',
+    );
+    expect(card.textContent).toContain(result.content);
+    expect(card.textContent).not.toContain('Read range:');
+    expect(card.textContent).not.toContain('Returned lines:');
   });
 
   it('loads the generated continuation once via GET and makes full retained text available again after reload', async () => {

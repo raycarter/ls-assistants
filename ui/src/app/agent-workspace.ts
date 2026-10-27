@@ -6,6 +6,7 @@ import { AgentApi } from './agent-api';
 import {
   invalidAgent,
   safeHttpUrl,
+  type AgentPlan,
   type AgentRun,
   type ArtifactPage,
   type StepResult,
@@ -138,6 +139,10 @@ export class AgentWorkspace {
       !!current?.fetch &&
       this.signature(current) === this.signature(result)
     );
+  }
+
+  hasFileRead(plan: AgentPlan): boolean {
+    return plan.steps.some((step) => step.tool === 'read_file');
   }
 
   stepStatus(run: AgentRun, stepId: string): string {

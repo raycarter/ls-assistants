@@ -1,11 +1,12 @@
 <div class="agent-history" tabindex="0" aria-label="Agent run history">
   <aside class="disclosure" aria-label="Agent capabilities and retained content">
-    <strong>Agent · review the complete plan before execution</strong>
+    <strong>Agent · review the plan before execution</strong>
     <p>
       Approved plans support read_file and web_fetch steps. Search and grep are unavailable.
       Planning runs no tools. Planner availability and tool authorization are determined by the BFF.
-      Every step and description is shown before approval. History loads in fixed-size pages; page
-      sizes are read windows, not retained-history or execution allowances.
+      File reads show workspace and path before approval; fetch steps show exact arguments. History
+      loads in fixed-size pages; page sizes are read windows, not retained-history or execution
+      allowances.
     </p>
     <p>
       User requests, reviewed plans, approved source excerpts, tool results and logical model
@@ -165,16 +166,18 @@
         </p>
         @if (run.plan; as plan) {
           <section class="card" aria-label="Reviewed plan">
-            <h2>{{ plan.objective }}</h2>
+            <h2>{{ hasFileRead(plan) ? 'Plan for review' : plan.objective }}</h2>
             <p>
               Revision {{ plan.revision }} · <code class="digest">{{ plan.digest }}</code>
             </p>
-            <h3>Unverified assumptions</h3>
-            <ul>
-              @for (assumption of plan.assumptions; track $index) {
-                <li>{{ assumption }}</li>
-              }
-            </ul>
+            @if (!hasFileRead(plan)) {
+              <h3>Unverified assumptions</h3>
+              <ul>
+                @for (assumption of plan.assumptions; track $index) {
+                  <li>{{ assumption }}</li>
+                }
+              </ul>
+            }
             <p>Model: {{ plan.model }} · Thinking: {{ plan.reasoning_effort }}</p>
             @if (plan.search_policy !== undefined) {
               <h3>Effective search/query policy (as recorded)</h3>
@@ -183,17 +186,15 @@
             <ol>
               @for (step of plan.steps; track step.id) {
                 <li>
-                  <h3>{{ step.title }}</h3>
-                  <p>{{ step.description }}</p>
-                  <p>Tool: {{ step.tool }}</p>
                   @if (step.tool === 'read_file') {
+                    <h3>Read file · {{ step.arguments.path }}</h3>
                     <p>
                       Workspace: {{ step.arguments.workspace_id }} · Path:
-                      <code>{{ step.arguments.path }}</code> · Lines {{ step.arguments.offset }}–{{
-                        step.arguments.offset + step.arguments.limit - 1
-                      }}
+                      <code>{{ step.arguments.path }}</code>
                     </p>
                   } @else if (step.tool === 'web_fetch') {
+                    <h3>{{ step.title }}</h3>
+                    <p>{{ step.description }}</p>
                     <p>
                       Fetch URL: <code>{{ step.arguments.url }}</code>
                     </p>
@@ -201,19 +202,16 @@
                       Character page: offset {{ step.arguments.offset }} (zero-based) · limit
                       {{ step.arguments.limit }} characters
                     </p>
+                    <section aria-label="Exact tool arguments">
+                      <h4>Exact tool arguments</h4>
+                      <pre>{{ step.arguments | json }}</pre>
+                    </section>
                   }
-                  <section aria-label="Exact tool arguments">
-                    <h4>Exact tool arguments</h4>
-                    <pre>{{ step.arguments | json }}</pre>
-                  </section>
+                  <p>Tool: {{ step.tool }}</p>
                   <p>Step: {{ step.id }} · {{ stepStatus(run, step.id) }}</p>
                 </li>
               }
             </ol>
-            <section aria-label="Exact recorded plan">
-              <h3>Complete exact plan</h3>
-              <pre>{{ plan | json }}</pre>
-            </section>
             @if (
               run.status === 'awaiting_approval' &&
               state.activeControl()?.id === run.id &&
@@ -413,25 +411,43 @@
                 }
               </div>
             } @else {
-              @if (result.path != null || result.offset != null || result.returned_lines != null) {
-                <p>
-                  Recorded file excerpt
-                  @if (result.path != null) {
-                    · <code>{{ result.path }}</code>
-                  }
-                </p>
-                @if (result.offset != null) {
+              @if (result.read; as read) {
+                <section aria-label="File read coverage">
+                  <h3>Recorded file read</h3>
                   <p>
-                    Read range:
-                    @if (result.returned_lines != null && result.returned_lines! > 0) {
-                      lines {{ result.offset }}–{{ result.offset + result.returned_lines! - 1 }}
-                    } @else {
-                      starting at line {{ result.offset }}
+                    <code>{{ result.path }}</code>
+                  </p>
+                  <p>
+                    {{ read.bytes_read }} of {{ read.total_bytes }} bytes · {{ read.chunks }} chunks
+                  </p>
+                  <p>{{ read.eof ? 'End of file reached' : 'Stopped early: enough findings' }}</p>
+                  <p>
+                    File version: <code>{{ read.file_version }}</code>
+                  </p>
+                </section>
+              } @else {
+                @if (
+                  result.path != null || result.offset != null || result.returned_lines != null
+                ) {
+                  <p>
+                    Recorded file excerpt
+                    @if (result.path != null) {
+                      · <code>{{ result.path }}</code>
                     }
                   </p>
-                }
-                @if (result.returned_lines != null) {
-                  <p>Returned lines: {{ result.returned_lines }}</p>
+                  @if (result.offset != null) {
+                    <p>
+                      Read range:
+                      @if (result.returned_lines != null && result.returned_lines! > 0) {
+                        lines {{ result.offset }}–{{ result.offset + result.returned_lines! - 1 }}
+                      } @else {
+                        starting at line {{ result.offset }}
+                      }
+                    </p>
+                  }
+                  @if (result.returned_lines != null) {
+                    <p>Returned lines: {{ result.returned_lines }}</p>
+                  }
                 }
               }
               @if (result.truncated) {

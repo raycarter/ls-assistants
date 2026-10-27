@@ -105,6 +105,7 @@ def wired(tmp_path, monkeypatch, settings_factory, mock_client):
     def service(**kwargs):
         assert kwargs["files"] is files
         result.file_policy_factory.assert_called_once_with()
+        kwargs["read_assessor"] = None
         owner = AgentService(store=SessionStore(root), fetcher=fetcher, **kwargs)
         original_close = owner.close
 

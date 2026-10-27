@@ -184,6 +184,25 @@ class FetchMetadata(Strict):
         return self
 
 
+class ReadCoverage(Strict):
+    chunks: Annotated[int, Field(ge=1)]
+    bytes_read: Nonnegative
+    total_bytes: Nonnegative
+    eof: bool
+    stop_reason: Literal["eof", "enough"]
+    file_version: Text
+
+    @model_validator(mode="after")
+    def consistent(self) -> Self:
+        if (
+            self.bytes_read > self.total_bytes
+            or self.eof != (self.bytes_read == self.total_bytes)
+            or self.eof != (self.stop_reason == "eof")
+        ):
+            raise ValueError("Inconsistent file coverage")
+        return self
+
+
 class StepResult(Strict):
     step_id: Key
     status: Literal["running", "completed", "failed"]
@@ -195,6 +214,21 @@ class StepResult(Strict):
     returned_lines: int | None = None
     truncated: bool = False
     fetch: FetchMetadata | None = None
+    read: ReadCoverage | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def adaptive_metadata(self) -> Self:
+        if self.read is not None and (
+            not self.path
+            or self.path.startswith("/")
+            or ".." in self.path.split("/")
+            or self.fetch is not None
+            or self.offset is not None
+            or self.returned_lines is not None
+            or self.truncated != (not self.read.eof)
+        ):
+            raise ValueError("Inconsistent adaptive read result")
+        return self
 
 
 class AgentRun(Strict):
@@ -249,6 +283,7 @@ class AgentEvent(Strict):
         "run.approved",
         "run.executing",
         "tool.intent",
+        "tool.chunk",
         "tool.result",
         "run.completed",
         "run.rejected",

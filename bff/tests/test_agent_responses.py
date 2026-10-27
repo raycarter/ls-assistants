@@ -137,8 +137,8 @@ async def run_planner(handler, *, provider=bearer, validate=lambda p: p):
 def test_request_and_manually_reviewed_schema():
     request = build_request(context(), 2048)
     wire = request.body
-    assert request.instructions_version == INSTRUCTIONS_VERSION == "agent-responses-planning-v2"
-    assert wire["text"]["format"]["name"] == "agent_plan_v2"
+    assert request.instructions_version == INSTRUCTIONS_VERSION == "agent-responses-planning-v3"
+    assert wire["text"]["format"]["name"] == "agent_plan_v3"
     assert wire["model"] == "frozen-deployment"
     assert wire["reasoning"] == {"effort": "high"}
     assert wire["store"] is wire["stream"] is False
@@ -288,7 +288,7 @@ async def test_paging_bounds_enforced_locally_and_at_recorded_boundary(tool, off
     assert len(calls) == 1
     assert plan == unchanged
     assert next(r["data"]["body"] for r in records if r["kind"] == "output") == full
-    assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v2"
+    assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v3"
     assert records[-2]["data"]["status"] == "completed"
     if valid:
         assert result.steps[0].arguments.model_dump() == arguments

@@ -41,6 +41,7 @@ export type {
   AgentStep,
   ArtifactPage,
   FetchMetadata,
+  ReadMetadata,
   PlanIdentity,
   ReviewIdentity,
   Revision,
@@ -207,7 +208,7 @@ export function isLlmEvent(event: AgentEvent): boolean {
 /** Private observations may change recording clocks, never the loaded coordinator controls. */
 export function validateLlmProgress(previous: RunControl, event: AgentEvent): void {
   if (
-    isLlmEvent(event) &&
+    (isLlmEvent(event) || event.type === 'tool.chunk') &&
     (!event.run ||
       !sameControl(
         {
@@ -560,6 +561,15 @@ export function parseAgentEvent(value: unknown): AgentEvent {
   const session = parseAgentSession(event.session);
   const run = event.run === null ? null : parseRunControl(event.run);
   if (
+    event.type === 'tool.chunk' &&
+    (event.invalidates_runs ||
+      !run ||
+      !['executing', 'cancelling'].includes(run.status) ||
+      event.error?.code !== run.error?.code ||
+      event.error?.message !== run.error?.message)
+  )
+    return invalidAgent();
+  if (
     isLlmEvent(event) &&
     (!['llm.intent', 'llm.dispatched', 'llm.output', 'llm.outcome', 'llm.validation'].includes(
       event.type,
@@ -633,12 +643,15 @@ export function parseAgentEvent(value: unknown): AgentEvent {
       run.id !== event.run_id ||
       !id(event.operation_id) ||
       run.version_sequence > event.sequence ||
-      ((event.type.startsWith('run.') || event.type.startsWith('tool.')) &&
+      ((event.type.startsWith('run.') ||
+        (event.type.startsWith('tool.') && event.type !== 'tool.chunk')) &&
         run.version_sequence !== event.sequence) ||
       (run.operation_id !== null && run.operation_id !== event.operation_id) ||
       (event.type.startsWith('run.') && event.type !== `run.${run.status}`) ||
       (['planner.attempt', 'planner.repair'].includes(event.type) && run.status !== 'planning') ||
-      (event.type.startsWith('tool.') && run.status !== 'executing') ||
+      (event.type.startsWith('tool.') &&
+        event.type !== 'tool.chunk' &&
+        run.status !== 'executing') ||
       (settled(run)
         ? session.current_run?.id === run.id
         : !session.current_run || !sameControl(session.current_run, run)) ||

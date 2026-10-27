@@ -167,22 +167,34 @@ prompt propagation, send, retry or deletion through Chat routes.
 
 Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
 `web_fetch` steps → tool-free final synthesis → paginated GET-based history after reload. The default
-BFF calls the Responses provider for planning, plan-feedback revisions and final synthesis through
+BFF calls the Responses provider for planning, plan-feedback revisions, each read assessment and final synthesis through
 its recorded adapters sharing a controlled dedicated HTTPX client. Provider/deployment compatibility has not
 been live-validated. Implementation status, test evidence and remaining checks are tracked only in the
 [root checklist](../AGENT_MODE_CHECKLIST.md).
 
-The plan displays every step and description, unverified assumptions, workspace/path or URL, exact
-arguments, model/effort, revision/digest and the complete exact recorded JSON, including access policy.
-After all exact approved tool calls commit, the BFF reloads the approved plan and all ordered
+For each read step, approval displays only workspace/path file identity, with neutral tool/step
+identity and normal model/effort and revision/digest controls. It never displays read offset/limit,
+paging/chunk explanations, whole-file notes or generated read titles/descriptions. Any plan containing
+a read also hides its objective, assumptions and full-plan JSON to prevent read narrative leaks.
+The original user request remains shown; fetch details and fetch-only review remain unchanged.
+This is a display projection: the actual full wire plan, policy and digest remain preserved and
+approval-bound. New production plans bind `agent-tools-v2` / `read_semantics:file-scoped-v1`.
+Historical exact-page plans cannot gain adaptive authority through old-policy compatibility;
+obtain a fresh plan and approval. Generic injected BFF fixtures without an assessor retain exact reads.
+After all approved steps commit, the BFF reloads the approved plan and all ordered
 completed results for one tool-free synthesis using the frozen approved model/effort. Input includes
 the full original request, approved-plan snapshot and recorded result bodies with provenance and
-truncation metadata; it is independent of the UI's loaded result window. Excerpts remain excerpts,
+truncation/coverage metadata; it is independent of the UI's loaded result window. Adaptive read
+results contain cumulative lossy model findings plus coverage, not all raw chunks. Raw chunks remain
+durable private evidence but are not reloaded into final synthesis. The synthesis stage is distinct
+from read assessments and uses `agent-responses-synthesis-v2`. The backend prepends an explicit
+partial-coverage warning if any read stops before EOF. No factual-accuracy guarantee is implied.
+Excerpts remain excerpts,
 without implicit loading of further retained artifact pages. No extra tools or approval are requested.
 Synthesis stays within `executing`; the existing completion event supplies the validated final answer.
 Full observable output, outcome and valid answer validation commit before atomic answer/completion.
 Failures, Stop/cancellation and recording/publication races retain committed results without a
-fabricated answer. No public status or API shape changes are needed.
+fabricated answer. Existing statuses/endpoints remain, with optional read coverage in results.
 Approval, rejection and plan feedback bind the current identity. A full plan is loaded for review;
 this is not a plan-payload quota. New plans omit `limits`; known legacy
 `{max_steps,max_tool_calls,timeout_seconds}` material remains readable with its exact approval digest
@@ -190,13 +202,24 @@ but is nonoperative. There is no mandatory budget display.
 Double clicks are guarded while a command is pending. Results and answers use the existing
 sanitized Markdown and local-time display pipes; original server timestamps are preserved. Agent
 history does not auto-scroll, so updates do not pull a user away from review.
-File results retain the BFF's path, offset, returned-line count and truncation flag. Live and reloaded
-result cards show the recorded excerpt range/count and explicitly disclose omitted content or clipped
-long lines when `truncated` is true; an excerpt is not presented as evidence of the complete file.
-The BFF scans regular UTF-8 text through EOF in 8 KiB chunks, retaining a preview of at most 200
-lines/16,000 UTF-8 bytes and 1,000 characters per displayed line. There is no 256 KB file allowance
-or 10,000-line offset ceiling. Invalid text beyond the preview still fails the read, and each read
-has its own timeout. Default BFF composition uses `agent_workspace.build_file_policy()`:
+Adaptive file results show cumulative findings and explicit `read` coverage:
+`chunks,bytes_read,total_bytes,eof,stop_reason,file_version`. Their offset/returned_lines are null,
+and `truncated = !eof`; early enough is partial coverage, not proof of a complete read. Metadata is
+optional for legacy compatibility. Old exact-read result cards retain recorded line-range/count and
+truncation disclosure. Read offset/limit wire fields remain legacy/internal hints, never approval UI.
+
+The production BFF pins a no-follow file descriptor and reads sequentially from byte zero in chunks
+of at most 16,000 raw bytes, preserving UTF-8 across boundaries, CRLF and long lines without suffix
+clipping. Only the backend controls the same-file cursor. There is no total quota or loop deadline;
+each chunk has a fresh file timeout. Observed mutation checks after assessment and at close fail
+closed but do not guarantee a snapshot. An unseen suffix is not validated after early stop.
+`agent-read-assessment-v1` strictly returns continue/enough and updated cumulative findings; EOF
+wins over continue with no extra I/O. A stable per-step execution stage has distinct chunk
+interaction/attempt identities. Full raw chunks/ranges/version commit privately as `tool.chunk`
+before assessment intent/send, and every actual assessment input/output is recorded. Stop,
+cancellation and recording failure retain cleanup ownership and prohibit advancement. This adds
+no general autonomous tool loop, scope expansion or extra approval, and no constant-memory promise.
+Default BFF composition uses `agent_workspace.build_file_policy()`:
 fixed ID `workspace`, logical root `/tmp/ls-assistants`, physical root
 `/private/tmp/ls-assistants` on Darwin and the logical path elsewhere. This pure mapping performs
 no `resolve`, probing, mkdir, discovery or configuration override. Bare `FilePolicy()` has no roots;
@@ -212,7 +235,7 @@ the root and descendants retain strict descriptor-based no-follow checks. Existi
 remain enforced; these are not secret-content detection or hardlink isolation.
 Approval binds the path mapping and policy, not the workspace root inode or file contents.
 Changed scope rejects old approval and needs a fresh plan and approval without rewriting journals.
-The v4 file policy narrowly accepts known v3 approval material only at the same access scope.
+The v4 filesystem compatibility rule alone cannot authorize adaptive execution of an old exact-page plan.
 
 Fetch review displays the exact public URL and zero-based character-page arguments. Successful fetch
 cards distinguish actual retrieved text from file excerpts, showing title, requested/final URL,
@@ -317,7 +340,7 @@ false for ordinary single-run progress. Request text appears once per planning/r
 tool progress or representable terminal failure, and the answer at completion. Other body fields
 are null; earlier bodies and complete history are not retransmitted.
 
-Step 3 adds `llm.intent`, `llm.dispatched`, `llm.output`, `llm.outcome`, and
+The events `llm.intent`, `llm.dispatched`, `llm.output`, `llm.outcome`, and
 `llm.validation` as **neutral controls**. They expose no canonical input, opaque continuation,
 provider response/error body, usage, or private audit fields. They cannot create a missing loaded
 body, offer approval, settle a run, or advance result counts/completed steps. Recording-only
@@ -325,6 +348,8 @@ sequence/timestamp changes leave the loaded plan and step frontier intact. Inten
 accepted only for active planning/approved/executing controls; late output/outcome/validation may
 also arrive while cancelling. Approval stays locked through LLM validation and becomes available
 only when the separate `run.awaiting_approval` event supplies the exact reviewed plan.
+Public v2 `tool.chunk` is likewise neutral: it exposes no private raw chunk body or ranges/version
+and cannot advance results, completed steps or approval. The decoder/reducer keeps its step frontier intact.
 
 The independent decoder validates timestamps, headers/controls, loaded bodies,
 session correlation and frozen approval identity. Work records must match the owning request/run/operation;
@@ -379,7 +404,7 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   not been live-validated.
 - The BFF supports approved `read_file` and `web_fetch` steps through its production planner. Web search
   (including Tavily), folder grep, and no-tool steps remain unavailable. The full four-tool release,
-  autonomous model/tool loop, model-driven step results, continuation replay and revision prior
+  autonomous model/tool loop, general model-driven step results, continuation replay and revision prior
   context remain deferred. Default final output is a recorded tool-free synthesis; only explicitly
   injected `AgentService` instances with `synthesizer=None` retain a deterministic receipt for fixtures.
 - The recorded backend seam explicitly composes `RecordedPlanner`, `CanonicalRequest`,
@@ -389,11 +414,12 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   are bound to it. The legacy planner fixture path stays `logical_only`. Final synthesis uses
   `RecordedSynthesizer` with `phase:synthesis`, bound to the execution operation and approved
   plan/revision, with its own stage/interaction/attempt identity. The adapters use no Agent SDK.
-- The `agent-responses-planning-v1` request builder is pure and tool-free, uses frozen model/effort,
+- The `agent-responses-planning-v3` request builder is pure and tool-free, uses frozen model/effort,
   `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
   strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch` step.
   Revision supplies feedback without old-plan history in the current interface. Default file scope
-  is the fixed `workspace` mapping above; no-tool plans remain open.
+  is the fixed `workspace` mapping above; no-tool plans remain open. Read instructions describe purpose
+  without paging/chunk/whole-file narratives; legacy offset/limit fields remain validated internal hints.
 - Recorded intent/authorization precedes dispatch durably; outcomes and applicable proposal validation
   precede advancement. Provider outcome is separate from valid/invalid proposal validation. Stop/revocation
   is normal cancellation; true recording failure poisons/revokes work while retaining cleanup ownership.

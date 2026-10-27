@@ -219,10 +219,8 @@ describe('Agent shell and mocked vertical slice', () => {
     expect(readCalls).toBe(0);
     const plan = element('[aria-label="Reviewed plan"]');
     for (const scope of [
-      'unverified',
       'public-fixtures',
       'example.md',
-      'Lines 1–2',
       'read_file',
       'model-a',
       'medium',
@@ -231,6 +229,11 @@ describe('Agent shell and mocked vertical slice', () => {
       'Revision 1',
     ])
       expect(plan.textContent).toContain(scope);
+    expect(plan.querySelector('h2')!.textContent).toBe('Plan for review');
+    expect(plan.textContent).not.toContain('unverified');
+    expect(plan.textContent).not.toContain('Lines 1–2');
+    expect(plan.querySelector('[aria-label="Exact tool arguments"]')).toBeNull();
+    expect(plan.querySelector('[aria-label="Exact recorded plan"]')).toBeNull();
     expect(element<HTMLSelectElement>('#model-input').disabled).toBe(true);
     expect(root().querySelector('[aria-labelledby="prompts-heading"]')).toBeNull();
     const history = element('[aria-label="Agent run history"]');

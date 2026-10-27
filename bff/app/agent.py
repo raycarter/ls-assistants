@@ -15,6 +15,8 @@ import anyio
 
 from app.agent_files import AgentFault, FilePolicy, canonical_digest
 from app.agent_llm import AttemptRunner, AuthorizationRevoked, RecordedPlanner
+from app.agent_read_assessor import ReadAssessmentInput, RecordedReadAssessor
+from app.agent_read_chunks import FileChunkReader
 from app.agent_schemas import (
     TERMINAL,
     AgentError,
@@ -92,6 +94,7 @@ class AgentService:
         *,
         planner: Planner | RecordedPlanner | None = None,
         synthesizer: RecordedSynthesizer | None = None,
+        read_assessor: RecordedReadAssessor | None = None,
         files: FilePolicy | None = None,
         fetcher: WebFetcher | None = None,
         models: tuple[str, ...] = (),
@@ -118,6 +121,7 @@ class AgentService:
         self.store = store or SessionStore()
         self.planner, self.files, self.models = planner, files or FilePolicy(), models
         self.synthesizer = synthesizer
+        self.read_assessor = read_assessor
         self.fetcher = fetcher if fetcher is not None else WebFetcher()
         self.files.bind_storage(self.store.root)
         self.eager = eager
@@ -131,7 +135,7 @@ class AgentService:
 
     @property
     def registry(self) -> ToolRegistry:
-        return ToolRegistry(self.files, self.fetcher)
+        return ToolRegistry(self.files, self.fetcher, adaptive_reads=self.read_assessor is not None)
 
     async def io(self, fn, *args, **kwargs):
         task = self.track(asyncio.create_task(self._io(fn, *args, **kwargs)), self.io_tasks)
@@ -441,10 +445,20 @@ class AgentService:
 
     async def transition(self, op: Operation, kind: str, mutate=None, audit=None):
         async with self.lock:
-            if op.stop.is_set() and kind not in {"run.cancelled", "run.interrupted", "run.failed"}:
+            if op.stop.is_set() and kind not in {
+                "run.cancelled",
+                "run.interrupted",
+                "run.failed",
+                "tool.chunk",
+            }:
                 raise AgentFault("operation_stopped", "Operation stopped.")
             snapshot = await self.io(self.store.get, op.sid)
-            if op.stop.is_set() and kind not in {"run.cancelled", "run.interrupted", "run.failed"}:
+            if op.stop.is_set() and kind not in {
+                "run.cancelled",
+                "run.interrupted",
+                "run.failed",
+                "tool.chunk",
+            }:
                 raise AgentFault("operation_stopped", "Operation stopped.")
             run = self.run(snapshot, op.rid)
             if mutate:
@@ -523,7 +537,13 @@ class AgentService:
         return runner
 
     @staticmethod
-    def llm_identity(op: Operation, phase: Phase | None = None) -> LLMIdentity:
+    def llm_identity(
+        op: Operation,
+        phase: Phase | None = None,
+        *,
+        step_id: str | None = None,
+        stage_id: str | None = None,
+    ) -> LLMIdentity:
         return LLMIdentity(
             session_id=op.sid,
             run_id=op.rid,
@@ -531,8 +551,8 @@ class AgentService:
             plan_id=op.plan_id,
             revision=op.revision,
             phase=phase or op.phase,
-            stage_id=op.stage_id,
-            step_id=None,
+            stage_id=stage_id or op.stage_id,
+            step_id=step_id,
             interaction_id=uuid4().hex,
             attempt_id=uuid4().hex,
             attempt=1,
@@ -767,7 +787,9 @@ class AgentService:
             self.registry.validate(step)
             self.check_stop(op)
             audit = {"step_id": step.id, "status": "completed"}
-            if step.tool == "read_file":
+            if step.tool == "read_file" and self.read_assessor is not None:
+                result = await self.adaptive_read(op, plan, step)
+            elif step.tool == "read_file":
                 # A read thread is cooperatively stopped and owned until it returns.
                 reader = asyncio.create_task(
                     self.io(
@@ -819,6 +841,84 @@ class AgentService:
 
         await self.transition(op, "run.completed", finished)
 
+    async def adaptive_read(self, op: Operation, plan: AgentPlan, step: PlanStep) -> dict:
+        reader = FileChunkReader(self.files, step.arguments)
+        stage_id = uuid4().hex
+        findings, chunks = "", 0
+        try:
+            while True:
+                self.check_stop(op)
+                self.store._healthy()
+                if not self.registry.matches(plan.access_policy, plan.steps):
+                    raise AgentFault("policy_changed", "The effective file policy changed.")
+                self.registry.validate(step)
+                # Own the synchronous reader until it settles, even if its waiter
+                # is cancelled; no concurrent close of a still-running worker.
+                call = asyncio.create_task(
+                    self.io(
+                        reader.next_chunk, op.stop, time.monotonic() + self.file_timeout_seconds
+                    )
+                )
+                try:
+                    chunk = await self.wait_owned(call, lambda: self.signal_stop(op, "interrupted"))
+                finally:
+                    if not call.done():
+                        await self.wait_owned(call)
+                chunks += 1
+                material = {
+                    "content": chunk.content,
+                    "start_byte": chunk.start_byte,
+                    "end_byte": chunk.end_byte,
+                    "total_bytes": chunk.total_bytes,
+                    "eof": chunk.eof,
+                    "file_version": chunk.file_version,
+                }
+                await self.transition(
+                    op,
+                    "tool.chunk",
+                    audit={"step_id": step.id, "chunk": chunks, **material},
+                )
+                self.check_stop(op)
+                runner = self.llm_runner(op)
+                context = ReadAssessmentInput(
+                    request=self.run(await self.get(op.sid), op.rid).request,
+                    model=plan.model,
+                    reasoning_effort=plan.reasoning_effort,
+                    plan_json=plan.model_dump_json(),
+                    step_id=step.id,
+                    chunk_json=json.dumps(material, ensure_ascii=False),
+                    findings=findings,
+                )
+                self.model_allowed(plan.model)
+                identity = self.llm_identity(op, "execution", step_id=step.id, stage_id=stage_id)
+                decision = await self.read_assessor.assess_recorded(
+                    context, runner=runner, identity=identity
+                )
+                self.check_stop(op)
+                await self.io(reader.check_version)
+                findings = decision.findings
+                if chunk.eof or decision.decision == "enough":
+                    return {
+                        "content": findings,
+                        "path": step.arguments.path,
+                        "truncated": not chunk.eof,
+                        "read": {
+                            "chunks": chunks,
+                            "bytes_read": chunk.end_byte,
+                            "total_bytes": chunk.total_bytes,
+                            "eof": chunk.eof,
+                            "stop_reason": "eof" if chunk.eof else "enough",
+                            "file_version": chunk.file_version,
+                        },
+                    }
+        except asyncio.CancelledError:
+            self.signal_stop(op, "interrupted")
+            raise AgentFault("operation_stopped", "Operation stopped.") from None
+        finally:
+            # Preserve close/version failures: they must prevent result publication.
+            close = asyncio.create_task(self.io(reader.close))
+            await self.wait_owned(close)
+
     async def synthesize(self, op: Operation) -> str:
         self.check_stop(op)
         snapshot = await self.get(op.sid)
@@ -845,9 +945,15 @@ class AgentService:
         runner = self.llm_runner(op)
         identity = self.llm_identity(op, "synthesis")
         try:
-            return await self.synthesizer.synthesize_recorded(
+            answer = await self.synthesizer.synthesize_recorded(
                 context, runner=runner, identity=identity
             )
+            if any(result.read is not None and not result.read.eof for result in run.results):
+                answer = (
+                    "Coverage note: A file read stopped before EOF. This answer is based on "
+                    "partial file content.\n\n" + answer
+                )
+            return answer
         except asyncio.CancelledError:
             self.signal_stop(op, "interrupted")
             raise AgentFault("operation_stopped", "Operation stopped.") from None
