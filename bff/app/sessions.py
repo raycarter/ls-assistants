@@ -12,6 +12,7 @@ import operator
 import os
 import re
 import secrets
+import shutil
 import stat
 import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -119,6 +120,28 @@ class Committed:
     llm: LLMIndex
 
 
+class HistoryIterator(Iterator[JournalRecord]):
+    """Synchronize each advancement with lease release, never a paused consumer."""
+
+    def __init__(self, store: SessionStore, iterator: Iterator[JournalRecord]):
+        self.store, self.iterator = store, iterator
+        self.started = False
+
+    def __next__(self):
+        if not self.started:
+            # Initialization takes the store lock, so preserve the global lock order.
+            with self.store.lock:
+                with self.store._history_lock:
+                    self.started = True
+                    return next(self.iterator)
+        with self.store._history_lock:
+            return next(self.iterator)
+
+    def close(self):
+        with self.store._history_lock:
+            self.iterator.close()
+
+
 class HistoricalRecords(Sequence[JournalRecord]):
     """Read-only compatibility view. Each iteration/slice replays the journal once."""
 
@@ -133,18 +156,22 @@ class HistoricalRecords(Sequence[JournalRecord]):
             selected = range(*index.indices(len(self)))
             if not selected:
                 return []
-            records = {
-                i: record
-                for i, record in enumerate(self._store._history(self._sid, max(selected) + 1))
-                if i in selected
-            }
+            history = self._store._history(self._sid, max(selected) + 1)
+            try:
+                records = {i: record for i, record in enumerate(history) if i in selected}
+            finally:
+                history.close()
             return [records[i] for i in selected]
         index = operator.index(index)
         if index < 0:
             index += len(self)
         if not 0 <= index < len(self):
             raise IndexError("journal record index out of range")
-        return next(self._store._history(self._sid, index + 1, start=index))
+        history = self._store._history(self._sid, index + 1, start=index)
+        try:
+            return next(history)
+        finally:
+            history.close()
 
     def __iter__(self):
         return self._store._history(self._sid, len(self))
@@ -177,6 +204,9 @@ class SessionStore:
         self._committed: dict[str, Committed] = {}
         self._verified: dict[str, VerifiedFiles] = {}
         self._records: dict[str, HistoricalRecords] = {}
+        self._history_lock = threading.RLock()
+        self._history_epoch = 0
+        self._history_readers: dict[tuple[str, int], int] = {}
         self.records: Mapping[str, Sequence[JournalRecord]] = MappingProxyType(self._records)
         self.creations: dict[str, tuple[str, str]] = {}
         self._public = PublicViews(self)
@@ -265,6 +295,8 @@ class SessionStore:
                 self._regular(self.lease)
                 os.fchmod(self.lease, 0o600)
                 fcntl.flock(self.lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with self._history_lock:
+                    self._history_epoch += 1
                 self._recover()
             except BaseException:
                 self.poisoned = True
@@ -285,8 +317,12 @@ class SessionStore:
     def close(self):
         with self.lock:
             if self.lease is not None:
-                os.close(self.lease)
-                self.lease = None
+                # Linearize lease loss against a reader's current record, never
+                # against a suspended yield. Old readers cannot poison a later lease.
+                with self._history_lock:
+                    self._history_epoch += 1
+                    os.close(self.lease)
+                    self.lease = None
             if self.fd is not None:
                 os.close(self.fd)
                 self.fd = None
@@ -868,6 +904,12 @@ class SessionStore:
         for sid in sorted(entries):
             if sid == ".lock":
                 continue
+            if sid.startswith(".deleted-"):
+                if not SESSION_ID.fullmatch(sid.removeprefix(".deleted-")):
+                    raise ValueError("invalid deletion marker")
+                self._remove_tree(root_fd, sid)
+                os.fsync(root_fd)
+                continue
             if sid.startswith(".orphan-"):
                 if not SESSION_ID.fullmatch(sid.removeprefix(".orphan-")):
                     raise ValueError("invalid orphan directory")
@@ -1058,53 +1100,185 @@ class SessionStore:
             self._verify_artifacts(sid, self.artifacts.get(sid, {}), snapshot)
             return snapshot
 
+    @staticmethod
+    def _remove_tree(root_fd: int, name: str):
+        # Python's fd-relative implementation refuses symlink substitution and
+        # unlinks symlinks within the tree without traversing their targets.
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise OSError("safe recursive deletion unavailable")
+        directory = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root_fd)
+        try:
+            device = os.fstat(root_fd).st_dev
+            if os.fstat(directory).st_dev != device:
+                raise OSError("session is on a different filesystem")
+            for entry in os.listdir(directory):
+                info = os.stat(entry, dir_fd=directory, follow_symlinks=False)
+                if not stat.S_ISDIR(info.st_mode):
+                    continue
+                if entry not in {"payloads", "artifacts"}:
+                    raise OSError("unexpected session directory")
+                child = os.open(
+                    entry, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory
+                )
+                try:
+                    if os.fstat(child).st_dev != device:
+                        raise OSError("session directory is on a different filesystem")
+                    for item in os.listdir(child):
+                        info = os.stat(item, dir_fd=child, follow_symlinks=False)
+                        if stat.S_ISDIR(info.st_mode):
+                            raise OSError("unexpected nested directory")
+                finally:
+                    os.close(child)
+        finally:
+            os.close(directory)
+        shutil.rmtree(name, dir_fd=root_fd)
+
+    def delete(self, sid: str):
+        with self.lock:
+            root = self._opened()
+            self.get(sid)
+            with self._history_lock:
+                if self._history_readers.get((sid, self._history_epoch), 0):
+                    raise AgentFault(
+                        "session_in_use", "Wait for session readers and streams to close."
+                    )
+            marker = ".deleted-" + sid
+            try:
+                # The rename is the durable intent: recovery finishes any
+                # interrupted removal instead of replaying a partial journal.
+                os.stat(marker, dir_fd=root, follow_symlinks=False)
+                raise ValueError("deletion marker already exists")
+            except FileNotFoundError:
+                pass
+            except OSError, ValueError:
+                raise self._recording_failure() from None
+            try:
+                directory = self._directory(sid)
+                try:
+                    sizes = [0, 0]
+                    for folder, index in (("payloads", 0), ("artifacts", 1)):
+                        try:
+                            child = os.open(
+                                folder,
+                                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=directory,
+                            )
+                        except FileNotFoundError:
+                            continue
+                        try:
+                            for name in os.listdir(child):
+                                info = os.stat(name, dir_fd=child, follow_symlinks=False)
+                                if stat.S_ISREG(info.st_mode):
+                                    sizes[index] += info.st_size
+                        finally:
+                            os.close(child)
+                    sizes[0] += os.stat(
+                        "events.jsonl", dir_fd=directory, follow_symlinks=False
+                    ).st_size
+                finally:
+                    os.close(directory)
+                os.rename(sid, marker, src_dir_fd=root, dst_dir_fd=root)
+                os.fsync(root)
+                self._remove_tree(root, marker)
+                os.fsync(root)
+                with self._publication_lock:
+                    self._healthy()
+                    self._committed.pop(sid, None)
+                    self._verified.pop(sid, None)
+                    self._records.pop(sid, None)
+                    self.artifacts.pop(sid, None)
+                    self._artifact_stamps.pop(sid, None)
+                    self.creations = {
+                        key: value for key, value in self.creations.items() if value[1] != sid
+                    }
+                    self.used -= sizes[0]
+                    self.artifact_bytes -= sizes[1]
+            except OSError, ValueError:
+                raise self._recording_failure() from None
+
     def _history(self, sid: str, stop: int, *, start=0) -> Iterator[JournalRecord]:
+        # Capture the lease at iterator creation, not at its first advancement.
+        with self._history_lock:
+            epoch = self._history_epoch
+        return HistoryIterator(self, self._history_iter(sid, stop, start=start, epoch=epoch))
+
+    @staticmethod
+    def _history_expired():
+        return AgentFault("storage_unavailable", "Agent history reader is no longer valid.", 503)
+
+    def _history_iter(self, sid: str, stop: int, *, start: int, epoch: int):
         # Capture immutable prefix metadata and independent descriptors under the
         # lock. The generator owns those fds, but NEVER a store lock across yield.
         root = directory = fd = None
+        reader_key = None
         try:
             with self.lock:
-                committed = self._committed[sid]
-                verified = self._verified[sid]
-                if not SESSION_ID.fullmatch(sid):
-                    raise ValueError("invalid historical identity")
-                if self.fd is not None and self.lease is not None:
+                with self._history_lock:
+                    if epoch != self._history_epoch or self.fd is None or self.lease is None:
+                        raise self._history_expired()
+                try:
+                    if sid not in self._committed:
+                        self.get(sid)
+                    committed = self._committed[sid]
+                    verified = self._verified[sid]
+                    if not SESSION_ID.fullmatch(sid):
+                        raise ValueError("invalid historical identity")
                     root = os.dup(self.fd)
-                else:
-                    root = open_directory(self.root)
-                    info = os.fstat(root)
-                    if (info.st_dev, info.st_ino) != self._root_identity:
-                        raise ValueError("closed storage root replaced")
-                directory = os.open(sid, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root)
-                fd = os.open(
-                    "events.jsonl", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
-                )
-                stamp = self._verify_journal(
-                    fd, committed, verified, diagnostic=self.poisoned or self.fd is None
-                )
-                payloads = self._verify_payloads(directory, committed.payloads, verified.payloads)
-                self._verified[sid] = VerifiedFiles(stamp, MappingProxyType(payloads))
-                locations = committed.locations[:stop]
+                    directory = os.open(
+                        sid, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root
+                    )
+                    fd = os.open(
+                        "events.jsonl",
+                        os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                        dir_fd=directory,
+                    )
+                    stamp = self._verify_journal(fd, committed, verified, diagnostic=self.poisoned)
+                    payloads = self._verify_payloads(
+                        directory, committed.payloads, verified.payloads
+                    )
+                    self._verified[sid] = VerifiedFiles(stamp, MappingProxyType(payloads))
+                    locations = committed.locations[:stop]
+                    with self._history_lock:
+                        reader_key = (sid, epoch)
+                        self._history_readers[reader_key] = (
+                            self._history_readers.get(reader_key, 0) + 1
+                        )
+                except OSError, ValueError, TypeError, KeyError:
+                    raise self._recording_failure() from None
             del committed, verified  # paused readers need only the compact prefix
             state = None
             for index, location in enumerate(locations):
-                raw = self._record_bytes(fd, location)
-                record, state = decode(raw, state, lambda ref: self._read_payload(directory, ref))
-                if (
-                    record.event.session_id != sid
-                    or record.event.session.id != sid
-                    or record.event.sequence != index + 1
-                    or record.event.session.sequence != index + 1
-                ):
-                    raise ValueError("historical sequence changed")
+                with self._history_lock:
+                    if epoch != self._history_epoch:
+                        raise self._history_expired()
+                    try:
+                        raw = self._record_bytes(fd, location)
+                        record, state = decode(
+                            raw, state, lambda ref: self._read_payload(directory, ref)
+                        )
+                        if (
+                            record.event.session_id != sid
+                            or record.event.session.id != sid
+                            or record.event.sequence != index + 1
+                            or record.event.session.sequence != index + 1
+                        ):
+                            raise ValueError("historical sequence changed")
+                        selected = record.model_copy(deep=True) if index >= start else None
+                    except OSError, ValueError, TypeError, KeyError:
+                        raise self._recording_failure() from None
                 if index >= start:
-                    yield record.model_copy(deep=True)
-        except OSError, ValueError, TypeError, KeyError:
-            raise self._recording_failure() from None
+                    yield selected
         finally:
             for opened in (fd, directory, root):
                 if opened is not None:
                     os.close(opened)
+            if reader_key is not None:
+                with self._history_lock:
+                    remaining = self._history_readers[reader_key] - 1
+                    if remaining:
+                        self._history_readers[reader_key] = remaining
+                    else:
+                        del self._history_readers[reader_key]
 
     def attempt_count(self, sid: str, rid: str) -> int:
         """Committed planner attempts; no history replay, I/O, or store lock."""

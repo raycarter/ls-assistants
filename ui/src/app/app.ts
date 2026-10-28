@@ -133,9 +133,13 @@ export class App {
   }
 
   deleteSession(id: string): void {
+    if (this.agent.mode() === 'agent') {
+      if (window.confirm('Permanently delete this Agent session and its history?'))
+        void this.agent.delete(id);
+      return;
+    }
     this.navigation++;
-    if (this.agent.mode() === 'agent') void this.agent.archive(id);
-    else this.turns.deleteSession(id);
+    this.turns.deleteSession(id);
     this.focusAfterRender(() =>
       this.sidebarOpen() ? this.newSessionButton()?.nativeElement : this.activeComposer(),
     );

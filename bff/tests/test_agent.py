@@ -414,7 +414,7 @@ async def wait_until(predicate):
             await asyncio.sleep(0.005)
 
 
-async def test_targeted_stop_pending_archive_and_worker_settlement(agent_setup):
+async def test_targeted_stop_delete_and_worker_settlement(agent_setup):
     files = BlockingFiles({"fixture": agent_setup.workspace})
     proposed = proposal()
     proposed.steps.append(proposed.steps[0].model_copy(deep=True))
@@ -449,9 +449,9 @@ async def test_targeted_stop_pending_archive_and_worker_settlement(agent_setup):
             )
             assert pending and snapshot.runs[0].status == "cancelling"
             assert op.id in owner.active and not op.task.done()
-            response = await client.post(f"{BASE}/{sid}/archive", json={"request_id": "archive"})
-            assert response.status_code == 202
-            assert response.json()["archive_pending"] and not response.json()["archived"]
+            response = await client.delete(f"{BASE}/{sid}")
+            assert response.status_code == 409
+            assert response.json()["error"]["code"] == "operation_active"
             with pytest.raises(AgentFault):
                 await owner.prepare(sid, StartRun(request_id="new", content="New work"))
         finally:
@@ -459,11 +459,11 @@ async def test_targeted_stop_pending_archive_and_worker_settlement(agent_setup):
             await stream
         settled = await owner.get(sid)
         assert settled.runs[0].status == "cancelled"
-        assert settled.archived and not settled.archive_pending
         assert op.id not in owner.active and files.calls == 1
+        assert (await client.delete(f"{BASE}/{sid}")).status_code == 204
         listing = (await client.get(BASE)).json()
         assert listing == {"projection_version": 2, "sessions": [], "next_cursor": None, "total": 0}
-        assert len((await client.get(BASE + "?include_archived=true")).json()["sessions"]) == 1
+        assert (await client.get(f"{BASE}/{sid}")).status_code == 404
 
 
 async def test_direct_asgi_disconnect_settles_without_background_progress(agent_setup):

@@ -84,6 +84,75 @@ describe('v2 AgentState paged ownership and recovery', () => {
     await state.load();
     return session;
   }
+  it.each(['delete-first', 'create-first'] as const)(
+    'does not invalidate an in-flight create when deletion completes first (%s)',
+    async (order) => {
+      await load();
+      const deletion = deferred<void>();
+      const creation = deferred<AgentSession>();
+      api.delete.mockReturnValueOnce(deletion.promise);
+      api.create.mockReturnValueOnce(creation.promise);
+      let deleting: Promise<void>;
+      let creating: Promise<AgentSession | null>;
+      if (order === 'delete-first') {
+        deleting = state.delete('agent-1');
+        creating = state.create('model');
+      } else {
+        creating = state.create('model');
+        deleting = state.delete('agent-1');
+      }
+      deletion.resolve();
+      await deleting;
+      expect(state.selectedId()).toBeNull();
+      creation.resolve(fixtureSession(0, [], 'new'));
+      await creating;
+      expect(state.selectedId()).toBe('new');
+    },
+  );
+  it('removes only the deleted session draft and its feedback drafts from persisted state', async () => {
+    await load();
+    state.drafts.set({
+      'agent-1': 'request',
+      'feedback:agent-1:run-1:digest-1': 'feedback one',
+      'feedback:agent-1:run-2:digest-2': 'feedback two',
+      'feedback:agent-10:run-1:digest-1': 'other feedback',
+      'agent-10': 'other request',
+      $new: 'new draft',
+    });
+    await state.delete('agent-1');
+    TestBed.tick();
+    const expected = {
+      'feedback:agent-10:run-1:digest-1': 'other feedback',
+      'agent-10': 'other request',
+      $new: 'new draft',
+    };
+    expect(state.drafts()).toEqual(expected);
+    expect(JSON.parse(storage.records.get(AGENT_UI_STORAGE_KEY)!).drafts).toEqual(expected);
+  });
+  it('replaces an interrupted history reload without changing newer navigation', async () => {
+    await load();
+    const oldPage = deferred<ReturnType<typeof fixtureList>>();
+    const replacement = deferred<ReturnType<typeof fixtureList>>();
+    api.list.mockReturnValueOnce(oldPage.promise).mockReturnValueOnce(replacement.promise);
+    const reloading = state.load();
+    const oldSignal = api.list.mock.calls.at(-1)![0];
+    state.selectLegacy('legacy');
+    await state.delete('agent-1');
+    expect(oldSignal.aborted).toBe(true);
+    expect(api.list).toHaveBeenCalledTimes(3);
+    expect(state.loading()).toBe(true);
+    oldPage.resolve(fixtureList([fixtureSession()], 'stale', 10));
+    await reloading;
+    expect(state.loading()).toBe(true);
+    replacement.resolve(fixtureList([fixtureSession(0, [], 'other')], 'next', 7));
+    await flush();
+    expect(state.loading()).toBe(false);
+    expect(state.sessions().map((session) => session.id)).toEqual(['other']);
+    expect(state.total()).toBe(7);
+    expect(state.nextCursor()).toBe('next');
+    expect(state.legacyId()).toBe('legacy');
+    expect(state.selectedId()).toBeNull();
+  });
   it('does no Agent IO at Chat startup; mode drafts and UI-only persistence remain independent', async () => {
     TestBed.tick();
     expect(api.list).not.toHaveBeenCalled();
@@ -196,6 +265,39 @@ describe('v2 AgentState paged ownership and recovery', () => {
     expect(state.nextCursor()).toBe('page3');
     expect(api.get).toHaveBeenCalledOnce();
     expect(api.detail).not.toHaveBeenCalled();
+  });
+  it('resumes an interrupted Load more at its cursor without discarding loaded pages or navigation', async () => {
+    api.list.mockResolvedValueOnce(fixtureList([fixtureSession()], 'page2', 5));
+    await state.load();
+    const second = fixtureSession(0, [], 'agent-2');
+    api.list.mockResolvedValueOnce(fixtureList([second], 'page3', 5));
+    await state.loadMoreSessions();
+    state.select('agent-2');
+    await flush();
+    const stale = deferred<ReturnType<typeof fixtureList>>();
+    const resumed = deferred<ReturnType<typeof fixtureList>>();
+    api.list.mockReturnValueOnce(stale.promise).mockReturnValueOnce(resumed.promise);
+    const more = state.loadMoreSessions();
+    const staleSignal = api.list.mock.calls.at(-1)![0];
+    await state.delete('agent-1');
+    expect(staleSignal.aborted).toBe(true);
+    expect(api.list.mock.calls.at(-1)![1]).toBe('page3');
+    expect(state.sessions().map((session) => session.id)).toEqual(['agent-2']);
+    expect(state.selectedId()).toBe('agent-2');
+    expect(state.loadingMore()).toBe(true);
+    stale.resolve(
+      fixtureList([fixtureSession(), fixtureSession(0, [], 'stale')], 'stale-cursor', 5),
+    );
+    await more;
+    expect(state.loadingMore()).toBe(true);
+    expect(state.nextCursor()).toBe('page3');
+    resumed.resolve(fixtureList([fixtureSession(0, [], 'agent-3')], 'page4', 4));
+    await flush();
+    expect(state.loadingMore()).toBe(false);
+    expect(state.sessions().map((session) => session.id)).toEqual(['agent-2', 'agent-3']);
+    expect(state.selectedId()).toBe('agent-2');
+    expect(state.nextCursor()).toBe('page4');
+    expect(state.total()).toBe(4);
   });
   it.each([
     'planning',

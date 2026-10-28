@@ -406,6 +406,34 @@ describe('v2 HTTP transport (synthetic FETCH only)', () => {
       request_id: 'archive',
     });
   });
+  it('deletes using the encoded session URL and requires 204; reports conflicts and other errors', async () => {
+    fetchDouble.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await api.delete('sid /1', signal());
+    expect(fetchDouble).toHaveBeenCalledWith('/api/agent/sessions/sid%20%2F1', {
+      method: 'DELETE',
+      signal: expect.any(AbortSignal),
+    });
+    fetchDouble.mockResolvedValueOnce(
+      Response.json({ error: { code: 'operation_active', message: 'Active' } }, { status: 409 }),
+    );
+    await expect(api.delete('sid', signal())).rejects.toThrow('Stop the run first');
+    fetchDouble.mockResolvedValueOnce(
+      Response.json({ error: { code: 'session_in_use', message: 'In use' } }, { status: 409 }),
+    );
+    await expect(api.delete('sid', signal())).rejects.toThrow(
+      'Wait for session readers and streams to close',
+    );
+    fetchDouble.mockResolvedValueOnce(
+      Response.json({ error: { code: 'other', message: 'Other conflict' } }, { status: 409 }),
+    );
+    await expect(api.delete('sid', signal())).rejects.toThrow('Other conflict');
+    fetchDouble.mockResolvedValueOnce(new Response(null, { status: 409 }));
+    await expect(api.delete('sid', signal())).rejects.toThrow('HTTP 409');
+    fetchDouble.mockResolvedValueOnce(Response.json({ detail: 'Unavailable' }, { status: 503 }));
+    await expect(api.delete('sid', signal())).rejects.toThrow('HTTP 503');
+    fetchDouble.mockResolvedValueOnce(Response.json({}));
+    await expect(api.delete('sid', signal())).rejects.toThrow();
+  });
   it('uses exact review identity and operation identity in mutation bodies', async () => {
     fetchDouble.mockImplementation(async () => Response.json(fixtureSession()));
     await api.create('create', 'model-a', 'medium', signal());

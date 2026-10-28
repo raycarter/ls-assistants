@@ -1,6 +1,23 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from app.sessions import SessionStore
+
+
+def settled_session_records(store, sid):
+    """Read while leased; reopening must not synthesize a shutdown outcome."""
+    if store.lease is not None:
+        return list(store.records[sid])
+    journal = store.root / sid / "events.jsonl"
+    before = journal.read_bytes()
+    reopened = SessionStore(store.root)
+    reopened.start()
+    try:
+        assert journal.read_bytes() == before, "Shutdown left recovery work in the journal"
+        return list(reopened.records[sid])
+    finally:
+        reopened.close()
+
 
 def delta(text="Hello"):
     return SimpleNamespace(type="response.output_text.delta", delta=text)

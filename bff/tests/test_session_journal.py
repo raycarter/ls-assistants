@@ -787,15 +787,155 @@ def test_paused_iterator_owns_prefix_and_fds_without_blocking_io_or_close(opened
     try:
         assert done.wait(1), "A suspended history consumer blocked store I/O or shutdown"
         assert not failures and store.fd is None
-        remaining = list(iterator)
         assert first.event.sequence == 1
-        assert [r.event.sequence for r in remaining] == [2]
-        assert remaining[0].event.session == snapshot
-        assert len(list(store.records[SID])) == 3  # next iterator sees the new commit
+        with pytest.raises(AgentFault) as failure:
+            next(iterator)
+        assert failure.value.code == "storage_unavailable"
+        assert not store.poisoned
     finally:
         iterator.close()
         thread.join(5)
     assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("same_store", [False, True])
+def test_history_after_close_and_reopen_delete_does_not_poison(opened, same_store):
+    store, snapshot = opened
+    append_run(store, snapshot)
+    iterator = iter(store.records[SID])
+    assert next(iterator).event.sequence == 1
+    store.close()
+    reopened = store if same_store else SessionStore(store.root, clock=lambda: NOW)
+    reopened.start()
+    try:
+        reopened.delete(SID)
+        with pytest.raises(AgentFault) as failure:
+            next(iterator)
+        assert (failure.value.code, failure.value.status) == ("storage_unavailable", 503)
+        assert not store.poisoned and not reopened.poisoned
+        assert reopened.public_list(False)["total"] == 0
+    finally:
+        iterator.close()
+        reopened.close()
+
+
+def test_inline_history_invalidated_before_deletion_or_resume(opened):
+    store, snapshot = opened
+    snapshot.title = "inline only"
+    store.append(snapshot, "session.updated", "inline")
+    assert not payloads(store)
+    iterator = iter(store.records[SID])
+    unstarted = iter(store.records[SID])
+    assert next(iterator).event.sequence == 1
+    store.close()
+    reopened = SessionStore(store.root, clock=lambda: NOW)
+    reopened.start()
+    try:
+        reopened.delete(SID)
+        for reader in (iterator, unstarted):
+            with pytest.raises(AgentFault) as failure:
+                next(reader)
+            assert (failure.value.code, failure.value.status) == ("storage_unavailable", 503)
+        assert not store.poisoned and not reopened.poisoned
+    finally:
+        iterator.close()
+        unstarted.close()
+        reopened.close()
+
+
+def test_close_waits_for_inflight_history_before_delete(opened, monkeypatch):
+    store, snapshot = opened
+    snapshot = append_run(store, snapshot)
+    store.append(snapshot, "session.updated", "more")
+    iterator = iter(store.records[SID])
+    next(iterator)
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+    errors, records = [], []
+    original = store._read_payload
+
+    def paused_read(*args, **kwargs):
+        entered.set()
+        assert release.wait(3)
+        return original(*args, **kwargs)
+
+    def read():
+        try:
+            records.append(next(iterator))
+        except BaseException as exc:
+            errors.append(exc)
+
+    def close():
+        store.close()
+        closed.set()
+
+    monkeypatch.setattr(store, "_read_payload", paused_read)
+    reader = threading.Thread(target=read)
+    closer = threading.Thread(target=close)
+    reader.start()
+    try:
+        assert entered.wait(3)
+        closer.start()
+        assert not closed.wait(0.05)
+    finally:
+        release.set()
+        reader.join(3)
+        if closer.ident is not None:
+            closer.join(3)
+    assert closed.is_set() and not reader.is_alive() and not errors
+    assert [record.event.sequence for record in records] == [2]
+    reopened = SessionStore(store.root, clock=lambda: NOW)
+    reopened.start()
+    try:
+        reopened.delete(SID)
+        with pytest.raises(AgentFault) as failure:
+            next(iterator)
+        assert failure.value.code == "storage_unavailable"
+        assert not store.poisoned and not reopened.poisoned
+    finally:
+        iterator.close()
+        reopened.close()
+
+
+def test_history_corruption_before_concurrent_close_still_poisons(opened, monkeypatch):
+    store, snapshot = opened
+    append_run(store, snapshot)
+    iterator = iter(store.records[SID])
+    next(iterator)
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+
+    def fail_read(*args):
+        entered.set()
+        assert release.wait(3)
+        raise OSError("injected read corruption")
+
+    def read():
+        try:
+            next(iterator)
+        except BaseException as exc:
+            errors.append(exc)
+
+    def close():
+        store.close()
+        closed.set()
+
+    monkeypatch.setattr(store, "_record_bytes", fail_read)
+    reader = threading.Thread(target=read)
+    closer = threading.Thread(target=close)
+    reader.start()
+    try:
+        assert entered.wait(3)
+        closer.start()
+        assert not closed.wait(0.05)
+    finally:
+        release.set()
+        reader.join(3)
+        if closer.ident is not None:
+            closer.join(3)
+        iterator.close()
+    assert closed.is_set() and len(errors) == 1
+    assert isinstance(errors[0], AgentFault) and errors[0].code == "storage_unavailable"
+    assert store.poisoned
 
 
 def test_title_and_control_changes_do_not_serialize_or_hash_unchanged_bodies(opened, monkeypatch):

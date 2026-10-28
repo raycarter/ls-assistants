@@ -155,10 +155,10 @@ selected sessions and drafts. Agent history is fetched on first entry, not on in
 Settings still edits the shared **Chat** prompt catalogue; Agent has no active Chat prompt-selection
 context and does not consume those instructions.
 
-Agent sessions come only from the BFF. Create/select/archive actions target the active mode.
+Agent sessions come only from the BFF. Create and select actions target the active mode.
 Agent preferences are saved by PATCH; the controls reconcile to the acknowledged server settings on
 success or failure. They stay locked throughout planning, clarification/review, execution, cancellation
-and pending archive. A rejected or settled run releases the session when no archive is pending. Legacy browser
+and any legacy pending archive. A rejected or settled run releases the session when no archive is pending. Legacy browser
 `type: "Agent"` records remain in the existing Chat v1 envelope, with selection normalized to a Chat
 fallback. They are displayed separately as read-only local records: no upload, streaming repair,
 prompt propagation, send, retry or deletion through Chat routes.
@@ -314,24 +314,32 @@ owns a 30-second timeout across one fetch/redirect chain, 10 redirects and per-r
 There is no overall stream timer. Chat deadlines are unchanged.
 
 Stop sends the captured operation ID. **Stopping…** is nonterminal and keeps preferences locked.
-Archive retains the session in reviewable history; pending archive stays locked even after a run settles,
-until the server reports archival or explicitly clears `archive_pending`. A lost/failed archive
-acknowledgement remains uncertain until an authoritative reload. Reload history is a safe GET/list action,
-including archived sessions. No execution or
-planning command is automatically reposted after a transport error or reload.
-An in-flight archive command has separate local ownership: a concurrently delivered, earlier
-`archive_pending: false` projection cannot release its lock before acknowledgement or confirmed recovery.
+Legacy pending-archive records remain locked until the server reports archival or clears
+`archive_pending`; an uncertain acknowledgement requires an authoritative reload. Reload history
+is a safe GET/list action, including archived sessions. No execution or planning command is
+automatically reposted after a transport error or reload.
+
+**Permanent deletion:** The Agent delete action requires user confirmation.
+`DELETE /api/agent/sessions/{sid}` returns an empty `204` after successful cleanup. For
+`409 operation_active`, Stop the owning operation, wait for settlement, and explicitly retry.
+For `409 session_in_use` caused by active history readers or SSE streams, wait for them to close
+and retry. The UI distinguishes these conflicts and presents the corresponding guidance.
+Archived legacy BFF sessions remain readable
+and deletable, with no unarchive action. Cleanup fails closed on unsafe paths or errors; deletion
+does not guarantee secure erase of backups, filesystem snapshots or provider copies. Legacy browser
+Agent records described above are separate from BFF sessions.
 
 ### Agent API and recovery
 
 All routes are under `/api/agent/sessions`: list (`include_archived=true&limit=25`), create,
 header GET, preference PATCH, `POST /{sid}/runs`, `/{sid}/runs/{rid}/execute`, `/revise`, `/reject`,
-`/cancel`, and `/{sid}/archive`. Mutation bodies contain a fresh `request_id`. Approval sends `plan_id`, `revision`
+and `/cancel`, plus `DELETE /{sid}`. The existing `/{sid}/archive` endpoint is legacy compatibility.
+Existing body-bearing mutation commands contain a fresh `request_id`; DELETE has no body. Approval sends `plan_id`, `revision`
 and `digest`; Stop sends `operation_id`. The transport understands question-identified clarification
 rejection, but the current BFF returns HTTP 501 for the deferred clarification flow.
 HTTP JSON failures are shown with status and API detail. `503 agent_not_configured` applies to an
 explicitly injected BFF service with no planner, rather than the default application composition.
-Nonstreaming HTTP mutation acknowledgements return a bounded v2 header, not run history:
+Non-delete nonstreaming HTTP mutation acknowledgements return a bounded v2 header, not run history:
 
 ```text
 {projection_version:2,id,title,model,reasoning_effort,created_at,updated_at,archived,
@@ -489,7 +497,7 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   per-observation model/status/usage/failure metadata and full opaque continuation under `store=False`.
   Credential/client/settings fields are structurally excluded, without substring redaction of permitted
   source/user content or opaque bodies. This is neither guaranteed scrubbing nor hidden-reasoning capture.
-  Archive preserves records; there is no automatic expiry. Permitted content may contain sensitive
+  Legacy archives preserve records; there is no automatic expiry. Permitted content may contain sensitive
   text; there is no guarantee of secret-content scrubbing. Approved fetch URLs leave the BFF;
   future search queries would too.
   Provider usage is retained privately when supplied; the UI does not display it or promise a currency ceiling.

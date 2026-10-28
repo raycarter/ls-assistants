@@ -87,6 +87,7 @@ class Operation:
     task: asyncio.Task | None = None
     settlement: asyncio.Task | None = None
     stopping: asyncio.Task | None = None
+    response_stream: bool = False
 
 
 class AgentService:
@@ -129,6 +130,7 @@ class AgentService:
         self.eager = eager
         self.lock = asyncio.Lock()
         self.active: dict[str, Operation] = {}
+        self.streams: dict[object, str] = {}
         self.admissions: dict[asyncio.Task, asyncio.Event] = {}
         self.io_tasks: set[asyncio.Task] = set()
         self.control_tasks: set[asyncio.Task] = set()
@@ -316,15 +318,20 @@ class AgentService:
                 await self.commit(snapshot, "session.updated", body.request_id, claim=claim)
             ).session
 
-    async def prepare(self, sid: str, body, *, rid: str | None = None, action="plan") -> Operation:
+    async def prepare(
+        self, sid: str, body, *, rid: str | None = None, action="plan", response_stream=False
+    ) -> Operation:
         if self.closing:
             raise AgentFault("service_closing", "Agent service is shutting down.", 503)
         abandoned = asyncio.Event()
 
         async def admitted():
-            op = await self._admit(sid, body, rid=rid, action=action)
+            op = await self._admit(
+                sid, body, rid=rid, action=action, response_stream=response_stream
+            )
             if abandoned.is_set() or self.closing:
                 self.request_stop(op, "interrupted")
+                self.release_stream(op)
             return op
 
         # Native Task.cancel() is independent of AnyIO cancel scopes. This owned
@@ -344,9 +351,12 @@ class AgentService:
             abandoned.set()
             if task.done() and not task.cancelled() and task.exception() is None:
                 self.request_stop(task.result(), "interrupted")
+                self.release_stream(task.result())
             raise
 
-    async def _admit(self, sid: str, body, *, rid: str | None, action: str) -> Operation:
+    async def _admit(
+        self, sid: str, body, *, rid: str | None, action: str, response_stream: bool
+    ) -> Operation:
         with anyio.CancelScope(shield=True):
             async with self.lock:
                 self.configured()
@@ -422,6 +432,7 @@ class AgentService:
                         action
                     ],
                     stage_id=uuid4().hex,
+                    response_stream=response_stream,
                 )
                 run.operation_id = op.id
                 await self.commit(
@@ -440,6 +451,8 @@ class AgentService:
                     },
                 )
                 self.active[op.id] = op
+                if response_stream:
+                    self.streams[op.id] = sid
                 # Prime the shielded waiter before exposing its handle, so even
                 # cancellation before the settlement worker starts is contained.
                 op.task = asyncio.create_task(self.drive(op), eager_start=True)
@@ -1204,32 +1217,33 @@ class AgentService:
                 )
             ).session
 
-    async def archive(self, sid: str, body: Command):
+    async def delete(self, sid: str):
+        # The owned task retains the command lock through filesystem settlement,
+        # even if the HTTP request is cancelled while a storage worker runs.
+        task = self.track(asyncio.create_task(self._delete(sid)), self.control_tasks)
+        await self.wait_owned(task)
+
+    async def _delete(self, sid: str):
         async with self.lock:
             await self.ready()
-            snapshot = await self.io(self.store.get, sid)
-            claim, fresh = await self.check_claim(sid, "archive", body)
-            op = next((op for op in self.active.values() if op.sid == sid), None)
-            if op:
-                await self.stop_locked(op, "cancelled")
-                snapshot = await self.io(self.store.get, sid)
-            if fresh:
-                snapshot.archive_pending = op is not None
-                snapshot.archived = op is None
-                for run in snapshot.runs:
-                    if run.status in {"awaiting_approval", "awaiting_clarification"}:
-                        run.status = "rejected"
-                snapshot = (
-                    await self.commit(
-                        snapshot,
-                        "session.archive_pending" if op else "session.archived",
-                        body.request_id,
-                        claim=claim,
-                    )
-                ).session
-            return snapshot, snapshot.archive_pending
+            if any(op.sid == sid for op in self.active.values()):
+                raise AgentFault("operation_active", "Wait for the current operation to settle.")
+            if sid in self.streams.values():
+                raise AgentFault("session_in_use", "Wait for session readers and streams to close.")
+            await self.io(self.store.delete, sid)
+
+    def release_stream(self, op: Operation):
+        # Event-loop-owned registry: no await between the delete check and I/O
+        # scheduling, and new registrations are serialized by the command lock.
+        self.streams.pop(op.id, None)
 
     async def frames(self, op: Operation) -> AsyncIterator[str]:
+        token = object()
+        if not op.response_stream:
+            async with self.lock:
+                await self.ready()
+                await self.io(self.store.get, op.sid)
+                self.streams[token] = op.sid
         op.gate.set()
         after = op.after
         try:
@@ -1256,7 +1270,11 @@ class AgentService:
             return
         finally:
             with anyio.CancelScope(shield=True):
-                await self.disconnect(op)
+                try:
+                    await self.disconnect(op)
+                finally:
+                    if not op.response_stream:
+                        self.streams.pop(token, None)
 
     async def close(self):
         if self.shutdown_task is None:

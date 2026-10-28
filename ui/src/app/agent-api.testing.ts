@@ -183,6 +183,7 @@ export class FakeAgentApi {
   });
   readonly cancel = vi.fn(async () => fixtureSession(2, [fixtureRun('cancelling')]));
   readonly archive = vi.fn(async () => ({ ...fixtureSession(2), archived: true }));
+  readonly delete = vi.fn(async (_sid: string, _signal: AbortSignal): Promise<void> => {});
   private readHeader?: AgentSession;
   private async bodies(sid: string): Promise<AgentRun[]> {
     const header = this.readHeader ?? (await this.get.mock.results.at(-1)?.value);

@@ -345,11 +345,25 @@ ASCII `request_id` (letters, digits, `_`, `-`, at most 128 characters). Unknown
 fields/coercions are rejected. Model names must belong to `AVAILABLE_MODELS`;
 effort is `low | medium | high | xhigh`.
 
+**Permanent deletion:** `DELETE /{sid}` permanently
+removes the session's journal, payloads and artifacts after explicit UI confirmation.
+Success is an empty `204`; active or locally settling work returns `409 operation_active`.
+Stop the owning operation, wait for settlement and explicitly retry. Active history
+readers or SSE streams return `409 session_in_use`; wait for them to close and retry.
+Cleanup is serialized with admission/reads and fails closed on unsafe paths or incomplete
+removal, without acknowledging success. Recovery finishes removal after an interrupted
+durable deletion marker. Legacy archived sessions remain readable
+and deletable; there is no unarchive action. Deletion does not guarantee secure erase
+of filesystem snapshots, backups or provider copies. The existing archive endpoint
+and pending-archive records below describe legacy compatibility, not the requested
+user-facing action. Scoped verification and pending review are recorded in the checklist.
+
 | Method / suffix                                           | Body / result                                                                           |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `GET /`                                                   | Session header page; `include_archived=false`, `limit=25`, optional `cursor`            |
 | `POST /`                                                  | `{request_id, model, reasoning_effort}` → `SessionHeader`                               |
 | `GET /{sid}`                                              | `SessionHeader` only, no embedded history or inference                                  |
+| `DELETE /{sid}`                                           | Permanent deletion → empty `204`; `409` for active work or open readers/streams         |
 | `PATCH /{sid}`                                            | `{request_id, model?, reasoning_effort?, title?}` → `SessionHeader`                     |
 | `GET /{sid}/runs`                                         | Run summary page; `limit=10`, optional `before`                                         |
 | `GET /{sid}/runs/{rid}`                                   | Selected run body with full exact plan and result window; `limit=20`, optional `before` |
@@ -359,13 +373,13 @@ effort is `low | medium | high | xhigh`.
 | `POST /{sid}/runs/{rid}/revise`                           | Plan identity plus `{kind:"feedback", content}` → new planning operation/revision SSE   |
 | `POST /{sid}/runs/{rid}/reject`                           | Plan identity plus `{kind:"plan"}` → `SessionHeader`                                    |
 | `POST /{sid}/runs/{rid}/cancel`                           | `{request_id, operation_id}` → `SessionHeader`; `202` while settling                    |
-| `POST /{sid}/archive`                                     | `{request_id}` → `SessionHeader`; `202` with `archive_pending:true` until settled       |
+| `POST /{sid}/archive`                                     | Existing legacy endpoint: `{request_id}` → `SessionHeader`; `202` while pending         |
 | `GET /{sid}/events`                                       | Finite v2 event page; `after=0`, `limit=50`, optional `through`                         |
 | `GET /{sid}/artifacts/{artifact_id}?offset=0&limit=12000` | Retained text page; no network/tool execution                                           |
 
 ### Headers, pages and selected bodies
 
-Nonstreaming HTTP acknowledgements return a bounded `SessionHeader`, including
+Non-delete nonstreaming HTTP acknowledgements return a bounded `SessionHeader`, including
 duplicate commands. Public projection DTOs use `projection_version:2`:
 
 - `SessionHeader`: `projection_version,id,title,model,reasoning_effort,created_at,
@@ -779,8 +793,8 @@ make persistent state fully paged or guarantee bounded total memory/disk or
 physically infinite history. The fast path relies on coherent single-writer
 filesystem metadata, not protection against a malicious operating system.
 Compaction, garbage collection/orphan cleanup, general model-driven step execution,
-and full audit-history UI remain future work. Archive retains history; no
-expiry/permanent deletion exists.
+and full audit-history UI remain future work. Existing archival retains history;
+permanent deletion follows the contract above.
 
 ## Legacy exact file pages and shared access policy
 

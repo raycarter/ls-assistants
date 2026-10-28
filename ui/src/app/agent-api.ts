@@ -436,6 +436,33 @@ export class AgentApi {
       await this.json(`${this.path(sid)}/archive`, signal, 'POST', { request_id }),
     );
   }
+  async delete(sid: string, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted();
+    const response = await this.fetch(this.path(sid), { method: 'DELETE', signal });
+    signal.throwIfAborted();
+    if (response.status === 409) {
+      let code: unknown;
+      try {
+        const body: unknown = await response.clone().json();
+        if (object(body) && object(body['error'])) code = body['error']['code'];
+      } catch {
+        // Fall back to the normal HTTP error message for an unrecognized response.
+      }
+      signal.throwIfAborted();
+      if (code === 'session_in_use')
+        throw new AgentApiError(
+          'http_409',
+          'Cannot delete this session while it is in use. Wait for session readers and streams to close.',
+        );
+      if (code === 'operation_active')
+        throw new AgentApiError(
+          'http_409',
+          'Cannot delete an active or settling session. Stop the run first and wait for it to settle.',
+        );
+    }
+    await this.check(response);
+    if (response.status !== 204) invalidAgent();
+  }
   async stream(
     request: AgentStreamRequest,
     signal: AbortSignal,

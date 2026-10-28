@@ -70,12 +70,14 @@ export class AgentState {
   private loaded = false;
   private navigation = 0;
   private listController?: AbortController;
+  private moreController?: AbortController;
   private readonly controllers = new Set<AbortController>();
   private readonly reads = new Map<string, AbortController>();
   private readonly streams = new Map<string, AbortController>();
   private readonly errorOwners = new Map<string, AbortController>();
   private readonly commandErrorOwners = new WeakSet<AbortController>();
   private readonly archiveCommands = new Map<string, ArchiveCommand>();
+  private readonly deletedSessions = new Set<string>();
   private globalErrorOwner?: AbortController;
   readonly mode = signal<'chat' | 'agent'>(this.initial.mode);
   readonly selectedId = signal<string | null>(this.initial.selectedId);
@@ -113,6 +115,7 @@ export class AgentState {
   readonly busy = signal<ReadonlySet<string>>(new Set());
   readonly stopping = signal<ReadonlySet<string>>(new Set());
   readonly archivePending = signal<ReadonlySet<string>>(new Set());
+  readonly deleting = signal<ReadonlySet<string>>(new Set());
   readonly globalError = signal<string | null>(null);
   readonly sessionErrors = signal<ReadonlyMap<string, string>>(new Map());
   readonly sessionError = computed(() => this.sessionErrors().get(this.selectedId() ?? '') ?? null);
@@ -134,6 +137,7 @@ export class AgentState {
       this.invalidating().has(this.selectedId() ?? '') ||
       !!this.activeSession()?.archived ||
       this.busy().has(this.selectedId() ?? '') ||
+      this.deleting().has(this.selectedId() ?? '') ||
       this.archivePending().has(this.selectedId() ?? '') ||
       !!this.legacyId(),
   );
@@ -166,7 +170,7 @@ export class AgentState {
     this.mode.set(mode);
     if (mode === 'agent' && !this.loaded) void this.load();
   }
-  async load(): Promise<void> {
+  async load(reconcileSelection = true): Promise<void> {
     this.listController?.abort();
     const controller = this.controller();
     this.listController = controller;
@@ -190,12 +194,12 @@ export class AgentState {
         ),
       );
       this.loaded = true;
-      if (navigation === this.navigation && !this.legacyId()) {
+      if (reconcileSelection && navigation === this.navigation && !this.legacyId()) {
         const selected = this.selectedId();
         if (selected) {
           // A restored archived selection can be outside page one. Resolve it directly first.
           const found = await this.refresh(selected);
-          if (navigation !== this.navigation) return;
+          if (!this.alive(controller) || navigation !== this.navigation) return;
           if (!found && !this.activeSession())
             this.selectedId.set(sessions.find((session) => !session.archived)?.id ?? null);
         } else {
@@ -215,6 +219,7 @@ export class AgentState {
     const cursor = this.nextCursor();
     if (!cursor || this.loadingMore() || this.loading()) return;
     const controller = this.controller();
+    this.moreController = controller;
     this.loadingMore.set(true);
     const baseline = this.listController;
     this.ownError(controller);
@@ -234,7 +239,10 @@ export class AgentState {
       this.fail(controller, error);
     } finally {
       this.controllers.delete(controller);
-      if (!this.destroyed) this.loadingMore.set(false);
+      if (this.moreController === controller && !this.destroyed) {
+        this.moreController = undefined;
+        this.loadingMore.set(false);
+      }
     }
   }
   private clearWorkspace(): void {
@@ -813,6 +821,53 @@ export class AgentState {
       this.controllers.delete(controller);
     }
   }
+  async delete(sid: string): Promise<void> {
+    if (!this.sessions().some((session) => session.id === sid) || this.deleting().has(sid)) return;
+    const controller = this.controller();
+    this.add(this.deleting, sid);
+    this.ownError(controller, sid);
+    try {
+      await this.api.delete(sid, controller.signal);
+      if (!this.alive(controller)) return;
+      this.deletedSessions.add(sid);
+      const reloadHistory = this.loading();
+      const resumeMore = !reloadHistory && this.loadingMore();
+      this.listController?.abort();
+      this.listController = undefined;
+      this.loading.set(false);
+      this.moreController?.abort();
+      this.moreController = undefined;
+      this.loadingMore.set(false);
+      this.reads.get(sid)?.abort();
+      this.streams.get(sid)?.abort();
+      this.sessions.update((sessions) => sessions.filter((session) => session.id !== sid));
+      this.total.update((total) => (total === null ? null : Math.max(0, total - 1)));
+      this.drafts.update((drafts) => {
+        const next = { ...drafts };
+        delete next[sid];
+        for (const key of Object.keys(next)) {
+          if (key.startsWith(`feedback:${sid}:`)) delete next[key];
+        }
+        return next;
+      });
+      this.sessionErrors.update((errors) => {
+        const next = new Map(errors);
+        next.delete(sid);
+        return next;
+      });
+      if (this.selectedId() === sid && !this.legacyId()) {
+        this.clearWorkspace();
+        this.selectedId.set(null);
+      }
+      if (reloadHistory) void this.load(false);
+      else if (resumeMore) void this.loadMoreSessions();
+    } catch (error) {
+      this.fail(controller, error, sid);
+    } finally {
+      this.remove(this.deleting, sid);
+      this.controllers.delete(controller);
+    }
+  }
   private currentRun(run: AgentRun): boolean {
     return (
       !this.legacyId() &&
@@ -837,6 +892,7 @@ export class AgentState {
       !session ||
       session.archived ||
       this.busy().has(session.id) ||
+      this.deleting().has(session.id) ||
       this.archivePending().has(session.id) ||
       this.invalidating().has(session.id) ||
       this.legacyId()
@@ -979,7 +1035,8 @@ export class AgentState {
     sid: string,
     work: (signal: AbortSignal) => Promise<AgentSession>,
   ): Promise<boolean> {
-    if (this.busy().has(sid) || this.archivePending().has(sid)) return false;
+    if (this.busy().has(sid) || this.archivePending().has(sid) || this.deleting().has(sid))
+      return false;
     const ownedBusy = !this.busy().has(sid);
     if (ownedBusy) this.add(this.busy, sid);
     const controller = this.controller();
@@ -1007,6 +1064,7 @@ export class AgentState {
   private apply(value: AgentSession, sid?: string, archiveAcknowledgement?: ArchiveCommand): void {
     const session = parseAgentSession(value);
     if (sid && session.id !== sid) return invalidAgent();
+    if (this.deletedSessions.has(session.id)) return;
     const old = this.sessions().find((entry) => entry.id === session.id);
     if (old && old.sequence === session.sequence && JSON.stringify(old) !== JSON.stringify(session))
       return invalidAgent();

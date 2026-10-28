@@ -34,6 +34,20 @@ recorded boundary; full audit-history UI is pending. Default `main.py` passes
 below. Bare `FilePolicy()` still has no roots, and custom `agent_service_factory`
 injection is unchanged. See the Agent API document for exact DTOs, paging, recovery and policy rules.
 
+### Agent session deletion
+
+After the user confirms, the
+`DELETE /api/agent/sessions/{sid}` removes the session journal, payloads and artifacts
+and returns an empty `204` only on successful cleanup. Active or locally settling work
+returns `409 operation_active`: Stop the owning operation, wait for settlement, then retry.
+Active history readers or SSE streams return `409 session_in_use`; wait for closure and
+retry. Cleanup fails closed on unsafe paths or errors and coordinates with admission and
+reads; recovery finishes removal after an interrupted durable deletion marker. Existing
+archived sessions remain readable and deletable, with no unarchive action. The existing
+archive endpoint and its recovery behavior are legacy compatibility, not the requested
+user action. Deletion cannot guarantee secure erase of backups, snapshots or provider copies.
+See [AGENT_API.md](AGENT_API.md) and the checklist for contract and progress.
+
 ### Agent filesystem workspace
 
 The fixed ID `workspace` maps logical `/tmp/ls-assistants` to physical

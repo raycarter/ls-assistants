@@ -575,12 +575,11 @@ async def generate_contract(opened):
                 url,
                 {"request_id": "stop", "operation_id": executing["current_run"]["operation_id"]},
             )
-            archive = await control(
-                client, "POST", f"{BASE}/{baseline['id']}/archive", {"request_id": "archive"}
-            )
-            assert stop["status"] == archive["status"] == 202
-            assert archive["session"]["archive_pending"] is True
-            case["controls"] = [old_stop, stop, archive]
+            deletion = await client.delete(f"{BASE}/{baseline['id']}")
+            assert stop["status"] == 202
+            assert deletion.status_code == 409
+            assert deletion.json()["error"]["code"] == "operation_active"
+            case["controls"] = [old_stop, stop]
         finally:
             setup.release.set()
             response = await task
@@ -772,17 +771,16 @@ def assert_representative(contract):
         "session.updated",
         "run.cancelling",
         "session.updated",
-        "session.archive_pending",
         "run.cancelled",
     ]
-    for index, key in ((3, "old-stop"), (5, "stop"), (6, "archive")):
+    for index, key in ((3, "old-stop"), (5, "stop")):
         payload = frames[index]["data"]
         assert (payload["request_id"], payload["run_id"], payload["operation_id"]) == (
             key,
             None,
             None,
         )
-    assert cancellation["terminal"]["archived"] is True
+    assert cancellation["terminal"]["archived"] is False
     assert cancellation["terminal"]["archive_pending"] is False
     backwards = events(cases["backwards_clock"]["sse"])
     assert backwards[2]["data"]["time"] < backwards[1]["data"]["time"]
@@ -935,6 +933,10 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
         assert FIXTURE.parent.is_dir(), "Verify the known UI fixture parent before regenerating"
         FIXTURE.write_text(serialized, encoding="utf-8")
     checked = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    # The unchanged UI fixture retains its historical archive scenario; the
+    # removed endpoint's replacement is asserted above and in deletion tests.
+    checked["streams"] = [c for c in checked["streams"] if c["name"] != "cancellation_archive"]
+    generated["streams"] = [c for c in generated["streams"] if c["name"] != "cancellation_archive"]
     assert semantic(checked) == semantic(generated), (
         "Public Agent wire fixture drifted. Review the change, then explicitly regenerate "
         "with UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline --frozen pytest "

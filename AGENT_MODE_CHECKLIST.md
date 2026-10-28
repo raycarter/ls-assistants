@@ -58,7 +58,7 @@ Depends on Phase 1 schemas and recording primitives.
 - [x] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
   - [x] Scoped default root/read wiring: pure `agent_workspace.build_file_policy()` mapping for fixed `workspace`, Darwin physical `/private/tmp/ls-assistants` and non-Darwin logical `/tmp/ls-assistants`; unchanged descriptor no-follow and exclusion policy. Shared grep enforcement and focused tests now cover this scope; see the grep record below. Broader all-tool/release gates remain open.
 - [x] **P2-03** Implement bounded text `read_file`: relative paths, numbered lines, pagination, safe errors, and truncation metadata.
-- [x] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas. Scoped tests pass; final independent re-review and full checks remain pending in the grep record.
+- [x] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas. Final scoped reviews and full checks are recorded in the grep record.
 - [ ] **P2-05** Move blocking filesystem work off the event loop; add cooperative cancellation and retain ownership until workers settle.
 - [ ] **P2-06** Implement task-dependent Tavily search with HTTPX, provider-supported result paging, citations, and per-request timeouts; no mandatory search step, per-run call quota, extra query approval, silent fallback, or implicit page fetching.
 - [ ] **P2-07** Add safe configuration examples in `bff/.env.example`; keep credentials out of UI, logs, and tool results.
@@ -74,7 +74,7 @@ Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implemen
 
 - [x] **P3-01** Add BFF-owned, versioned Agent instructions independent of the editable Chat prompt catalogue.
 - [ ] **P3-02** Implement tool-free structured planning with objective, unverified assumptions, ordered steps, intended tools, and expected results; allow no-tool/no-search plans and omit task-budget fields.
-  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions; validate proposals in the coordinator. Planning-v3 passed with adaptive reads; current planning-v4 grep focused evidence and pending final checks are recorded below. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
+  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions; validate proposals in the coordinator. Planning-v3 passed with adaptive reads; planning-v4 grep evidence and final checks are recorded below. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
 - [ ] **P3-03** Validate capabilities; persist clarification question IDs and accept answers through discriminated `/revise` requests, with new planning operation IDs and stale-answer rejection.
 - [x] **P3-04** Persist immutable plan revisions, stable step IDs, canonical digests, and frozen model/thinking/policy settings.
 - [ ] **P3-05** Implement serialized clarification/review transitions and one approval before each plan's execution; steps, queries, tool calls, and ordinary retries must not ask for additional approval.
@@ -123,6 +123,8 @@ Use Phase 0 contracts to bring forward the slice's routes alongside their minima
 - [x] **P5-06** Bind Stop/disconnect to the owning operation; distinguish `202` cancelling from known terminal outcomes and keep settlement ownership without continuing plan execution.
 - [x] **P5-07** Handle per-request provider/transport timeouts, backpressure, bounded cleanup, safe errors, and controlled artifact access without an overall Agent-run deadline.
 - [ ] **P5-08** Test direct ASGI disconnects, delayed Stop, blocked-worker/pending-archive status, duplicate commands, clarification/rejection paths, replay, shutdown, and unchanged Chat SSE behavior.
+- [x] **P5-09 — Deletion contract:** `DELETE /api/agent/sessions/{sid}` removes the journal, payloads and artifacts after work settles, serializes against admission/reads, and fails closed on unsafe paths or incomplete cleanup. `409 session_in_use` covers active history readers or SSE streams; wait for closure and retry. No secure erase of backups, snapshots or provider copies is promised. Scoped verification is recorded below; final backend review remains pending.
+- [x] **P5-10 — Deletion verification:** Confirmation/cancellation, settled and archived deletion, active and settling conflicts, reader/stream conflicts, cleanup and unsafe paths, concurrency, recovery and isolation are covered by the deletion checks; supplied full and focused results are recorded below. Final backend review remains pending.
 
 **Gate:** The complete approval workflow works through mocked HTTP/SSE, including interruptions and duplicate commands.
 
@@ -139,6 +141,7 @@ Depends on stable Agent contracts; build the slice's shell against an injected A
 - [x] **P6-07** Bind model/thinking controls to the correct mode/session and freeze Agent choices through planning/clarification/review/execution/cancellation.
 - [x] **P6-08** Keep coordinators alive across mode switches; switching views must not abort background Chat replies or an active Agent request.
 - [ ] **P6-09** Test keyboard/mobile behavior, reload, unavailable BFF, last-session fallback, independent selections/drafts, legacy preservation, and Settings edits from Agent mode.
+- [x] **P6-10 — Permanent deletion:** UI provides confirmation and handles `204`; legacy archived BFF sessions remain readable and deletable without unarchive, and legacy browser records remain separate. The UI distinguishes `operation_active` (Stop, wait for settlement and retry) from `session_in_use` (wait for reader/stream closure and retry). Scoped verification is recorded below.
 
 **Gate:** Mode navigation is isolated and persistent; existing Chat workflows and prompt snapshots remain intact.
 
@@ -179,7 +182,7 @@ The production planning/revision adapter completed full checks at `fcf7308`; syn
 - [ ] **P8-09 — User walkthrough:** Evaluate a task that needs search and one that does not; verify one approval per plan, useful results, and complete plan/step-correlated LLM history. Passing scripted mocks alone is not proof of usefulness.
 - [x] **P8-10** Review code provenance and the final diff against the independent-implementation constraint: no copied/translated/vendored OpenCode implementation source or embedded OpenCode runtime.
 
-**Release gate:** Required tasks/walkthroughs/checks pass; modes are independent, each plan is approved once, new plans need approval, tools stay within configured access, no product quotas remain, search is optional, every LLM prompt/response has its plan/step/time/model recorded, and Chat remains regression-free. Live compatibility is separately unverified until the optional checks below.
+**Release gate:** Required tasks/walkthroughs/checks pass; modes are independent, each plan is approved once, new plans need approval, tools stay within configured access, no product quotas remain, search is optional, every LLM prompt/response has its plan/step/time/model recorded, and Chat remains regression-free. Live evidence is limited to the user-reported cases below; broader compatibility remains unverified.
 
 ## Optional live verification — Separate authorization required
 
@@ -360,10 +363,10 @@ compatibility or a full release.
 
 ## Verification record — 2026-10-27, literal folder grep (uncommitted)
 
-**Status: scoped P2-04 and shared-root P2-02 implemented and mock-verified;
+**Status at this checkpoint: scoped P2-04 and shared-root P2-02 implemented and mock-verified;
 final independent re-reviews and full regression checks passed.** Baseline is user-committed
 adaptive read `f9e4f2b`, with user-confirmed live full-read evidence above. Grep work
-remains uncommitted; no live grep or full-release verification is claimed.
+remains uncommitted; at that checkpoint no live grep or full-release verification was claimed. The subsequent user feedback below supersedes the live-grep status only.
 
 - Implementation: `bff/app/agent_grep.py`, strict schemas/registry, Responses planning-v4,
   `AgentService.grep_result`, synthesis-v3 coverage warnings and session artifact bindings;
@@ -406,9 +409,20 @@ remains uncommitted; no live grep or full-release verification is claimed.
   provider/grep calls were made. No general tool loop, dependent follow-up reads, no-tool
   tasks, Tavily, full audit UI or broader parent/release gate is completed by this slice.
 
+## Subsequent user feedback — live deployment search
+
+- The user reports a successful live deployment search using the Agent's folder grep. This is user-reported, scoped evidence; it does not establish Tavily/web-search availability, broader deployment compatibility, or full-release verification. No session, environment or live workspace was inspected to record it.
+- Confirmed permanent Agent deletion is implemented in backend and UI as specified in P5-09/P5-10/P6-10. Its scoped evidence follows; previous grep test and review results above do not verify deletion.
+
+## Verification record — permanent Agent deletion
+
+- Full backend pytest: **1,976 tests passed**; focused reader and journal verification passed **185 tests**. Ruff lint and format, and offline lock validation passed.
+- Supplied full UI result: **837 tests passed across 24 files**; TypeScript checks, production build and formatting passed.
+- Independent backend and UI reviews passed after fixing history-reader, stream ownership, navigation, draft cleanup, and pagination races. This is scoped review evidence, not a full release guarantee.
+
 ## Next MVP priorities
 
-1. User walkthrough of grep → plan → approval → retained matches → synthesis → reload. Adaptive full-read live evidence is confirmed; live grep remains unverified. Dependent follow-up reads chosen from matches remain separate work.
+1. Complete the grep → plan → approval → retained matches → synthesis → reload walkthrough. User-reported live deployment search and adaptive full-read evidence are recorded above. Dependent follow-up reads chosen from matches remain separate work.
 2. Implement optional Tavily web search.
 3. Support no-tool/reasoning-only tasks without unnecessary file or web access.
 

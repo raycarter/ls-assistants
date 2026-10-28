@@ -456,15 +456,81 @@ describe('Agent shell and mocked vertical slice', () => {
     await button('Stop operation');
     expect(root().textContent).toContain('Stopping…');
     expect(element<HTMLSelectElement>('#thinking-input').disabled).toBe(true);
-    api.archive.mockResolvedValueOnce({
+    api.get.mockResolvedValueOnce({
       ...fixtureSession(3, [fixtureRun('cancelling')]),
       archive_pending: true,
     });
-    element<HTMLButtonElement>('[aria-label="Archive session: Fixture Agent"]').click();
+    await TestBed.inject(AgentState).refresh();
     await settle();
     expect(root().textContent).toContain('Archive pending');
     expect(root().textContent).toContain('Fixture Agent');
     expect(TestBed.inject(AgentState).sessions()).toHaveLength(1);
+  });
+  it('confirms before deleting archived sessions and preserves another selection', async () => {
+    const archived = { ...fixtureSession(0, [], 'old'), title: 'Old', archived: true };
+    api.list.mockResolvedValue(fixtureList([fixtureSession(), archived]));
+    await render();
+    await mode('agent');
+    const confirm = vi
+      .spyOn(window, 'confirm')
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    element<HTMLButtonElement>('[aria-label="Delete session: Old"]').click();
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Permanently delete'));
+    expect(api.delete).not.toHaveBeenCalled();
+    element<HTMLButtonElement>('[aria-label="Delete session: Old"]').click();
+    await settle();
+    expect(api.delete).toHaveBeenCalledOnce();
+    expect(api.delete).toHaveBeenCalledWith('old', expect.any(AbortSignal));
+    expect(TestBed.inject(AgentState).selectedId()).toBe('agent-1');
+    expect(
+      TestBed.inject(AgentState)
+        .sessions()
+        .map((session) => session.id),
+    ).toEqual(['agent-1']);
+    expect(TestBed.inject(AgentState).total()).toBe(1);
+  });
+  it('retains selected history on deletion error and clears it only on success', async () => {
+    await render();
+    await mode('agent');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.delete.mockRejectedValueOnce(new Error('Stop the run first.'));
+    element<HTMLButtonElement>('[aria-label="Delete session: Fixture Agent"]').click();
+    await settle();
+    expect(root().textContent).toContain('Stop the run first.');
+    expect(TestBed.inject(AgentState).selectedId()).toBe('agent-1');
+    element<HTMLButtonElement>('[aria-label="Delete session: Fixture Agent"]').click();
+    await settle();
+    expect(TestBed.inject(AgentState).sessions()).toHaveLength(0);
+    expect(TestBed.inject(AgentState).selectedId()).toBeNull();
+    expect(TestBed.inject(AgentState).currentView()).toBeNull();
+  });
+  it('keeps a newly selected session when an earlier deletion completes', async () => {
+    const other = { ...fixtureSession(0, [], 'other'), title: 'Other' };
+    api.list.mockResolvedValue(fixtureList([fixtureSession(), other]));
+    await render();
+    await mode('agent');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let finish!: () => void;
+    api.delete.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    element<HTMLButtonElement>('[aria-label="Delete session: Fixture Agent"]').click();
+    fixture.detectChanges();
+    expect(
+      element<HTMLButtonElement>('[aria-label="Delete session: Fixture Agent"]').disabled,
+    ).toBe(true);
+    TestBed.inject(AgentState).select('other');
+    finish();
+    await settle();
+    expect(TestBed.inject(AgentState).selectedId()).toBe('other');
+    expect(
+      TestBed.inject(AgentState)
+        .sessions()
+        .map((session) => session.id),
+    ).toEqual(['other']);
   });
   it('shows actionable API errors rather than a demo plan', async () => {
     await render();

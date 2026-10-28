@@ -98,20 +98,19 @@
                   <span class="text-xs text-amber-300">Archive pending</span>
                 }
               </button>
-              @if (!session.archived) {
-                <button
-                  type="button"
-                  class="rounded p-2 text-gray-400 hover:bg-gray-600"
-                  [attr.aria-label]="'Archive session: ' + session.title"
-                  [disabled]="agent.archivePending().has(session.id)"
-                  (click)="deleteSession(session.id)"
-                >
-                  <span class="material-icons material-icons--small" aria-hidden="true"
-                    >archive</span
-                  >
-                </button>
-              }
+              <button
+                type="button"
+                class="rounded p-2 text-gray-400 hover:bg-gray-600"
+                [attr.aria-label]="'Delete session: ' + session.title"
+                [disabled]="agent.deleting().has(session.id)"
+                (click)="deleteSession(session.id)"
+              >
+                <span class="material-icons material-icons--small" aria-hidden="true">delete</span>
+              </button>
             </li>
+            @if (agent.sessionErrors().get(session.id); as sessionError) {
+              <li class="px-2 text-sm text-red-300" role="alert">{{ sessionError }}</li>
+            }
           }
         </ul>
         @if (agent.nextCursor()) {

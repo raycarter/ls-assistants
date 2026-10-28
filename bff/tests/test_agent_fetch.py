@@ -26,6 +26,7 @@ from app.main import create_app
 from app.sessions import SessionStore
 from app.tools import FetchDocument, WebFetcher
 from app.tools.registry import ToolRegistry
+from tests.helpers import settled_session_records
 from tests.test_agent import (
     BASE,
     CREATE,
@@ -345,7 +346,8 @@ async def test_document_stays_open_until_artifact_worker_settles_on_cancellation
                 await closing
         assert fetched.closed and fetched.close_count == 1
         assert not owner.active and not owner.io_tasks
-        assert not any(record.event.type == "tool.result" for record in owner.store.records[sid])
+        records = settled_session_records(owner.store, sid)
+        assert not any(record.event.type == "tool.result" for record in records)
 
 
 async def test_document_returned_concurrently_with_stop_is_closed_not_persisted(fetch_setup):
@@ -677,7 +679,7 @@ async def test_blocked_fetch_cleanup_retains_ownership_until_settlement(fetch_se
                 await closing
         assert not owner.active
         assert fetch_setup.fetcher.fetch.await_count == 1
-        status = owner.store.records[sid][-1].event.session.runs[0].status
+        status = settled_session_records(owner.store, sid)[-1].event.session.runs[0].status
         assert status == ("cancelled" if reason == "stop" else "interrupted")
 
 

@@ -25,6 +25,7 @@ from app.agent_llm import (
 from app.agent_schemas import Cancel, CreateSession, Feedback, PlanIdentity, Proposal, StartRun
 from app.llm_schemas import IntentData, LLMIdentity, LLMRecord, OutputData, RequestBody
 from app.sessions import SessionStore
+from tests.helpers import settled_session_records
 from tests.test_agent import CREATE, proposal, wait_until
 
 PRIVATE = "原文🌱 credential header Authorization is source text, not configuration.\n" * 8000
@@ -1705,7 +1706,7 @@ async def test_service_shutdown_owns_late_observation_until_durable_outcome_with
         finally:
             release.set()
             await closing
-        records = owner.store.records[sid]
+        records = settled_session_records(owner.store, sid)
         final = next(r.audit for r in reversed(records) if r.event.type == "llm.outcome")
         assert final["data"]["status"] == "interrupted" and final["data"]["output_count"] == 2
         assert records[-1].event.session.runs[0].status == "interrupted"
@@ -1906,7 +1907,11 @@ async def test_repeatedly_cancelled_close_uses_one_owner_and_drains_late_transpo
         assert owner.store.fd is owner.store.lease is None
         assert not owner.active and not owner.io_tasks and not owner.control_tasks
         assert not owner.admissions and op.settlement.done()
-        audits = [r.audit for r in owner.store.records[sid] if r.event.type.startswith("llm.")]
+        audits = [
+            r.audit
+            for r in settled_session_records(owner.store, sid)
+            if r.event.type.startswith("llm.")
+        ]
         assert audits[-1]["kind"] == "outcome"
         assert audits[-1]["data"]["status"] == "interrupted"
         assert audits[-1]["data"]["output_count"] == 2

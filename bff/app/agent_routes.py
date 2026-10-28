@@ -7,7 +7,6 @@ from app.agent_schemas import (
     ArtifactPage,
     Cancel,
     ClarificationReply,
-    Command,
     CreateSession,
     PatchSession,
     PlanIdentity,
@@ -37,7 +36,23 @@ class AgentStreamingResponse(ClosingStreamingResponse):
             await super().__call__(scope, receive, send)
         finally:
             with anyio.CancelScope(shield=True):
-                await self.owner.disconnect(self.op)
+                try:
+                    await self.owner.disconnect(self.op)
+                finally:
+                    self.owner.release_stream(self.op)
+
+
+def operation_response(owner: AgentService, op: Operation) -> AgentStreamingResponse:
+    # Until construction succeeds, the route owns both the stream reservation
+    # and the gated operation. There is no await during this ownership transfer.
+    try:
+        return AgentStreamingResponse(owner, op)
+    except BaseException:
+        try:
+            owner.signal_stop(op, "interrupted")
+        finally:
+            owner.release_stream(op)
+        raise
 
 
 @router.get("")
@@ -60,6 +75,12 @@ async def create(body: CreateSession, request: Request):
 @router.get("/{sid}")
 async def get(sid: str, request: Request):
     return await service(request).public_session(sid)
+
+
+@router.delete("/{sid}", status_code=204)
+async def delete(sid: str, request: Request):
+    await service(request).delete(sid)
+    return Response(status_code=204)
 
 
 @router.patch("/{sid}")
@@ -126,13 +147,15 @@ async def artifact(
 @router.post("/{sid}/runs")
 async def start(sid: str, body: StartRun, request: Request):
     owner = service(request)
-    return AgentStreamingResponse(owner, await owner.prepare(sid, body))
+    op = await owner.prepare(sid, body, response_stream=True)
+    return operation_response(owner, op)
 
 
 @router.post("/{sid}/runs/{rid}/execute")
 async def execute(sid: str, rid: str, body: PlanIdentity, request: Request):
     owner = service(request)
-    return AgentStreamingResponse(owner, await owner.prepare(sid, body, rid=rid, action="execute"))
+    op = await owner.prepare(sid, body, rid=rid, action="execute", response_stream=True)
+    return operation_response(owner, op)
 
 
 @router.post("/{sid}/runs/{rid}/revise")
@@ -142,7 +165,8 @@ async def revise(sid: str, rid: str, body: Revise, request: Request):
             "clarification_unavailable", "Clarification is unavailable in this slice.", 501
         )
     owner = service(request)
-    return AgentStreamingResponse(owner, await owner.prepare(sid, body, rid=rid, action="revise"))
+    op = await owner.prepare(sid, body, rid=rid, action="revise", response_stream=True)
+    return operation_response(owner, op)
 
 
 @router.post("/{sid}/runs/{rid}/reject")
@@ -156,13 +180,5 @@ async def reject(sid: str, rid: str, body: Reject, request: Request):
 async def cancel(sid: str, rid: str, body: Cancel, request: Request, response: Response):
     owner = service(request)
     snapshot, pending = await owner.cancel(sid, rid, body)
-    response.status_code = 202 if pending else 200
-    return await owner.public_session(snapshot.id)
-
-
-@router.post("/{sid}/archive")
-async def archive(sid: str, body: Command, request: Request, response: Response):
-    owner = service(request)
-    snapshot, pending = await owner.archive(sid, body)
     response.status_code = 202 if pending else 200
     return await owner.public_session(snapshot.id)
