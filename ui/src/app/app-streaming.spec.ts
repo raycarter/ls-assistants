@@ -10,26 +10,12 @@ describe('App streaming integration', () => {
   let api: FakeChatApi;
   let state: ChatState;
   let records: Map<string, string>;
-  let observers: {
-    callback: ResizeObserverCallback;
-    observe: ReturnType<typeof vi.fn>;
-    disconnect: ReturnType<typeof vi.fn>;
-  }[];
+  let resizeObserver: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     api = new FakeChatApi();
-    observers = [];
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe = vi.fn();
-        disconnect = vi.fn();
-        unobserve = vi.fn();
-        constructor(readonly callback: ResizeObserverCallback) {
-          observers.push(this);
-        }
-      },
-    );
+    resizeObserver = vi.fn();
+    vi.stubGlobal('ResizeObserver', resizeObserver);
     records = new Map<string, string>();
     await TestBed.configureTestingModule({
       imports: [App],
@@ -241,56 +227,71 @@ describe('App streaming integration', () => {
     ]);
   });
 
-  it('renders growing partial Markdown in a single bubble and scrolls streamed/deferred height changes', async () => {
+  it('scrolls on send and the first nonempty reply flush, but not later deltas', async () => {
     const log = element<HTMLDivElement>('[role="log"]');
+    let top = 0;
+    const scroll = vi.fn((value: number) => { top = value; });
+    Object.defineProperty(log, 'scrollTop', { configurable: true, get: () => top, set: scroll });
     Object.defineProperty(log, 'scrollHeight', {
       configurable: true,
       get: () => log.textContent!.length * 10,
     });
     await send();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(log.scrollTop).toBe(log.scrollHeight);
+    scroll.mockClear();
     api.event(0, 'start');
+    api.event(0, 'session_title', 'Title');
+    api.event(0, 'delta', '');
+    await settle();
+    expect(scroll).not.toHaveBeenCalled();
     api.event(0, 'delta', '## Partial heading\n\n**bold');
     await vi.waitFor(() => expect(state.activeSession().messages[1].content).toContain('Partial'));
     await settle();
     expect(element('[role="log"] article:last-child h2').textContent).toBe('Partial heading');
     expect(root().querySelectorAll('[role="log"] article')).toHaveLength(2);
+    expect(scroll).toHaveBeenCalledTimes(1);
     expect(log.scrollTop).toBe(log.scrollHeight);
     const bubble = element('[role="log"] article:last-child');
+    log.scrollTop = 17;
+    scroll.mockClear();
     api.event(0, 'delta', '**\n\n```typescript\nconst n = 1;');
     await vi.waitFor(() => expect(state.activeSession().messages[1].content).toContain('const n'));
     await settle();
     expect(element('[role="log"] article:last-child')).toBe(bubble);
     expect(element('[role="log"] article:last-child strong').textContent).toBe('bold');
     expect(element('[role="log"] article:last-child pre code').textContent).toContain('const n');
-    expect(log.scrollTop).toBe(log.scrollHeight);
-    expect(observers.at(-1)!.observe).toHaveBeenCalledWith(bubble);
-    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 4096 });
-    observers.at(-1)!.callback([], {} as ResizeObserver);
-    expect(log.scrollTop).toBe(4096);
-    const current = observers.at(-1)!;
-    fixture.destroy();
-    expect(current.disconnect).toHaveBeenCalled();
-    log.scrollTop = 0;
-    current.callback([], {} as ResizeObserver);
-    expect(log.scrollTop).toBe(0);
+    expect(scroll).not.toHaveBeenCalled();
+    expect(log.scrollTop).toBe(17);
+    api.event(0, 'done');
+    await settle();
+    expect(scroll).not.toHaveBeenCalled();
+    expect(resizeObserver).not.toHaveBeenCalled();
   });
 
-  it('disconnects old bubble observers when switching and ignores their late notifications', async () => {
+  it('does not scroll the active session when a background reply arrives', async () => {
+    const first = state.activeSessionId();
     await send();
-    api.event(0, 'start');
-    await settle();
-    const previous = observers.at(-1)!;
-    const log = element<HTMLDivElement>('[role="log"]');
     fixture.componentInstance.newSession();
     await settle();
-    expect(previous.disconnect).toHaveBeenCalled();
+    const log = element<HTMLDivElement>('[role="log"]');
     log.scrollTop = 23;
     Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 2048 });
-    previous.callback([], {} as ResizeObserver);
+    api.event(0, 'start');
+    api.event(0, 'delta', 'Background answer');
+    await vi.waitFor(() =>
+      expect(state.sessions().find((session) => session.id === first)?.messages[1].content)
+        .toBe('Background answer'),
+    );
+    await settle();
+    expect(log.scrollTop).toBe(23);
+    expect(root().textContent).not.toContain('Background answer');
+    api.event(0, 'done');
+    await settle();
     expect(log.scrollTop).toBe(23);
   });
 
-  it('scrolls to the bottom on a height-only viewport resize without bubble notifications', async () => {
+  it('does not scroll on viewport resize or deferred height changes', async () => {
     await send();
     api.event(0, 'start');
     api.event(0, 'delta', 'Completed reply');
@@ -312,23 +313,12 @@ describe('App streaming integration', () => {
         },
       },
     });
-    const observer = observers.at(-1)!;
-    expect(observer.observe).toHaveBeenCalledWith(log);
     height = 300;
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1600 });
+    window.dispatchEvent(new Event('resize'));
+    await settle();
     expect(log.scrollTop).toBe(600);
-    observer.callback(
-      [
-        {
-          target: log,
-          contentRect: new DOMRect(0, 0, 800, height),
-          borderBoxSize: [],
-          contentBoxSize: [],
-          devicePixelContentBoxSize: [],
-        },
-      ],
-      {} as ResizeObserver,
-    );
-    expect(log.scrollTop).toBe(900);
+    expect(resizeObserver).not.toHaveBeenCalled();
     expect(state.activeSession().messages).toBe(messages);
     expect(element('[role="log"] article:last-child')).toBe(bubble);
   });
@@ -383,6 +373,35 @@ describe('App streaming integration', () => {
     expect(api.calls[1].request.messages).toEqual([{ role: 'user', content: 'Question' }]);
     expect(root().querySelector('[role="alert"]')).toBeNull();
     expect(element<HTMLTextAreaElement>('#message-input').value).toBe('Next draft');
+  });
+
+  it('scrolls once for the first text of a retried reply', async () => {
+    await send();
+    api.event(0, 'start');
+    api.event(0, 'delta', 'Original partial');
+    await vi.waitFor(() => expect(state.activeSession().messages[1].content).toBe('Original partial'));
+    api.event(0, 'error');
+    await settle();
+
+    const log = element<HTMLDivElement>('[role="log"]');
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1200 });
+    log.scrollTop = 21;
+    button('Retry reply').click();
+    await settle();
+    expect(api.calls).toHaveLength(2);
+    expect(log.scrollTop).toBe(21);
+    api.event(1, 'start');
+    await settle();
+    expect(log.scrollTop).toBe(21);
+    api.event(1, 'delta', 'Retry answer');
+    await vi.waitFor(() => expect(state.activeSession().messages.at(-1)?.content).toBe('Retry answer'));
+    await settle();
+    expect(log.scrollTop).toBe(1200);
+    log.scrollTop = 22;
+    api.event(1, 'delta', ' continued');
+    await vi.waitFor(() => expect(state.activeSession().messages.at(-1)?.content).toBe('Retry answer continued'));
+    await settle();
+    expect(log.scrollTop).toBe(22);
   });
 
   it('Stop flushes partial content and presents retry', async () => {

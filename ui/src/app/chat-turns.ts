@@ -9,6 +9,7 @@ interface Turn {
   controller: AbortController;
   replyId?: string;
   buffer: string;
+  hasFlushedText?: boolean;
   timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -40,6 +41,7 @@ export class ChatTurns {
   readonly modelsError = signal<string | null>(null);
   readonly pending = signal<ReadonlySet<string>>(new Set());
   readonly errors = signal<ReadonlyMap<string, string>>(new Map());
+  readonly firstReplyText = signal<ReadonlyMap<string, number>>(new Map());
   readonly activePending = computed(() => this.pending().has(this.state.activeSessionId()));
   readonly selectedModel = computed(() => this.state.activeSession().model ?? this.defaultModel());
   readonly selectedEffort = computed(() => this.state.activeSession().reasoningEffort ?? 'medium');
@@ -297,6 +299,15 @@ export class ChatTurns {
         message.id === turn.replyId ? { ...message, content: message.content + text } : message,
       ),
     }));
+    if (!turn.hasFlushedText) {
+      turn.hasFlushedText = true;
+      this.firstReplyText.update((counts) => {
+        const next = new Map(counts);
+        const id = turn.request.session_id;
+        next.set(id, (next.get(id) ?? 0) + 1);
+        return next;
+      });
+    }
   }
 
   private finish(turn: Turn, status: string, error?: ChatMessage['error']): void {

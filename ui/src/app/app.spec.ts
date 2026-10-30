@@ -826,6 +826,9 @@ describe('App', () => {
     it.each(['', ' \n\t '])('blocks empty or whitespace-only submissions: %j', async (draft) => {
       await fill('#message-input', draft);
       const session = state.activeSession();
+      const log = element<HTMLDivElement>('[role="log"]');
+      Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1000 });
+      log.scrollTop = 19;
       expect(button('Send').disabled).toBe(true);
 
       await clickButton('Send');
@@ -837,6 +840,7 @@ describe('App', () => {
       expect(state.activeSession().title).toBe('New session');
       expect(element<HTMLTextAreaElement>('#message-input').value).toBe(draft);
       expect(elements('[role="log"] article')).toHaveLength(0);
+      expect(log.scrollTop).toBe(19);
     });
 
     it.each([
@@ -1312,7 +1316,7 @@ describe('App', () => {
       },
     );
 
-    it('scrolls when deferred message bubbles render and restores the independent empty state', async () => {
+    it('does not scroll when deferred message bubbles render and restores the independent empty state', async () => {
       const log = element<HTMLDivElement>('[role="log"]');
       // jsdom has no layout; model a scroll height that grows only after bubbles exist.
       Object.defineProperty(log, 'scrollHeight', {
@@ -1340,7 +1344,7 @@ describe('App', () => {
       expect(elements('article', log)).toHaveLength(2);
       expect(element('article h1', log).textContent).toBe('Deferred heading');
       expect(log.querySelector('[role="status"]')).toBeNull();
-      expect(log.scrollTop).toBe(480);
+      expect(log.scrollTop).toBe(0);
 
       await clickButton('New session', element('aside'));
 

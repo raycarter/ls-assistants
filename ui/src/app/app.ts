@@ -8,8 +8,8 @@ import {
   inject,
   Injector,
   signal,
+  untracked,
   viewChild,
-  viewChildren,
 } from '@angular/core';
 import { FormsModule, NgModel } from '@angular/forms';
 import { ChatState } from './chat-state';
@@ -62,7 +62,7 @@ export class App {
   readonly messages = computed(() => this.state.activeSession().messages);
   readonly selectedPromptId = computed(() => this.state.activeSession().prompt?.id ?? null);
   private readonly messageList = viewChild<ElementRef<HTMLDivElement>>('messageList');
-  private readonly messageElements = viewChildren<ElementRef<HTMLElement>>('messageBubble');
+  private readonly sentMessage = signal<{ sessionId: string } | null>(null);
   private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
   private readonly agentWorkspace = viewChild<unknown, ElementRef<HTMLElement>>('agentWorkspace', {
     read: ElementRef,
@@ -78,22 +78,21 @@ export class App {
   constructor() {
     if (this.agent.legacyId() && !this.legacy()) this.agent.legacyId.set(null);
     this.agent.setMode(this.agent.mode());
-    afterRenderEffect((onCleanup) => {
-      this.messages();
-      this.messageElements();
-      const list = this.messageList()?.nativeElement;
-      if (list) list.scrollTop = list.scrollHeight;
-      if (!list || typeof ResizeObserver === 'undefined') return;
-      let alive = true;
-      const observer = new ResizeObserver(() => {
-        if (alive) list.scrollTop = list.scrollHeight;
+    let lastSend: { sessionId: string } | null = null;
+    let lastReply: ReadonlyMap<string, number> = new Map();
+    afterRenderEffect(() => {
+      const send = this.sentMessage();
+      const reply = this.turns.firstReplyText();
+      untracked(() => {
+        const id = this.state.activeSessionId();
+        const shouldScroll =
+          (send !== lastSend && send?.sessionId === id) || reply.get(id) !== lastReply.get(id);
+        if (this.agent.mode() !== 'chat' || !shouldScroll) return;
+        const list = this.messageList()?.nativeElement;
+        if (list) list.scrollTop = list.scrollHeight;
       });
-      observer.observe(list);
-      for (const bubble of this.messageElements()) observer.observe(bubble.nativeElement);
-      onCleanup(() => {
-        alive = false;
-        observer.disconnect();
-      });
+      lastSend = send;
+      lastReply = reply;
     });
     afterRenderEffect(() => {
       if (this.sidebarOpen()) this.newSessionButton()?.nativeElement.focus();
@@ -204,7 +203,10 @@ export class App {
 
   sendMessage(): void {
     if (this.agent.mode() !== 'chat') return;
-    if (this.turns.send()) this.composer()?.nativeElement.focus();
+    if (this.turns.send()) {
+      this.sentMessage.set({ sessionId: this.state.activeSessionId() });
+      this.composer()?.nativeElement.focus();
+    }
   }
 
   async selectModel(model: string, control?: NgModel): Promise<void> {
