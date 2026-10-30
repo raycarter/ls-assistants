@@ -6,6 +6,7 @@ import {
   parseAgentEvent,
   parseAgentRun,
   parseAgentSession,
+  parseResultsPage,
   type AgentCommand,
   type AgentEvent,
   type AgentRun,
@@ -34,6 +35,7 @@ interface Exchange {
   terminal_run: AgentRun;
   controls?: { http: RecordedRequest; status: number; session: AgentSession }[];
   artifact_page?: { http: { method: 'GET'; url: string }; status: number; body: ArtifactPage };
+  results_page?: ResultsPage;
 }
 interface ErrorExchange {
   name: string;
@@ -122,6 +124,8 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       'fetch_execution',
       'recorded_planning',
       'grep_execution',
+      'search_planning',
+      'search_execution',
     ]);
     for (const entry of contract.streams) {
       expect(parseAgentSession(entry.baseline)).toEqual(entry.baseline);
@@ -184,6 +188,93 @@ describe('backend-generated v2 Agent contract (static mocked FETCH)', () => {
       ]);
     },
   );
+  it('correlates generated search approval, evidence, synthesis and reloaded results', async () => {
+    const planning = contract.streams.find((entry) => entry.name === 'search_planning')!;
+    const entry = contract.streams.find((entry) => entry.name === 'search_execution')!;
+    const plan = planning.terminal_run.plan!;
+    expect(entry.terminal_run.plan).toEqual(plan);
+    expect(
+      (plan as unknown as { access_policy: Record<string, string> }).access_policy[
+        'tool_registry_version'
+      ],
+    ).toBe('agent-tools-v4-exact');
+    expect(plan.steps[0]).toMatchObject({
+      tool: 'web_search',
+      arguments: { query: '  public evidence 🌱  ', max_results: 2 },
+    });
+    const result = entry.terminal_run.results[0];
+    expect(result).toMatchObject({
+      step_id: plan.steps[0].id,
+      status: 'completed',
+      content: '',
+      search: {
+        query: '  public evidence 🌱  ',
+        max_results: 2,
+        results: [
+          {
+            title: 'Public source',
+            url: 'https://example.org/evidence',
+            snippet: 'A public snippet 🌱',
+            published_date: '2026-10-15',
+          },
+          {
+            title: 'Another source',
+            url: 'https://example.org/other',
+            snippet: 'Another snippet',
+            published_date: null,
+          },
+        ],
+      },
+    });
+    const events = frames(entry).map((frame) => parseAgentEvent(JSON.parse(frame.data)));
+    expect(events.map((event) => event.type)).toEqual([
+      'run.approved',
+      'run.executing',
+      'tool.intent',
+      'tool.result',
+      'llm.intent',
+      'llm.dispatched',
+      'llm.output',
+      'llm.outcome',
+      'llm.validation',
+      'run.completed',
+    ]);
+    expect(events[3].result).toEqual(result);
+    expect(events.at(-1)?.answer).toEqual(entry.terminal_run.answer);
+    expect(entry.terminal_run.answer).toBe(
+      'Provenance note: Web search results are snippets provided by the search service; ' +
+        'the search itself does not independently verify their contents, and the results ' +
+        'do not establish that their source pages were fetched.\n\n' +
+        'The snippet reports public evidence [https://example.org/evidence].',
+    );
+    const decoder = new AgentEventDecoder(streamRequest(entry));
+    for (const event of events.slice(0, 3))
+      decoder.decode({ event: 'agent', id: String(event.sequence), data: JSON.stringify(event) });
+    const forged = structuredClone(events[3]);
+    forged.result!.search!.query = 'different';
+    expect(() =>
+      decoder.decode({
+        event: 'agent',
+        id: String(forged.sequence),
+        data: JSON.stringify(forged),
+      }),
+    ).toThrow();
+    expect(
+      decoder.decode({
+        event: 'agent',
+        id: String(events[3].sequence),
+        data: JSON.stringify(events[3]),
+      })?.result,
+    ).toEqual(result);
+    expect(parseResultsPage(entry.results_page!, plan).results).toEqual([result]);
+    const bad = structuredClone(entry.results_page!);
+    bad.results[0].search!.query = 'different';
+    expect(() => parseResultsPage(bad, plan)).toThrow();
+    fetchDouble.mockResolvedValueOnce(Response.json(entry.results_page));
+    expect(
+      await api.results(entry.baseline.id, entry.terminal_run.id, new AbortController().signal),
+    ).toEqual(entry.results_page);
+  });
   it('catches up in a finite explicit through-window with GET only', async () => {
     const entry = contract.streams.find((entry) => entry.name === 'execution')!;
     const events = frames(entry).map((frame) => JSON.parse(frame.data) as AgentEvent);

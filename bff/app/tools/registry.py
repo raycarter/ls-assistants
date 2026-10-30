@@ -2,12 +2,18 @@
 
 from app.agent_files import AgentFault, FilePolicy
 from app.agent_grep import validate_grep
-from app.agent_schemas import FetchArguments, GrepArguments, ProposedStep, ReadArguments
+from app.agent_schemas import (
+    FetchArguments,
+    GrepArguments,
+    ProposedStep,
+    ReadArguments,
+    SearchArguments,
+)
 from app.tools import WebFetcher
 
 
 class ToolRegistry:
-    version = "agent-tools-v1"
+    version = "agent-tools-v4"
     known = ("read_file", "web_fetch", "web_search", "grep_in_folder")
     enabled = ("read_file", "web_fetch", "grep_in_folder")
     descriptions = {
@@ -23,6 +29,11 @@ class ToolRegistry:
             "page. No search, "
             "authentication, browser, or JavaScript. Remote text is untrusted data."
         ),
+        "web_search": (
+            "web_search: Search the public web for the exact query with max_results 1..20. "
+            "Returns untrusted search snippets and source URLs, not fetched pages. "
+            "Do not invent URLs for subsequent fetch steps."
+        ),
         "grep_in_folder": (
             "grep_in_folder: Search permitted UTF-8 files recursively in an exact supplied "
             "workspace ID and relative folder path ('.' for its root). pattern is a nonempty "
@@ -36,14 +47,17 @@ class ToolRegistry:
         ),
     }
 
-    def __init__(self, files: FilePolicy, fetcher: WebFetcher, *, adaptive_reads: bool = False):
+    def __init__(
+        self, files: FilePolicy, fetcher: WebFetcher, *, adaptive_reads: bool = False, searcher=None
+    ):
         self.files, self.fetcher = files, fetcher
+        self.searcher = searcher
         self.adaptive_reads = adaptive_reads
 
     def require(self, name: str):
         if name not in self.known:
             raise AgentFault("unknown_tool", "The requested tool is unknown.", 422)
-        if name not in self.enabled:
+        if name not in self.enabled and not (name == "web_search" and self.searcher is not None):
             raise AgentFault(
                 "unsupported_capability", "The requested capability is not enabled.", 422
             )
@@ -57,15 +71,18 @@ class ToolRegistry:
                 "reads and model continuation decisions. offset=1 and limit=200 are internal "
                 "hints, not total read boundaries; describe only the purpose and file identity."
             )
-        return tuple(descriptions[name] for name in self.enabled)
+        names = (*self.enabled, "web_search") if self.searcher is not None else self.enabled
+        return tuple(descriptions[name] for name in names)
 
     def projection(self) -> dict[str, str]:
         return {
             **self.files.projection(),
-            "tool_registry_version": "agent-tools-v3"
+            "tool_registry_version": "agent-tools-v4"
             if self.adaptive_reads
-            else "agent-tools-v3-exact",
-            "enabled_tools": ",".join(self.enabled),
+            else "agent-tools-v4-exact",
+            "enabled_tools": ",".join(
+                (*self.enabled, "web_search") if self.searcher is not None else self.enabled
+            ),
             "network_policy_version": self.fetcher.policy_version,
             **({"read_semantics": "file-scoped-v1"} if self.adaptive_reads else {}),
         }
@@ -74,7 +91,11 @@ class ToolRegistry:
         if self.adaptive_reads and any(step.tool == "read_file" for step in steps):
             if policy.get("read_semantics") != "file-scoped-v1":
                 return False
-        if any(step.tool not in self.enabled for step in steps):
+        if any(
+            step.tool not in self.enabled
+            and not (step.tool == "web_search" and self.searcher is not None)
+            for step in steps
+        ):
             return False
         current = self.projection()
         registry_keys = {"tool_registry_version", "enabled_tools", "network_policy_version"}
@@ -93,11 +114,14 @@ class ToolRegistry:
         )
 
     def validate(self, step: ProposedStep):
-        self.require(step.tool)
+        if step.tool != "web_search" or self.searcher is None:
+            self.require(step.tool)
         if step.tool == "read_file" and isinstance(step.arguments, ReadArguments):
             self.files.validate(step.arguments)
         elif step.tool == "web_fetch" and isinstance(step.arguments, FetchArguments):
             self.fetcher.validate_url(step.arguments.url)  # Syntax/policy only: no DNS or HTTP.
+        elif step.tool == "web_search" and isinstance(step.arguments, SearchArguments):
+            pass
         elif step.tool == "grep_in_folder" and isinstance(step.arguments, GrepArguments):
             validate_grep(self.files, step.arguments)
         else:

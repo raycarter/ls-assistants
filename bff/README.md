@@ -6,7 +6,7 @@ Chat conversation state and calls the provider with `store=False`. The separate
 Agent API uses **production planning/revision and tool-free final synthesis over the recorded LLM boundary** with quota-free work and paginated
 public v2, described in [AGENT_API.md](AGENT_API.md): journal-backed sessions,
 provider-generated tool-free planning, exact-plan approval, file-scoped adaptive UTF-8 reads,
-public-page fetching, literal folder grep, durable character-paged evidence, final answers, progress, rejection,
+public-page fetching, configured Tavily search, literal folder grep, durable character-paged evidence, final answers, progress, rejection,
 Stop and restart recovery. Default run/revise commands, per-chunk read assessments and final synthesis call the
 Responses provider through a shared controlled dedicated HTTPX client; no Agent SDK is used. An explicitly injected service with
 no planner still returns `503 agent_not_configured`. Provider/deployment
@@ -108,9 +108,9 @@ remains read-only. The runner retains one active call's observations, and JSON
 serialization still materializes each complete record, in addition to the existing
 baseline/index/linear-verification costs. No constant-memory guarantee is implied.
 
-`agent_responses.py` supplies `agent-responses-planning-v4`: pure request construction
+`agent_responses.py` supplies `agent-responses-planning-v5`: pure request construction
 with `stream=False`, configured `max_output_tokens`, and a manually reviewed strict
-closed schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step.
+closed schema for objective/assumptions and at least one `read_file`/`web_fetch`/`web_search`/`grep_in_folder` step, subject to configured availability.
 The schema retains one-based file offset and 1–200-line limit wire fields as
 legacy/internal hints; production adaptive reads start at byte zero. Instructions
 avoid read paging/chunk/whole-file narratives. Web fetch retains zero-based character
@@ -127,10 +127,10 @@ retained. Owned HTTP streaming preserves failed partial reads as reversible raw
 UTF-8/base64 evidence. Complete response observations precede proposal decoding;
 unsafe/deep JSON falls back to raw evidence. Response close remains owned through
 repeated cancellation. `main.py` retains one exit-stack cleanup task closing
-Agent → Agent HTTP → Chat SDK → credential after settlement.
+Agent → optional search HTTP → Agent HTTP → Chat SDK → credential after settlement.
 
 Execution runs approved steps sequentially. Default `main.py` supplies a
-`RecordedReadAssessor`: new plans bind `agent-tools-v3` and
+`RecordedReadAssessor`: new plans bind `agent-tools-v4` and
 `read_semantics:file-scoped-v1`. Read approval shows workspace/path file identity
 only, never read paging/chunks, whole-file notes or generated titles/descriptions.
 Plans containing a read also hide objective/assumptions and full-plan JSON; the
@@ -176,15 +176,15 @@ compatibility. Default `main.py` supplies planner, read assessor and synthesizer
 result DTOs add optional read coverage without new statuses or endpoints.
 
 No-tool plans, clarification, autonomous model/tool execution, continuation replay,
-general model-driven step results, dependent follow-up reads from grep, revision prior context, Tavily
+general model-driven step results, dependent follow-up reads from grep, revision prior context
 and full audit UI remain pending.
 Implementation status, all test counts/evidence and remaining checks are
 recorded only in [AGENT_MODE_CHECKLIST.md](../AGENT_MODE_CHECKLIST.md).
 
 ### Literal folder grep
 
-The registry enables `read_file`, `web_fetch` and `grep_in_folder`; `web_search` stays
-disabled. Grep uses the same fixed workspace and no-follow/exclusion policy. Arguments
+The registry enables `read_file`, `web_fetch` and `grep_in_folder`, and enables
+`web_search` when configured. Grep uses the same fixed workspace and no-follow/exclusion policy. Arguments
 are `{workspace_id,path,pattern,file_glob,offset,limit}`: folder `path` defaults to `.`,
 pattern is a nonempty case-sensitive single-line literal, glob is optional/null,
 and offset/limit select the initial Unicode-character page (`0`, `12000` normally;
@@ -212,8 +212,28 @@ Private in-memory `ArtifactBinding` derives run/step/grep-argument ownership fro
 committed proof; identical hashes cannot authorize another owner or pattern.
 Serialized proof/public shapes remain unchanged. New registry versions and enabled
 tools require fresh review of old versioned plans; legacy read-only fallback cannot
-authorize grep. Generic no-assessor services use `agent-tools-v3-exact`.
+authorize grep. Generic no-assessor services use `agent-tools-v4-exact`.
 See [AGENT_API.md](AGENT_API.md) for exact metadata and artifact contracts.
+
+### Agent web search
+
+Set `TAVILY_API_KEY` locally to enable Tavily Basic search; without it search is
+unavailable. This configuration is optional. Basic requests consume provider credits according to Tavily's pricing.
+After plan approval, only the exact approved query is sent as search content, with
+request parameters. `max_results` is `1..20` per request, not a cumulative quota.
+Each request returns one bounded result set; arbitrary result pagination is not implemented.
+Returned titles, URLs, snippets and optional dates are search evidence, not full page
+fetches. Search never implicitly fetches links or uploads files; page retrieval needs
+a separate approved `web_fetch` step. Scoped mocked verification and reviews passed;
+live provider compatibility remains unverified. See [AGENT_API.md](AGENT_API.md) and
+the [checklist](../AGENT_MODE_CHECKLIST.md) for details.
+
+Search requests identity encoding and rejects other encodings. Responses over 1 MiB
+fail rather than being truncated; this is a per-response guard, not a cumulative quota.
+If a completed run has search hits, the backend deterministically prepends an answer
+note that search-service snippets do not establish that source pages were fetched.
+Old `agent-tools-v3` and `agent-tools-v3-exact` versioned plans require a fresh plan
+and approval under the current registry; historical bytes and digests remain intact.
 
 ## Setup
 
@@ -246,6 +266,7 @@ startup. `.env.example` contains placeholders only.
 | `AZURE_TENANT_ID`          | Unset                 | Service-principal tenant ID.                                                                                                                                               |
 | `AZURE_CLIENT_ID`          | Unset                 | Service-principal client ID.                                                                                                                                               |
 | `AZURE_CLIENT_SECRET`      | Unset                 | Service-principal secret, represented internally as `SecretStr`.                                                                                                           |
+| `TAVILY_API_KEY`           | Unset                 | Optional secret enabling Agent Tavily Basic search; search requests consume provider credits.                                                                              |
 | `REQUEST_TIMEOUT_SECONDS`  | `120`                 | One fixed deadline for title generation, token acquisition waits, opening attempts, retry delays, provider stream reads and ASGI response sends. Positive, at most `3600`. |
 | `PROVIDER_TIMEOUT_SECONDS` | `60`                  | OpenAI HTTP timeout per transport operation, including stream-read inactivity. Positive, at most `3600`; the whole-operation deadline still applies.                       |
 | `TITLE_TIMEOUT_SECONDS`    | `10`                  | Best-effort title call timeout, bounded by the remaining absolute request deadline. Positive, finite, at most `3600`. No title retries.                                    |

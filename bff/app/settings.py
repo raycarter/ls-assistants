@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     azure_tenant_id: str | None = None
     azure_client_id: str | None = None
     azure_client_secret: SecretStr | None = None
+    tavily_api_key: SecretStr | None = None
     request_timeout_seconds: float = Field(default=120, gt=0, le=3600, allow_inf_nan=False)
     provider_timeout_seconds: float = Field(default=60, gt=0, le=3600, allow_inf_nan=False)
     title_timeout_seconds: float = Field(default=10, gt=0, le=3600, allow_inf_nan=False)
@@ -67,7 +68,7 @@ class Settings(BaseSettings):
     def trim_optional(cls, value: object) -> object:
         return (value.strip() or None) if isinstance(value, str) else value
 
-    @field_validator("azure_client_secret", mode="before")
+    @field_validator("azure_client_secret", "tavily_api_key", mode="before")
     @classmethod
     def empty_secret(cls, value: object) -> object:
         raw = value.get_secret_value() if isinstance(value, SecretStr) else value

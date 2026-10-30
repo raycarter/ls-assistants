@@ -314,7 +314,7 @@ async def test_entire_file_utf8_cursor_private_audit_and_fresh_assessment_identi
         sid, run = await planned(client)
         policy = run["plan"]["access_policy"]
         assert policy["read_semantics"] == "file-scoped-v1"
-        assert policy["tool_registry_version"] == "agent-tools-v3"
+        assert policy["tool_registry_version"] == "agent-tools-v4"
         assert adaptive.decisions == [] and chunks(owner, sid) == []
         stale = {**approval(run, "stale-digest"), "digest": "0" * 64}
         assert (await client.post(execution(sid, run), json=stale)).status_code == 409
@@ -437,7 +437,7 @@ async def test_early_enough_and_eof_override_continue(adaptive, source, decision
         assert result["content"] == "Only observed evidence; partial if not EOF."
         assert adaptive.syntheses[0]["results"] == [result]
         synthesis = audits(owner, sid)[-1]
-        assert synthesis[0]["data"]["instructions_version"] == "agent-responses-synthesis-v3"
+        assert synthesis[0]["data"]["instructions_version"] == "agent-responses-synthesis-v4"
         assert adaptive.syntheses[0]["results"][0]["read"]["stop_reason"] == reason
         assert len(adaptive.calls) == 3
 

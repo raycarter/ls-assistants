@@ -3,10 +3,13 @@
 import asyncio
 import json
 import threading
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
+from app.agent import SEARCH_PROVENANCE_NOTE
 from app.llm_schemas import LLMRecord
 from app.tools import FetchDocument
 from tests import test_agent_responses_api as responses_api
@@ -48,6 +51,57 @@ def assert_retained(run, status):
     assert len(run["results"]) == len(run["plan"]["steps"])
     assert all(result["status"] == "completed" for result in run["results"])
     assert run["results"][0]["content"] == "Synthetic public evidence"
+
+
+@pytest.mark.parametrize("scenario", ["search", "search_and_fetch", "empty_search", "fetch"])
+async def test_search_provenance_note_is_deterministic_with_synthesis(wired, scenario):
+    misleading = "I fetched and read every source page in full."
+    proposed = json.loads(provider_body()["output"][1]["content"][0]["text"])
+    search_step = {
+        "title": "Search",
+        "description": "Find sources",
+        "tool": "web_search",
+        "arguments": {"query": "synthetic query", "max_results": 2},
+    }
+    if scenario != "fetch":
+        proposed["steps"] = [search_step] + (
+            proposed["steps"] if scenario == "search_and_fetch" else []
+        )
+    response = provider_body()
+    response["output"][1]["content"][0]["text"] = json.dumps(proposed)
+    hit = {
+        "title": "Source",
+        "url": "https://example.org/",
+        "snippet": "Snippet",
+        "published_date": None,
+    }
+    search = AsyncMock(return_value=[] if scenario == "empty_search" else [hit])
+
+    async with wired.opened() as (client, owner, _):
+        owner.searcher = SimpleNamespace(search=search)
+        wired.handler = lambda request: httpx.Response(
+            200, json=response if len(wired.calls) == 1 else answer_body(misleading)
+        )
+        sid, run, _ = await plan(client)
+        frames = decode(await client.post(execute_path(sid, run), json=approval(run)))
+        completed = await run_detail(client, sid, run["id"])
+        expected = (
+            SEARCH_PROVENANCE_NOTE + "\n\n" + misleading
+            if scenario in {"search", "search_and_fetch"}
+            else misleading
+        )
+        assert completed["status"] == "completed" and completed["answer"] == expected
+        assert frames[-1]["answer"] == expected
+        assert len(wired.calls) == 2
+        assert search.await_count == (scenario != "fetch")
+        assert wired.fetcher.fetch.await_count == (scenario in {"fetch", "search_and_fetch"})
+        assert SEARCH_PROVENANCE_NOTE == (
+            "Provenance note: Web search results are snippets provided by the search service; "
+            "the search itself does not independently verify their contents, and the results "
+            "do not establish that their source pages were fetched."
+        )
+    async with wired.opened() as (client, _, _):
+        assert (await run_detail(client, sid, run["id"]))["answer"] == expected
 
 
 async def test_default_synthesis_exact_durable_evidence_and_restart(wired, tmp_path):

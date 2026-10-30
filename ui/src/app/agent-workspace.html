@@ -2,11 +2,11 @@
   <aside class="disclosure" aria-label="Agent capabilities and retained content">
     <strong>Agent · review the plan before execution</strong>
     <p>
-      Approved plans support read_file, web_fetch and grep_in_folder steps. Search is unavailable.
-      Planning runs no tools. Planner availability and tool authorization are determined by the BFF.
-      File reads show workspace and path before approval; fetch and grep steps show exact arguments.
-      History loads in fixed-size pages; page sizes are read windows, not retained-history or
-      execution allowances.
+      Approved plans support read_file, web_fetch and grep_in_folder steps. Web search is available
+      only when configured by the BFF. Planning runs no tools. Planner availability and tool
+      authorization are determined by the BFF. File reads show workspace and path before approval;
+      fetch, search and grep steps show exact arguments. History loads in fixed-size pages; page
+      sizes are read windows, not retained-history or execution allowances.
     </p>
     <p>
       User requests, reviewed plans, approved source excerpts, tool results and logical model
@@ -15,8 +15,8 @@
       can be permanently deleted. Permitted source text may contain sensitive content; this is not
       guaranteed secret-content scrubbing. Approved web_fetch requests contact the supplied URL and
       its redirects. Grep matches a literal pattern in the approved workspace folder; matching files
-      are not automatically opened. Inspecting retained pages reads BFF storage without running
-      tools again.
+      are not automatically opened. Search returns snippets; result pages are not automatically
+      fetched. Inspecting retained pages reads BFF storage without running tools again.
     </p>
   </aside>
   @if (state.globalError()) {
@@ -208,6 +208,17 @@
                       <h4>Exact tool arguments</h4>
                       <pre>{{ step.arguments | json }}</pre>
                     </section>
+                  } @else if (step.tool === 'web_search') {
+                    <h3>Web search</h3>
+                    <p>{{ step.title }} · {{ step.description }}</p>
+                    <p>
+                      Query: <code>{{ step.arguments.query }}</code> · Maximum results:
+                      {{ step.arguments.max_results }}
+                    </p>
+                    <section aria-label="Exact tool arguments">
+                      <h4>Exact tool arguments</h4>
+                      <pre>{{ step.arguments | json }}</pre>
+                    </section>
                   } @else if (step.tool === 'grep_in_folder') {
                     <h3>Grep folder · {{ step.arguments.path }}</h3>
                     <p>
@@ -335,7 +346,38 @@
               {{ result.step_id }} · {{ result.status }}
               <time [attr.datetime]="result.time">{{ result.time | messageTime }}</time>
             </h2>
-            @if (evidenceMetadata(result); as metadata) {
+            @if (result.search; as search) {
+              <section aria-label="Web search results">
+                <h3>Web search results</h3>
+                <p>
+                  Query: <code>{{ search.query }}</code> · Maximum results: {{ search.max_results }}
+                </p>
+                <p role="note">
+                  Untrusted search snippets · these are search results, not fetched pages.
+                </p>
+                @if (!search.results.length) {
+                  <p>No search results.</p>
+                }
+                <ol>
+                  @for (item of search.results; track $index) {
+                    <li>
+                      <h4>{{ item.title }}</h4>
+                      @if (safeHttpUrl(item.url)) {
+                        <a [href]="item.url" target="_blank" rel="noopener noreferrer">{{
+                          item.url
+                        }}</a>
+                      } @else {
+                        <span>{{ item.url }}</span>
+                      }
+                      @if (item.published_date !== null) {
+                        <p>Published: {{ item.published_date }}</p>
+                      }
+                      <p>Search snippet: {{ item.snippet }}</p>
+                    </li>
+                  }
+                </ol>
+              </section>
+            } @else if (evidenceMetadata(result); as metadata) {
               @if (result.fetch; as fetch) {
                 <div class="fetch-provenance" aria-label="Fetched page provenance">
                   <h3>Fetched page</h3>

@@ -25,6 +25,8 @@ export type {
   GrepMetadata,
   BackendGrepArguments,
   BackendGrepMetadata,
+  SearchArguments,
+  SearchMetadata,
 } from './agent-tool.models';
 
 export {

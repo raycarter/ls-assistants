@@ -26,6 +26,8 @@ from app.agent import AgentService
 from app.agent_files import FilePolicy, canonical_digest
 from app.agent_llm import CanonicalRequest, Observation, RecordedPlanner
 from app.agent_schemas import Proposal, StepResult
+from app.agent_synthesis import RecordedSynthesizer
+from app.agent_synthesis import build_request as build_synthesis_request
 from app.agent_views import EventV2
 from app.main import create_app
 from app.sessions import SessionStore
@@ -98,6 +100,7 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
         fetched=False,
         grepped=False,
         recorded=False,
+        searched=False,
         journal="journal",
     ):
         directory = tmp_path / suffix
@@ -109,6 +112,21 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
         async def plan(context):
             if backwards:
                 clock.value = EARLIER
+            if searched:
+                return Proposal.model_validate(
+                    {
+                        "objective": "Find public evidence",
+                        "assumptions": [],
+                        "steps": [
+                            {
+                                "title": "Search",
+                                "description": "Find public snippets.",
+                                "tool": "web_search",
+                                "arguments": {"query": "  public evidence 🌱  ", "max_results": 2},
+                            }
+                        ],
+                    }
+                )
             if grepped:
                 return Proposal.model_validate(
                     {
@@ -195,6 +213,45 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
                 build_request=build_request, transport=transport, decode=decode
             )
         files = FilePolicy({"public": workspace})
+        hits = [
+            {
+                "title": "Public source",
+                "url": "https://example.org/evidence",
+                "snippet": "A public snippet 🌱",
+                "published_date": "2026-10-15",
+            },
+            {
+                "title": "Another source",
+                "url": "https://example.org/other",
+                "snippet": "Another snippet",
+                "published_date": None,
+            },
+        ]
+        searcher = SimpleNamespace(search=AsyncMock(return_value=hits)) if searched else None
+        synthesis_requests = []
+
+        def synthesis_request(context):
+            request = build_synthesis_request(context, 512)
+            synthesis_requests.append(request.body)
+            return request
+
+        async def synthesize_once(raw, observe):
+            assert json.loads(raw) == synthesis_requests[-1]
+            return Observation(
+                "response",
+                {"answer": "The snippet reports public evidence [https://example.org/evidence]."},
+            )
+
+        synthesis_transport = SimpleNamespace(send_once=AsyncMock(side_effect=synthesize_once))
+        synthesizer = (
+            RecordedSynthesizer(
+                build_request=synthesis_request,
+                transport=synthesis_transport,
+                decode=lambda result: result.outputs[-1].body["answer"],
+            )
+            if searched
+            else None
+        )
         entered, release = threading.Event(), threading.Event()
         real_read = files.read
 
@@ -215,6 +272,8 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
             planner=planner if enabled else None,
             files=files,
             models=("deployment-a",),
+            searcher=searcher,
+            synthesizer=synthesizer,
             fetcher=SimpleNamespace(
                 policy_version=WebFetcher.policy_version,
                 validate_url=WebFetcher().validate_url,
@@ -252,6 +311,10 @@ def contract_setup(tmp_path, monkeypatch, settings_factory, mock_client):
                         release=release,
                         transport=transport,
                         decode=decode,
+                        searcher=searcher,
+                        hits=hits,
+                        synthesis_requests=synthesis_requests,
+                        synthesis_transport=synthesis_transport,
                     )
                 finally:
                     release.set()
@@ -713,14 +776,50 @@ async def generate_contract(opened):
         setup.files.read.assert_not_called()
         setup.owner.fetcher.fetch.assert_not_awaited()
 
+    recoveries = [await startup_recovery(opened), await llm_startup_recovery(opened, llm_prefix)]
+    async with opened("ct10", searched=True) as setup:
+        planning = await stream(
+            setup.client,
+            "search_planning",
+            await create(setup.client),
+            "plan",
+            {"action": "runs", "content": "Find public evidence"},
+        )
+        streams.append(planning)
+        setup.searcher.search.assert_not_awaited()
+        case = await stream(
+            setup.client,
+            "search_execution",
+            planning["terminal"],
+            "execute",
+            {"action": "execute", **await identity(setup.client, planning["terminal"])},
+        )
+        streams.append(case)
+        setup.searcher.search.assert_awaited_once_with("  public evidence 🌱  ", 2)
+        setup.owner.fetcher.fetch.assert_not_awaited()
+        setup.files.read.assert_not_called()
+        setup.synthesis_transport.send_once.assert_awaited_once()
+        evidence = json.loads(setup.synthesis_requests[0]["input"][0]["content"])
+        assert evidence["approved_plan"] == case["terminal_run"]["plan"]
+        assert evidence["results"] == case["terminal_run"]["results"]
+        assert evidence["results"][0]["search"]["results"] == setup.hits
+        sid = case["terminal"]["id"]
+    async with opened("ct10", searched=True) as setup:
+        assert await get(setup.client, sid) == case["terminal"]
+        assert await detail(setup.client, case["terminal"]) == case["terminal_run"]
+        response = await setup.client.get(
+            f"{BASE}/{sid}/runs/{case['terminal_run']['id']}/results?limit=20"
+        )
+        assert response.status_code == 200
+        case["results_page"] = response.json()
+        setup.searcher.search.assert_not_awaited()
+        setup.synthesis_transport.send_once.assert_not_awaited()
+
     return {
         "version": 2,
         "streams": streams,
         "errors": errors,
-        "recoveries": [
-            await startup_recovery(opened),
-            await llm_startup_recovery(opened, llm_prefix),
-        ],
+        "recoveries": recoveries,
     }
 
 
@@ -736,6 +835,8 @@ def assert_representative(contract):
         "fetch_execution",
         "recorded_planning",
         "grep_execution",
+        "search_planning",
+        "search_execution",
     }
     for case in contract["streams"]:
         assert all(frame["data"]["invalidates_runs"] is False for frame in events(case["sse"]))
@@ -835,6 +936,37 @@ def assert_representative(contract):
     assert frames[3]["data"]["result"] == result
     assert [frame["data"]["run"]["result_count"] for frame in frames] == [0, 0, 1, 1, 1]
     assert [frame["data"]["run"]["completed_steps"] for frame in frames] == [0, 0, 0, 1, 1]
+    search_plan = cases["search_planning"]["terminal_run"]["plan"]
+    searched = cases["search_execution"]
+    assert searched["terminal_run"]["plan"] == search_plan
+    assert search_plan["access_policy"]["tool_registry_version"] == "agent-tools-v4-exact"
+    (step,) = search_plan["steps"]
+    assert step["tool"] == "web_search"
+    assert step["arguments"] == {"query": "  public evidence 🌱  ", "max_results": 2}
+    (result,) = searched["terminal_run"]["results"]
+    assert result["step_id"] == step["id"] and result["status"] == "completed"
+    assert result["search"]["query"] == step["arguments"]["query"]
+    assert result["search"]["max_results"] == 2 and len(result["search"]["results"]) == 2
+    frames = events(searched["sse"])
+    types = [frame["data"]["type"] for frame in frames]
+    assert types[:4] == ["run.approved", "run.executing", "tool.intent", "tool.result"]
+    assert types[4:] == [
+        "llm.intent",
+        "llm.dispatched",
+        "llm.output",
+        "llm.outcome",
+        "llm.validation",
+        "run.completed",
+    ]
+    assert frames[3]["data"]["result"] == result
+    assert frames[-1]["data"]["answer"] == searched["terminal_run"]["answer"]
+    assert searched["terminal_run"]["answer"] == (
+        "Provenance note: Web search results are snippets provided by the search service; "
+        "the search itself does not independently verify their contents, and the results "
+        "do not establish that their source pages were fetched.\n\n"
+        "The snippet reports public evidence [https://example.org/evidence]."
+    )
+    assert searched["results_page"]["results"] == [result]
     recorded = cases["recorded_planning"]
     frames = events(recorded["sse"])
     assert [frame["data"]["type"] for frame in frames] == [
@@ -924,7 +1056,7 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
     generated = await generate_contract(contract_setup)
     assert_representative(generated)
     serialized = json.dumps(generated, ensure_ascii=False, indent=2) + "\n"
-    assert len(serialized.encode()) < 170_000, "Keep this representative fixture small"
+    assert len(serialized.encode()) < 210_000, "Keep this representative fixture small"
     assert str(tmp_path) not in serialized
     assert "audit" not in serialized
     for canary in PRIVATE_CANARIES:
@@ -933,10 +1065,6 @@ async def test_agent_contract_fixture(contract_setup, tmp_path):
         assert FIXTURE.parent.is_dir(), "Verify the known UI fixture parent before regenerating"
         FIXTURE.write_text(serialized, encoding="utf-8")
     checked = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    # The unchanged UI fixture retains its historical archive scenario; the
-    # removed endpoint's replacement is asserted above and in deletion tests.
-    checked["streams"] = [c for c in checked["streams"] if c["name"] != "cancellation_archive"]
-    generated["streams"] = [c for c in generated["streams"] if c["name"] != "cancellation_archive"]
     assert semantic(checked) == semantic(generated), (
         "Public Agent wire fixture drifted. Review the change, then explicitly regenerate "
         "with UPDATE_AGENT_CONTRACT_FIXTURE=1 uv run --offline --frozen pytest "

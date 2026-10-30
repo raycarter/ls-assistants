@@ -4,6 +4,10 @@ Design and research: [AGENT_MODE_TODO.md](AGENT_MODE_TODO.md).
 
 This is the only implementation progress/evidence ledger; use the plan for architecture, contracts, rationale, and references. Phases group capabilities, not a mandatory backend-first waterfall: follow task prerequisites and bring forward the minimum pieces for the early vertical slice below. Mark a task complete only after its implementation and associated verification pass. The mocked tool slice, incremental storage, quota-free/paged-view increments, recorded LLM foundation, production planning, final synthesis, approved filesystem wiring, adaptive file reads, and literal folder grep are implemented and mock-verified with passing full regression checks. The full Agent release and phase gates remain incomplete. Checked tasks have scoped evidence in the verification records, not an implied full release.
 
+**Current search increment:** Tavily Basic search is implemented and mock-verified; scoped security and UI reviews passed after fixes. `TAVILY_API_KEY` enables it; a Basic request consumes provider credits. Only the approved step's exact query is sent as search content, with `max_results` from 1 to 20 per request and no cumulative search quota. Results are snippets, not fetched pages; a separate approved `web_fetch` step is required. Live verification remains open.
+
+Search requests identity encoding and fails non-identity or over-1-MiB responses rather than truncating them; the size limit is per response, not a cumulative quota. Completed answers with search hits receive a deterministic snippet-provenance note. Configuration is optional, and old versioned v3 registry plans need a fresh plan and approval. The scoped verification record below does not complete the broader release gates.
+
 **Firm constraint:** Borrow OpenCode's architectural/behavioral ideas only. Write the implementation independently; do not copy, translate, vendor, or adapt OpenCode implementation code or embed its runtime.
 
 **Confirmed product rules (2026-10-19):** approve each plan once and obtain approval for each new/revised executable plan; no separate step/tool/query approval; no product-level step/call/run-duration or retained-history quotas; web search only when the task needs it. Record every LLM interaction in its session folder with plan, step/stage, timestamp, model, actual prompt/input, and observable response/output. Runtime quota removal is implemented. Step 3 established the recorded request/transport/attempt boundary; the subsequent direct HTTPX production planning/revision adapter is wired in `main.py` with mocked retry/configuration evidence, independent review, and passing full regression checks. The old injected fixture path is `logical_only` evidence.
@@ -54,13 +58,14 @@ Depends on Phase 0 contracts.
 Depends on Phase 1 schemas and recording primitives.
 
 - [ ] **P2-01** Add a fixed registry for `web_search`, `web_fetch`, `read_file`, and `grep_in_folder`, with strict argument/result validation.
-  - [x] Recognize all four names; enable and strictly validate `read_file`/`web_fetch`/`grep_in_folder`, expose descriptions to the planner, and bind availability/policy to approval. Search remains explicitly disabled. Scoped grep evidence is recorded below; the all-four-tool parent remains open.
+  - [x] Scoped grep increment: recognize all four names; enable and strictly validate `read_file`/`web_fetch`/`grep_in_folder`, expose descriptions to the planner, and bind availability/policy to approval. Search was disabled at that checkpoint. Scoped grep and subsequent search evidence are recorded below; the all-four-tool parent remains open for broader requirements.
 - [x] **P2-02** Enforce `/tmp/ls-assistants` as the sole configured filesystem-tool root, with shared exclusions, containment, and no-follow checks for read and grep; handle the trusted platform `/tmp` alias without permitting workspace symlink escapes or widening access.
   - [x] Scoped default root/read wiring: pure `agent_workspace.build_file_policy()` mapping for fixed `workspace`, Darwin physical `/private/tmp/ls-assistants` and non-Darwin logical `/tmp/ls-assistants`; unchanged descriptor no-follow and exclusion policy. Shared grep enforcement and focused tests now cover this scope; see the grep record below. Broader all-tool/release gates remain open.
 - [x] **P2-03** Implement bounded text `read_file`: relative paths, numbered lines, pagination, safe errors, and truncation metadata.
 - [x] **P2-04** Implement incremental literal `grep_in_folder`: filtered traversal, optional file glob, relative path/line matches, and paged/continuable results rather than cumulative scan/match quotas. Final scoped reviews and full checks are recorded in the grep record.
 - [ ] **P2-05** Move blocking filesystem work off the event loop; add cooperative cancellation and retain ownership until workers settle.
-- [ ] **P2-06** Implement task-dependent Tavily search with HTTPX, provider-supported result paging, citations, and per-request timeouts; no mandatory search step, per-run call quota, extra query approval, silent fallback, or implicit page fetching.
+- [x] **P2-06 — Scoped Tavily search:** Implement task-dependent search with HTTPX, a single bounded result set, citations, and per-request timeouts; no mandatory search step, per-run call quota, extra query approval, silent fallback, or implicit page fetching.
+  - `max_results` bounds each response to `1..20` hits; arbitrary result pagination is not implemented. Scoped mocked checks and reviews are recorded below; live provider verification remains open.
 - [ ] **P2-07** Add safe configuration examples in `bff/.env.example`; keep credentials out of UI, logs, and tool results.
 - [ ] **P2-08** Test path escapes, symlink races, secret exclusions through both tools, binary/special files, oversized data, cancellation, search failures, and missing configuration.
 - [x] **P2-09** Implement `web_fetch` using HTTPX public HTTP(S) GET and static HTML/main-text/plain-text extraction; return requested/final URL, title, status/content type, retrieval timestamp, and extracted content with continuation when needed. No browser/JavaScript execution or arbitrary file downloads.
@@ -74,7 +79,7 @@ Depends on Phase 1 primitives and Phase 2 registry/policy schemas; full implemen
 
 - [x] **P3-01** Add BFF-owned, versioned Agent instructions independent of the editable Chat prompt catalogue.
 - [ ] **P3-02** Implement tool-free structured planning with objective, unverified assumptions, ordered steps, intended tools, and expected results; allow no-tool/no-search plans and omit task-budget fields.
-  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions; validate proposals in the coordinator. Planning-v3 passed with adaptive reads; planning-v4 grep evidence and final checks are recorded below. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
+  - [x] Wire pure request construction and strict closed manual schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions; validate proposals in the coordinator. Planning-v3 passed with adaptive reads; planning-v4 grep and planning-v5 configured-search evidence are recorded below. Revision supplies feedback without old-plan history. No-tool plans remain open; the broad parent is partial.
 - [ ] **P3-03** Validate capabilities; persist clarification question IDs and accept answers through discriminated `/revise` requests, with new planning operation IDs and stale-answer rejection.
 - [x] **P3-04** Persist immutable plan revisions, stable step IDs, canonical digests, and frozen model/thinking/policy settings.
 - [ ] **P3-05** Implement serialized clarification/review transitions and one approval before each plan's execution; steps, queries, tool calls, and ordinary retries must not ask for additional approval.
@@ -423,7 +428,14 @@ remains uncommitted; at that checkpoint no live grep or full-release verificatio
 ## Next MVP priorities
 
 1. Complete the grep → plan → approval → retained matches → synthesis → reload walkthrough. User-reported live deployment search and adaptive full-read evidence are recorded above. Dependent follow-up reads chosen from matches remain separate work.
-2. Implement optional Tavily web search.
+2. Complete the user walkthrough for search and a task that does not need search; live provider verification remains separately authorized under LIVE-01/LIVE-02.
 3. Support no-tool/reasoning-only tasks without unnecessary file or web access.
 
 Targeted revision refinements and a larger autonomous execution loop are not the next MVP slice.
+
+## Verification record — scoped Tavily search
+
+- Supplied full regression results before the final message-only provenance-note edit: **2,035 backend tests** and **867 UI tests** passed. Full lint, formatting, type, build and other checks also passed.
+- After that edit, supplied focused verification passed **95 backend tests** and **32 UI tests**. The full suites were not rerun after the message-only edit; do not interpret the earlier full-suite counts as later runs.
+- Independent security and UI reviews passed following fixes. This evidence covers the scoped search increment, not the broader release gates or live provider compatibility.
+- No live Tavily verification was performed. LIVE-01/LIVE-02 remain open; no live calls were made for this documentation update.

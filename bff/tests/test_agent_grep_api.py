@@ -112,12 +112,12 @@ async def test_default_planning_approval_real_search_synthesis_full_paging_resta
             sid, run, _ = await plan(client)
         assert run["status"] == "awaiting_approval"
         assert run["plan"]["steps"][0]["arguments"] == fixture.arguments
-        assert run["plan"]["access_policy"]["tool_registry_version"] == "agent-tools-v3-exact"
+        assert run["plan"]["access_policy"]["tool_registry_version"] == "agent-tools-v4-exact"
         scan.assert_not_called()
         fixture.files.read.assert_not_called()
         fixture.fetcher.fetch.assert_not_awaited()
         planning = audits(owner, sid)[0][0]["data"]
-        assert planning["instructions_version"] == "agent-responses-planning-v4"
+        assert planning["instructions_version"] == "agent-responses-planning-v5"
         response, completed = await execute(client, sid, run)
         assert decode(response)[-1]["type"] == "run.completed"
         assert completed["answer"] == COVERAGE_NOTE + ANSWER
@@ -248,7 +248,7 @@ async def test_backend_coverage_warning_overrides_confident_claim_and_survives_r
         if not warned:
             assert not completed["answer"].startswith("Coverage note:")
         synthesis = audits(owner, sid)[1]
-        assert synthesis[0]["data"]["instructions_version"] == "agent-responses-synthesis-v3"
+        assert synthesis[0]["data"]["instructions_version"] == "agent-responses-synthesis-v4"
         output = next(row["data"] for row in synthesis if row["kind"] == "output")
         assert output["body"] == raw_body
         assert output["body"]["output"][1]["content"][0]["text"] == claim

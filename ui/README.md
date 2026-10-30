@@ -166,7 +166,7 @@ prompt propagation, send, retry or deletion through Chat routes.
 ### Implemented interaction
 
 Request → tool-free plan → structured scope review → **Approve and run** → approved `read_file`/
-`web_fetch`/`grep_in_folder` steps → tool-free final synthesis → paginated GET-based history after reload. The default
+`web_fetch`/`web_search`/`grep_in_folder` steps → tool-free final synthesis → paginated GET-based history after reload. Search is available when the BFF is configured. The default
 BFF calls the Responses provider for planning, plan-feedback revisions, each read assessment and final synthesis through
 its recorded adapters sharing a controlled dedicated HTTPX client. Provider/deployment compatibility,
 implementation status, test evidence and remaining checks are tracked only in the
@@ -178,7 +178,7 @@ paging/chunk explanations, whole-file notes or generated read titles/description
 a read also hides its objective, assumptions and full-plan JSON to prevent read narrative leaks.
 The original user request remains shown; fetch details and fetch-only review remain unchanged.
 This is a display projection: the actual full wire plan, policy and digest remain preserved and
-approval-bound. New production plans bind `agent-tools-v3` / `read_semantics:file-scoped-v1`.
+approval-bound. New production plans bind `agent-tools-v4` / `read_semantics:file-scoped-v1`.
 Historical exact-page plans cannot gain adaptive authority through old-policy compatibility;
 obtain a fresh plan and approval. Generic injected BFF fixtures without an assessor retain exact reads.
 After all approved steps commit, the BFF reloads the approved plan and all ordered
@@ -248,6 +248,26 @@ another execution. Loading/errors are result-local; session changes and componen
 or suppress stale results. Reload restores the execution preview and access to retained pages, not
 the prior inspector position.
 
+### Web search
+
+The BFF enables Tavily Basic search when the optional `TAVILY_API_KEY` is configured locally;
+Basic requests consume provider credits under Tavily's pricing. Review shows the exact
+query and `max_results` (`1..20` per request), covered by the single plan approval.
+There is no cumulative search quota. After approval, only that query is sent as search
+content, with request parameters; files are not implicitly uploaded. Result cards show
+provider-returned titles, URLs, snippets and optional dates as untrusted search results,
+not fetched pages. Links are not automatically fetched; actual page text requires a
+separate approved `web_fetch` step. Each search returns one bounded result set; arbitrary
+result pagination is not implemented. Scoped mocked verification and reviews passed;
+live provider compatibility remains unverified. See the [checklist](../AGENT_MODE_CHECKLIST.md).
+
+The BFF requests identity encoding and rejects other encodings; a response over 1 MiB
+fails rather than being truncated. This is a per-response guard, not a cumulative quota.
+When a completed run has search hits, the backend deterministically prepends an answer
+note explaining that search-service snippets do not establish that source pages were
+fetched. Old versioned `agent-tools-v3` and `agent-tools-v3-exact` plans need a fresh
+plan and approval under the current registry; historical plan bytes and digests remain intact.
+
 ### Literal folder grep
 
 Grep review displays its exact `{workspace_id,path,pattern,file_glob,offset,limit}`
@@ -282,7 +302,7 @@ or `next_offset != null`. It does not automatically synthesize all retained page
 
 The changed enabled tools/registry version require fresh review of old versioned plans;
 legacy read-only fallback cannot authorize grep. Generic no-assessor services bind
-`agent-tools-v3-exact`. This tool does not add a general tool loop or dependent read flow.
+`agent-tools-v4-exact`. This tool does not add a general tool loop or dependent read flow.
 
 ### Paged history and loaded views
 
@@ -447,8 +467,8 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   Startup, health and model listing make no provider/token calls or session reads. An explicitly
   injected service with no planner retains `503 agent_not_configured`. Provider compatibility
   evidence is maintained in the root checklist.
-- The BFF supports approved `read_file`, `web_fetch` and `grep_in_folder` steps through its production planner. Web search
-  (including Tavily) and no-tool steps remain unavailable. The full four-tool release,
+- The BFF supports approved `read_file`, `web_fetch` and `grep_in_folder` steps, and
+  `web_search` when Tavily is configured, through its production planner. No-tool steps remain unavailable. The full four-tool release,
   autonomous model/tool loop, general model-driven step results, continuation replay and revision prior
   context remain deferred. Default final output is a recorded tool-free synthesis; only explicitly
   injected `AgentService` instances with `synthesizer=None` retain a deterministic receipt for fixtures.
@@ -459,9 +479,9 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   are bound to it. The legacy planner fixture path stays `logical_only`. Final synthesis uses
   `RecordedSynthesizer` with `phase:synthesis`, bound to the execution operation and approved
   plan/revision, with its own stage/interaction/attempt identity. The adapters use no Agent SDK.
-- The `agent-responses-planning-v4` request builder is pure and tool-free, uses frozen model/effort,
+- The `agent-responses-planning-v5` request builder is pure and tool-free, uses frozen model/effort,
   `store=False`, `stream=False` and configured maximum output tokens, and supplies a manually reviewed
-  strict closed schema for objective/assumptions and at least one `read_file`/`web_fetch`/`grep_in_folder` step.
+  strict closed schema for objective/assumptions and at least one available `read_file`/`web_fetch`/`web_search`/`grep_in_folder` step.
   Revision supplies feedback without old-plan history in the current interface. Default file scope
   is the fixed `workspace` mapping above; no-tool plans remain open. Read instructions describe purpose
   without paging/chunk/whole-file narratives; legacy offset/limit fields remain validated internal hints.
@@ -478,7 +498,7 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   raw bytes. HTTP stream read ownership retains failed partial bodies reversibly as UTF-8/base64;
   complete response observations precede proposal decoding, with unsafe/deep JSON falling back to
   raw evidence. Response close remains owned through repeated cancellation. The retained lifespan
-  exit-stack task closes Agent → Agent HTTP → Chat SDK → credential after settlement.
+  exit-stack task closes Agent → optional search HTTP → Agent HTTP → Chat SDK → credential after settlement.
 - Fetch handles public static HTML/plain text only, not authenticated/internal pages or browser/JS
   rendering. The BFF requests identity encoding and rejects compressed responses; static extraction
   can report unsupported/empty pages. These per-request protocol/parser guards do not allocate
@@ -498,8 +518,7 @@ changes. The key shares Chat's injectable storage boundary for deterministic tes
   Credential/client/settings fields are structurally excluded, without substring redaction of permitted
   source/user content or opaque bodies. This is neither guaranteed scrubbing nor hidden-reasoning capture.
   Legacy archives preserve records; there is no automatic expiry. Permitted content may contain sensitive
-  text; there is no guarantee of secret-content scrubbing. Approved fetch URLs leave the BFF;
-  future search queries would too.
+  text; there is no guarantee of secret-content scrubbing. Approved fetch URLs and search queries leave the BFF.
   Provider usage is retained privately when supplied; the UI does not display it or promise a currency ceiling.
 - Mocked approval/Stop tests verify UI command ownership only. Durable approval, tool authorization,
   request-id idempotency and cancellation settlement remain BFF responsibilities.

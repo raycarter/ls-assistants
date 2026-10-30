@@ -164,6 +164,56 @@ describe('safe fetched evidence workspace', () => {
     return session;
   }
 
+  it('reviews and renders untrusted search snippets with safe links only and no automatic fetch', async () => {
+    const session = fetchedSession();
+    const run = session.runs[0];
+    run.plan!.steps[0] = {
+      id: run.results[0].step_id,
+      title: '<img src=x>',
+      description: 'Search',
+      tool: 'web_search',
+      arguments: { query: '  <svg onload=bad()>  ', max_results: 2 },
+    };
+    Object.assign(run.results[0], {
+      content: '',
+      fetch: null,
+      read: null,
+      path: null,
+      offset: null,
+      returned_lines: null,
+      truncated: false,
+      search: {
+        query: '  <svg onload=bad()>  ',
+        max_results: 2,
+        results: [
+          {
+            title: '<script>bad()</script>',
+            url: 'https://example.com/a',
+            snippet: '<img src=x onerror=bad()> **text**',
+            published_date: '2026-01-01',
+          },
+          { title: 'Unsafe', url: 'javascript:alert(1)', snippet: 'snippet', published_date: null },
+        ],
+      },
+    });
+    parseAgentRun(run);
+    await render(session);
+    const plan = root().querySelector('[aria-label="Reviewed plan"]')!;
+    expect(
+      JSON.parse(plan.querySelector('[aria-label="Exact tool arguments"] pre')!.textContent!),
+    ).toEqual(run.plan!.steps[0].arguments);
+    const card = root().querySelector('[aria-label="Web search results"]')!;
+    expect(card.textContent).toContain('search results, not fetched pages');
+    expect(card.textContent).toContain('<img src=x onerror=bad()> **text**');
+    expect(card.textContent).toContain('javascript:alert(1)');
+    expect(card.querySelectorAll('a')).toHaveLength(1);
+    expect(card.querySelector('a')!.getAttribute('href')).toBe('https://example.com/a');
+    expect(card.querySelector('a')!.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(card.querySelector('script, img, svg, strong')).toBeNull();
+    expect(plan.querySelector('img, svg')).toBeNull();
+    expect(fetchDouble).toHaveBeenCalledOnce();
+  });
+
   it('reviews literal grep scope and initial evidence arguments, rendering JSONL as text', async () => {
     const session = grepSession();
     await render(session);
@@ -260,7 +310,9 @@ describe('safe fetched evidence workspace', () => {
       skipped_unreadable: 0,
     });
     result.truncated = false;
-    session.runs[0].plan!.steps[0].arguments.limit = 20;
+    const initialStep = session.runs[0].plan!.steps[0];
+    if (initialStep.tool !== 'grep_in_folder') throw new Error('Expected grep');
+    initialStep.arguments.limit = 20;
     parseAgentRun(session.runs[0]);
     await render(session);
     expect(root().textContent).toContain('0 matches');
@@ -273,7 +325,9 @@ describe('safe fetched evidence workspace', () => {
       total_chars: metadata.total_chars + 4,
       next_offset: metadata.next_offset! + 4,
     });
-    resumed.runs[0].plan!.steps[0].arguments.offset = 4;
+    const resumedStep = resumed.runs[0].plan!.steps[0];
+    if (resumedStep.tool !== 'grep_in_folder') throw new Error('Expected grep');
+    resumedStep.arguments.offset = 4;
     parseAgentRun(resumed.runs[0]);
     state.sessions.set([resumed]);
     await settle();
@@ -335,7 +389,8 @@ describe('safe fetched evidence workspace', () => {
     expect(plan.textContent).not.toContain('Workspace:');
     expect(plan.textContent).not.toContain('Lines');
     expect(plan.textContent).not.toContain('tool calls');
-    expect(root().textContent).toContain('Search is unavailable');
+    expect(root().textContent).toContain('Search returns snippets');
+    expect(root().textContent).toContain('Web search is available only when configured by the BFF');
     expect(root().textContent).toContain('determined by the BFF');
     expect(root().textContent).toContain('not a complete LLM audit');
     const file = parseAgentSession(
@@ -362,6 +417,7 @@ describe('safe fetched evidence workspace', () => {
     result.fetch!.total_chars = result.fetch!.returned_chars;
     result.fetch!.next_offset = null;
     const step = session.runs[0].plan!.steps[0];
+    if (step.tool !== 'web_fetch') throw new Error('Expected fetch');
     step.arguments.limit = result.fetch!.returned_chars;
     await render(session);
     const card = root().querySelector('[aria-label="Step result"]')!;
@@ -426,6 +482,7 @@ describe('safe fetched evidence workspace', () => {
       run.plan!.objective = 'LEAK-OBJECTIVE: read the whole file using paging';
       run.plan!.assumptions = ['LEAK-ASSUMPTION: 9 chunks cover the full file'];
       const step = run.plan!.steps[0];
+      if (step.tool !== 'read_file') throw new Error('Expected read');
       step.title = 'LEAK-TITLE: read full file in 9 chunks';
       step.description = 'LEAK-DESCRIPTION: offset 719 limit 823';
       step.arguments.offset = 719;

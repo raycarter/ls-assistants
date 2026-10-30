@@ -54,6 +54,18 @@ def create_app(
                     timeout=configuration.provider_timeout_seconds
                 )
                 stack.push_async_callback(agent_client.aclose)
+                searcher = None
+                if configuration.tavily_api_key is not None:
+                    # Isolate credentials and cookies from the LLM provider client.
+                    from app.tools.web_search import TavilySearch
+
+                    search_client = create_http_client(
+                        timeout=configuration.provider_timeout_seconds
+                    )
+                    stack.push_async_callback(search_client.aclose)
+                    searcher = TavilySearch(
+                        configuration.tavily_api_key.get_secret_value(), search_client
+                    )
                 agent_service = AgentService(
                     files=build_file_policy(),
                     read_assessor=build_read_assessor(
@@ -75,6 +87,7 @@ def create_app(
                         configuration.max_output_tokens,
                     ),
                     models=configuration.available_models,
+                    searcher=searcher,
                     eager=False,
                 )
             application.state.agent_service = agent_service

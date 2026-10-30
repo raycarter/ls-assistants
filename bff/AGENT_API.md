@@ -1,12 +1,12 @@
-# Agent: adaptive reads, literal folder grep and paginated public v2
+# Agent: search, adaptive reads, literal folder grep and paginated public v2
 
 This backend implements request → provider-generated tool-free plan → exact-version approval
-→ approved `read_file`/`web_fetch`/`grep_in_folder` steps → persisted results → tool-free final synthesis
+→ approved `read_file`/`web_fetch`/`web_search`/`grep_in_folder` steps → persisted results → tool-free final synthesis
 → paginated history. The default `main.py` composition wires Responses planning/revision
 and read assessment/final synthesis through the recorded LLM boundary, sharing a controlled dedicated
 HTTPX client.
 No Agent SDK is used. Live compatibility evidence belongs only in the checklist.
-Search, clarification, no-tool plans, an autonomous model/tool loop, continuation
+Clarification, no-tool plans, an autonomous model/tool loop, continuation
 replay, dependent follow-up reads from grep, revision prior context, and full audit UI remain deferred.
 Implementation progress and all verification evidence are tracked only in
 [the root checklist](../AGENT_MODE_CHECKLIST.md).
@@ -60,7 +60,7 @@ storage endpoint**, never read/created at default application startup. An
 explicitly injected store is recovered during lifespan startup. Tests always inject
 temporary paths. Startup, health, and model listing make no provider/token calls
 or session reads. `main.py` retains an exit-stack cleanup task through repeated
-cancellation: settle/close Agent → dedicated Agent HTTP → Chat SDK → credential.
+cancellation: settle/close Agent → optional search HTTP → dedicated Agent HTTP → Chat SDK → credential.
 Construction failures unwind already-registered resources in the same order.
 
 `fetcher=WebFetcher(...)` is an optional injection seam; the default is the safe
@@ -89,17 +89,18 @@ plan's effective-policy digest. Current file policy is `read-text-v4`; its narro
 compatibility check also accepts the known `read-text-v3` rules digest at identical
 workspace/root/storage scope. It does not accept arbitrary older rules or expand
 access. Other policy changes require a newly reviewed plan and fresh approval.
-New production plans also bind `tool_registry_version:"agent-tools-v3"`,
+New production plans also bind `tool_registry_version:"agent-tools-v4"`,
 `read_semantics:"file-scoped-v1"`, enabled tools and network-policy version.
 Old exact-page read plans cannot acquire adaptive authority through the v3/v4
 filesystem compatibility rule or legacy registry matching: obtain a fresh plan and
 approval. Historical wire plans and digests remain exact and unchanged.
 A legacy file-only policy can retain its unchanged original digest for `read_file`
-only; it cannot authorize fetch or grep. All four tool names are recognized;
-`read_file`, `web_fetch` and `grep_in_folder` are enabled; `web_search` remains disabled.
-Generic no-assessor services bind `agent-tools-v3-exact`. Changed registry versions
+only; it cannot authorize fetch, grep or search. All four tool names are recognized;
+`web_search` is enabled when a searcher is configured, and the other three are enabled.
+Generic no-assessor services bind `agent-tools-v4-exact`. Changed registry versions
 and enabled tools require fresh review/approval of old versioned plans; historical
-bytes and digests remain unchanged.
+bytes and digests remain unchanged. In particular, `agent-tools-v3` and
+`agent-tools-v3-exact` plans need a fresh plan and approval under the current registry.
 
 ## Recorded LLM requests, observations and attempts
 
@@ -124,7 +125,7 @@ evidence; the production adapter sends those exact bytes directly over HTTPX.
 ### Production Responses planning/revision adapter
 
 `agent_responses.py` builds `RecordedPlanner` with `ResponsesTransport` and version
-`agent-responses-planning-v4`. Request construction is pure and tool-free. The
+`agent-responses-planning-v5`. Request construction is pure and tool-free. The
 request uses frozen model/explicit reasoning effort, `store:false`, `stream:false`,
 and `Settings.max_output_tokens`. Its input contains the request, workspace IDs,
 available-tool descriptions, and revision feedback; the current interface provides
@@ -132,7 +133,7 @@ no old-plan history. It sends no provider tools or previous-response ID.
 
 The manually reviewed strict JSON schema is closed (`additionalProperties:false`,
 all properties required). It requires objective, assumptions, and at least one
-`read_file`/`web_fetch`/`grep_in_folder` step, with expected outcomes in descriptions. Strict local
+`read_file`/`web_fetch`/`web_search`/`grep_in_folder` step, with expected outcomes in descriptions. Strict local
 shape/domain checks and coordinator capability/policy validation remain authoritative;
 provider structured-output acceptance is not authorization. No-tool plans are not
 supported by this adapter. Default file scope is the fixed `workspace` mapping above.
@@ -447,6 +448,8 @@ tools have matching strict arguments:
   approval; production adaptive execution begins at byte zero regardless of them.
 - `tool:"web_fetch"`: `{url,offset,limit}`; zero-based Unicode-character offset,
   default `0`, and page size `1..16000`, default `12000`.
+- `tool:"web_search"`: `{query,max_results}`; exact nonblank query and strict integer
+  `max_results` in `1..20` per request. This is not a cumulative quota.
 - `tool:"grep_in_folder"`: `{workspace_id,path,pattern,file_glob,offset,limit}`;
   relative folder `path` defaults to `"."`; `pattern` is a nonempty case-sensitive
   single-line literal; optional `file_glob` defaults to null. `offset` defaults to
@@ -457,7 +460,7 @@ No reasoning-only/null-tool steps are advertised yet. Planning validates URL syn
 without DNS, HTTP, or any tool invocation.
 
 Results contain `step_id,status,content,time,error` plus
-`path,offset,returned_lines,truncated,fetch` and optional `read` or `grep`. Legacy exact-read
+`path,offset,returned_lines,truncated,fetch` and optional `read`, `grep` or `search`. Legacy exact-read
 content is numbered UTF-8 text. Adaptive content is cumulative model findings and
 `read` contains `{chunks,bytes_read,total_bytes,eof,stop_reason,file_version}`.
 `chunks >= 1`, `0 <= bytes_read <= total_bytes`; EOF means all bytes were covered and
@@ -491,11 +494,41 @@ normal `422` format. Raw provider exceptions are never used as messages.
 
 Clarification-shaped `/revise` and `/reject` requests are strictly parsed but
 return `501 clarification_unavailable`; no clarification state is produced.
-Search/Tavily, null-tool steps, revision prior context and function-loop/model
+Null-tool steps, revision prior context and function-loop/model
 continuation replay are unavailable. Shared audit/request primitives retain canonical
 and opaque continuation items without replaying them. Final tool-free synthesis does
 not implement the broader function loop. File-scoped assessment is the limited
 model-driven execution path described above.
+
+## Tavily search
+
+Default composition enables search when `TAVILY_API_KEY` is set; otherwise the
+registry rejects search as an unsupported capability before approval. Injected services
+can provide a searcher independently. The dedicated HTTPX client uses the configured
+provider timeout, no ambient credentials, and no redirects or automatic retries.
+Planning performs no search. Execution sends only the approved step's exact query as
+search content, plus request parameters, to Tavily's Search API. Basic depth is fixed,
+automatic parameters, raw content and provider answer are disabled, and published dates
+are requested. Basic requests consume provider credits under Tavily's pricing.
+
+Each request's `max_results` is `1..20`; there is no cumulative call or result quota.
+Each search returns one bounded result set; arbitrary result pagination is not implemented.
+The adapter requests identity encoding and rejects other content encodings. A response
+over 1 MiB (1,048,576 bytes) fails rather than returning truncated results; this is a
+per-response guard, not a cumulative quota.
+Successful optional `result.search` contains `{query,max_results,results}`, with hits
+`{title,url,snippet,published_date}` (date may be null). These are untrusted
+provider-returned snippets, not full fetched pages. Search neither fetches returned
+links nor uploads files implicitly; a separate approved `web_fetch` step is needed
+for page text. Search failures are reported as `web_search_failed`. Scoped mocked
+verification and reviews passed; live provider compatibility remains unverified. See
+the [checklist](../AGENT_MODE_CHECKLIST.md) for the precise verification checkpoints.
+
+If a completed run has at least one search hit, the backend deterministically prepends
+to the answer: “Provenance note: Web search results are snippets provided by the search
+service; they are not evidence that their source pages were fetched.” This applies to
+both synthesized answers and injected-service completion receipts; an empty search
+result alone does not trigger the note.
 
 ## Literal folder grep and retained evidence
 

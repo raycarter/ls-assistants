@@ -38,6 +38,13 @@ export interface BackendGrepMetadata {
   complete: boolean;
 }
 export type GrepMetadata = BackendGrepMetadata;
+export interface SearchArguments {
+  query: string;
+  max_results: number;
+}
+export interface SearchMetadata extends SearchArguments {
+  results: { title: string; url: string; snippet: string; published_date: string | null }[];
+}
 export type AgentStep =
   | LegacyStep
   | {
@@ -46,12 +53,31 @@ export type AgentStep =
       description: string;
       tool: 'grep_in_folder';
       arguments: GrepArguments;
+    }
+  | {
+      id: string;
+      title: string;
+      description: string;
+      tool: 'web_search';
+      arguments: SearchArguments;
     };
 export interface AgentPlan extends Omit<LegacyPlan, 'steps'> {
   steps: AgentStep[];
 }
 export interface StepResult extends LegacyResult {
   grep?: GrepMetadata | null;
+  search?: SearchMetadata | null;
+}
+
+function validSearchArguments(value: unknown): value is SearchArguments {
+  return (
+    object(value) &&
+    onlyKeys(value, ['query', 'max_results']) &&
+    text(value['query']) &&
+    value['query'].trim().length > 0 &&
+    integer(value['max_results'], 1) &&
+    value['max_results'] <= 20
+  );
 }
 
 function validGrepArguments(value: unknown): value is GrepArguments {
@@ -76,16 +102,18 @@ export function validPlan(value: unknown): value is AgentPlan {
   const steps = [];
   for (const step of value['steps']) {
     if (!object(step)) return false;
-    if (step['tool'] !== 'grep_in_folder') {
+    if (step['tool'] !== 'grep_in_folder' && step['tool'] !== 'web_search') {
       steps.push(step);
       continue;
     }
-    if (!validGrepArguments(step['arguments'])) return false;
+    const args = step['arguments'];
+    if (step['tool'] === 'grep_in_folder' ? !validGrepArguments(args) : !validSearchArguments(args))
+      return false;
     steps.push({
       ...step,
       tool: 'read_file',
       arguments: {
-        workspace_id: step['arguments'].workspace_id,
+        workspace_id: 'validation',
         // Validate the shared envelope only; grep's literal fields were checked above.
         path: '.',
         offset: 1,
@@ -144,9 +172,44 @@ function validGrep(value: unknown, content: string): value is GrepMetadata {
   }
 }
 
+function validSearch(value: unknown): value is SearchMetadata {
+  if (
+    !object(value) ||
+    !onlyKeys(value, ['query', 'max_results', 'results']) ||
+    !validSearchArguments({ query: value['query'], max_results: value['max_results'] }) ||
+    !Array.isArray(value['results']) ||
+    value['results'].length > (value['max_results'] as number)
+  )
+    return false;
+  return value['results'].every(
+    (item: unknown) =>
+      object(item) &&
+      onlyKeys(item, ['title', 'url', 'snippet', 'published_date']) &&
+      text(item['title']) &&
+      text(item['url']) &&
+      text(item['snippet']) &&
+      (item['published_date'] === null || text(item['published_date'])),
+  );
+}
+
 export function validResult(value: unknown, plan?: AgentPlan | null): value is StepResult {
   if (!object(value)) return false;
   const grep = value['grep'];
+  const search = value['search'];
+  if (
+    search != null &&
+    (!validSearch(search) ||
+      value['content'] !== '' ||
+      value['status'] !== 'completed' ||
+      value['read'] != null ||
+      value['fetch'] != null ||
+      grep != null ||
+      value['path'] !== null ||
+      value['offset'] !== null ||
+      value['returned_lines'] !== null ||
+      value['truncated'] !== false)
+  )
+    return false;
   if (grep != null) {
     if (
       typeof value['content'] !== 'string' ||
@@ -165,6 +228,22 @@ export function validResult(value: unknown, plan?: AgentPlan | null): value is S
   if (plan === undefined) return true;
   const step = plan?.steps.find((entry) => entry.id === value['step_id']);
   if (!step) return false;
+  if (step.tool === 'web_search') {
+    return (
+      value['read'] == null &&
+      value['fetch'] == null &&
+      grep == null &&
+      value['path'] == null &&
+      value['offset'] == null &&
+      value['returned_lines'] == null &&
+      value['truncated'] !== true &&
+      (value['status'] !== 'completed' || !!search) &&
+      (!search ||
+        (search.query === step.arguments.query &&
+          search.max_results === step.arguments.max_results))
+    );
+  }
+  if (search != null) return false;
   if (step.tool !== 'grep_in_folder') {
     return grep == null && validLegacyResult(value, { ...plan!, steps: [step] });
   }

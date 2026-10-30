@@ -24,10 +24,13 @@ from app.agent_schemas import Proposal
 if TYPE_CHECKING:
     from app.agent import PlanningInput
 
-INSTRUCTIONS_VERSION = "agent-responses-planning-v4"
+INSTRUCTIONS_VERSION = "agent-responses-planning-v5"
 INSTRUCTIONS = (
     INSTRUCTIONS_VERSION + ": Return a structured proposal with at least one tool step. "
-    "Propose only read_file, web_fetch and grep_in_folder using supplied tool descriptions. "
+    "Propose only available read_file, web_fetch, web_search and grep_in_folder using supplied "
+    "tool descriptions. "
+    "For web_search use an exact nonblank query and max_results 1..20; it returns snippets, "
+    "not fetched pages. Do not invent URLs for later fetches. "
     "Do not execute tools. Workspace IDs identify available workspaces, not filesystem paths. "
     "For read_file, use an exact supplied workspace ID and a workspace-relative path such as "
     "note.txt, never an absolute path or a workspace-ID prefix. Read offsets are one-based line "
@@ -133,6 +136,12 @@ def proposal_schema() -> dict:
             },
         }
     )
+    search = _object(
+        {
+            "query": {"type": "string", "minLength": 1},
+            "max_results": {"type": "integer", "minimum": 1, "maximum": 20},
+        }
+    )
     variants = [
         _object(
             {
@@ -142,7 +151,12 @@ def proposal_schema() -> dict:
                 "arguments": arguments,
             }
         )
-        for tool, arguments in (("read_file", read), ("web_fetch", fetch), ("grep_in_folder", grep))
+        for tool, arguments in (
+            ("read_file", read),
+            ("web_fetch", fetch),
+            ("web_search", search),
+            ("grep_in_folder", grep),
+        )
     ]
     return _object(
         {
@@ -174,7 +188,7 @@ def build_request(context: PlanningInput, max_output_tokens: int) -> CanonicalRe
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "agent_plan_v4",
+                    "name": "agent_plan_v5",
                     "strict": True,
                     "schema": proposal_schema(),
                 }

@@ -301,10 +301,10 @@ async def test_reported_read_paging_is_audited_without_repair_retry_or_execution
         fixture.files.read.assert_not_called()
         assert len(fixture.calls) == 1
         (records,) = audits(owner, sid)
-        assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v4"
+        assert records[0]["data"]["instructions_version"] == "agent-responses-planning-v5"
         wire = records[0]["data"]["request"]
         assert wire == json.loads(fixture.calls[0].content)
-        assert wire["text"]["format"]["name"] == "agent_plan_v4"
+        assert wire["text"]["format"]["name"] == "agent_plan_v5"
         assert json.loads(wire["input"][0]["content"])["workspace_ids"] == ["workspace"]
         assert not {"tools", "tool_choice"} & wire.keys()
         output = next(r["data"] for r in records if r["kind"] == "output")

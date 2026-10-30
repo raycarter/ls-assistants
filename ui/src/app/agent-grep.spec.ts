@@ -176,6 +176,7 @@ describe('production grep evidence contract', () => {
     };
     expect(validResult(result(), fetchPlan)).toBe(false);
     const short = plan();
+    if (short.steps[0].tool !== 'grep_in_folder') throw new Error('Expected grep');
     short.steps[0].arguments.limit = 1;
     expect(() => parse(result(), short)).toThrow('Invalid Agent');
   });
@@ -198,6 +199,7 @@ describe('production grep evidence contract', () => {
     resumed.grep!.offset = 4;
     resumed.grep!.next_offset = 6;
     const approved = plan();
+    if (approved.steps[0].tool !== 'grep_in_folder') throw new Error('Expected grep');
     approved.steps[0].arguments.offset = 4;
     expect(() => parse(resumed, approved)).not.toThrow();
   });

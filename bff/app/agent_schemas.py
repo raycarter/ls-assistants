@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Text = Annotated[str, Field(min_length=1)]
 Key = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
@@ -92,6 +92,18 @@ class FetchArguments(Strict):
     limit: Annotated[int, Field(ge=1, le=16000)] = 12000
 
 
+class SearchArguments(Strict):
+    query: Text
+    max_results: Annotated[int, Field(ge=1, le=20)]
+
+    @field_validator("query")
+    @classmethod
+    def nonblank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Query must not be blank")
+        return value
+
+
 class GrepArguments(Strict):
     workspace_id: Key
     path: Annotated[str, Field(min_length=1, max_length=500)] = "."
@@ -115,14 +127,15 @@ PlanLimits = LegacyPlanLimits
 class ProposedStep(Strict):
     title: Annotated[str, Field(min_length=1, max_length=200)]
     description: Text
-    tool: Literal["read_file", "web_fetch", "grep_in_folder"]
-    arguments: ReadArguments | FetchArguments | GrepArguments
+    tool: Literal["read_file", "web_fetch", "web_search", "grep_in_folder"]
+    arguments: ReadArguments | FetchArguments | SearchArguments | GrepArguments
 
     @model_validator(mode="after")
     def matching_arguments(self) -> Self:
         expected = {
             "read_file": ReadArguments,
             "web_fetch": FetchArguments,
+            "web_search": SearchArguments,
             "grep_in_folder": GrepArguments,
         }[self.tool]
         if not isinstance(self.arguments, expected):
@@ -245,6 +258,23 @@ class ReadCoverage(Strict):
         return self
 
 
+class SearchHit(Strict):
+    title: str
+    url: str
+    snippet: str
+    published_date: str | None
+
+
+class SearchMetadata(SearchArguments):
+    results: list[SearchHit]
+
+    @model_validator(mode="after")
+    def bounded(self) -> Self:
+        if len(self.results) > self.max_results:
+            raise ValueError("Too many search results")
+        return self
+
+
 class StepResult(Strict):
     step_id: Key
     status: Literal["running", "completed", "failed"]
@@ -258,9 +288,23 @@ class StepResult(Strict):
     fetch: FetchMetadata | None = None
     read: ReadCoverage | None = Field(default=None, exclude_if=lambda value: value is None)
     grep: GrepMetadata | None = Field(default=None, exclude_if=lambda value: value is None)
+    search: SearchMetadata | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def adaptive_metadata(self) -> Self:
+        if self.search is not None and (
+            self.status != "completed"
+            or self.content != ""
+            or self.error is not None
+            or self.fetch is not None
+            or self.read is not None
+            or self.grep is not None
+            or self.path is not None
+            or self.offset is not None
+            or self.returned_lines is not None
+            or self.truncated
+        ):
+            raise ValueError("Inconsistent search result")
         if self.grep is not None and (
             self.fetch is not None
             or self.read is not None
